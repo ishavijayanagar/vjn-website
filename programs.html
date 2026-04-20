@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Programs – The Centre</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">The Centre</a>
+      <ul class="nav-links">
+        <li><a href="programs.html" style="color:var(--gold)">Programs</a></li>
+        <li><a href="volunteering.html">Volunteering</a></li>
+      </ul>
+      <button class="nav-toggle" onclick="toggleMenu()">&#9776;</button>
+    </div>
+    <ul class="mobile-menu" id="mobileMenu">
+      <li><a href="programs.html">Programs</a></li>
+      <li><a href="volunteering.html">Volunteering</a></li>
+    </ul>
+  </nav>
+
+  <div class="page-header">
+    <span class="section-label">What We Offer</span>
+    <h1>Upcoming Programs</h1>
+    <p>Explore our workshops, retreats, and learning experiences designed to inspire and transform.</p>
+  </div>
+
+  <section class="listings-section">
+    <div class="container">
+      <div id="listings-container">
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading programs...</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h4 class="footer-logo">The Centre</h4>
+          <p>A place of growth, community, and transformation.</p>
+        </div>
+        <div>
+          <h5>Quick Links</h5>
+          <ul>
+            <li><a href="programs.html">Programs</a></li>
+            <li><a href="volunteering.html">Volunteering</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5>Contact</h5>
+          <p>contact@thecentre.org</p>
+          <p>Bangalore, India</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2025 The Centre. All Rights Reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script>
+    function toggleMenu() {
+      document.getElementById('mobileMenu').classList.toggle('open');
+    }
+
+    async function loadPrograms() {
+      const container = document.getElementById('listings-container');
+      try {
+        const res = await fetch(`${APPS_SCRIPT_URL}?type=programs`);
+        const data = await res.json();
+
+        if (!data.items || data.items.length === 0) {
+          container.innerHTML = `<div class="empty-state"><p>No programs currently scheduled. Check back soon!</p></div>`;
+          return;
+        }
+
+        const grid = document.createElement('div');
+        grid.className = 'listings-grid';
+
+        data.items.forEach(item => {
+          const card = document.createElement('a');
+          card.href = `detail.html?id=${item.id}&type=program`;
+          card.className = 'listing-card';
+          card.innerHTML = `
+            <div class="listing-card-image">
+              ${item.image
+                ? `<img src="${item.image}" alt="${item.title}" loading="lazy"/>`
+                : `<div style="height:100%;background:var(--cream-2);display:flex;align-items:center;justify-content:center;color:var(--text-light);font-size:2rem;">🌿</div>`}
+              <span class="card-type-badge">Program</span>
+            </div>
+            <div class="listing-card-body">
+              <div class="meta">${item.date || ''}</div>
+              <h3>${item.title}</h3>
+              <p>${item.description ? item.description.substring(0, 120) + '...' : ''}</p>
+              <div class="card-footer">
+                <span class="location">📍 ${item.location || 'The Centre'}</span>
+                <span class="arrow-link">View Details →</span>
+              </div>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+
+        container.innerHTML = '';
+        container.appendChild(grid);
+
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>Could not load programs. Please try again later.</p></div>`;
+        console.error(err);
+      }
+    }
+
+    loadPrograms();
+  </script>
+</body>
+</html>

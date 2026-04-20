@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>The Centre</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">The Centre</a>
+      <ul class="nav-links">
+        <li><a href="programs.html">Programs</a></li>
+        <li><a href="volunteering.html">Volunteering</a></li>
+      </ul>
+      <button class="nav-toggle" onclick="toggleMenu()">&#9776;</button>
+    </div>
+    <ul class="mobile-menu" id="mobileMenu">
+      <li><a href="programs.html">Programs</a></li>
+      <li><a href="volunteering.html">Volunteering</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <p class="hero-sub">Welcome to</p>
+      <h1 class="hero-title">The Centre</h1>
+      <p class="hero-tagline">A place of growth, community, and transformation</p>
+      <div class="hero-buttons">
+        <a href="programs.html" class="btn btn-primary">Explore Programs</a>
+        <a href="volunteering.html" class="btn btn-outline">Volunteer With Us</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTRO -->
+  <section class="intro">
+    <div class="container">
+      <div class="intro-grid">
+        <div class="intro-text">
+          <span class="section-label">About Us</span>
+          <h2>A Space for Inner Growth & Community</h2>
+          <p>We offer a variety of programs and volunteering opportunities to help individuals discover their potential, connect with their community, and contribute to a better world.</p>
+          <p>Whether you're here to learn, serve, or both — there is a place for you here.</p>
+        </div>
+        <div class="intro-cards">
+          <a href="programs.html" class="feature-card">
+            <div class="feature-icon">🌿</div>
+            <h3>Programs</h3>
+            <p>Explore our upcoming workshops, retreats, and courses</p>
+            <span class="card-link">View All Programs →</span>
+          </a>
+          <a href="volunteering.html" class="feature-card">
+            <div class="feature-icon">🤝</div>
+            <h3>Volunteering</h3>
+            <p>Give back and grow through meaningful service</p>
+            <span class="card-link">View Opportunities →</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUOTE BANNER -->
+  <section class="quote-banner">
+    <div class="container">
+      <blockquote>"The greatest contribution you can make is not with your money — it is with yourself."</blockquote>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h4 class="footer-logo">The Centre</h4>
+          <p>A place of growth, community, and transformation.</p>
+        </div>
+        <div>
+          <h5>Quick Links</h5>
+          <ul>
+            <li><a href="programs.html">Programs</a></li>
+            <li><a href="volunteering.html">Volunteering</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5>Contact</h5>
+          <p>contact@thecentre.org</p>
+          <p>Bangalore, India</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2025 The Centre. All Rights Reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function toggleMenu() {
+      const menu = document.getElementById('mobileMenu');
+      menu.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>
