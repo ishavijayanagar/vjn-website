@@ -3,120 +3,360 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Programs – The Centre</title>
+  <title>Programs</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
+  <style>
+    :root {
+      --dark: #1c1c1e; --dark-2: #2a2a2d; --gold: #c8a96e; --gold-light: #e0c88a;
+      --gold-dark: #a8893e; --cream: #f5f0e8; --cream-2: #ede8de; --white: #ffffff;
+      --text-mid: #555; --text-light: #888;
+      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-sans: 'Jost', sans-serif; --transition: 0.28s ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
+    a { text-decoration: none; color: inherit; }
+    ul { list-style: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* NAV */
+    .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--dark); border-bottom: 1px solid rgba(200,169,110,0.2); }
+    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; color: var(--gold); letter-spacing: 0.04em; line-height: 1.2; }
+    .logo span { display: block; font-size: 0.7rem; letter-spacing: 0.2em; font-weight: 300; text-transform: uppercase; color: rgba(200,169,110,0.7); font-family: var(--font-sans); }
+    .nav-links { display: flex; gap: 40px; }
+    .nav-links a { font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream); transition: color var(--transition); }
+    .nav-links a:hover, .nav-links a.active { color: var(--gold); }
+    .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
+    .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
+    .mobile-menu.open { display: block; }
+    .mobile-menu li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .mobile-menu a { color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* PAGE HEADER */
+    .page-header { background: var(--dark); padding: 110px 24px 56px; text-align: center; }
+    .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
+    .page-header h1 { font-family: var(--font-serif); font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 300; color: var(--white); margin-bottom: 12px; }
+    .page-header p { color: rgba(245,240,232,0.65); font-size: 0.95rem; max-width: 500px; margin: 0 auto; }
+
+    /* SEARCH BAR */
+    .search-bar-section { background: var(--white); padding: 28px 0; border-bottom: 1px solid var(--cream-2); }
+    .search-bar-inner { display: flex; gap: 12px; max-width: 540px; margin: 0 auto; }
+    .search-input {
+      flex: 1; padding: 12px 18px;
+      border: 1px solid var(--cream-2); border-radius: 3px;
+      font-family: var(--font-sans); font-size: 0.92rem; color: var(--dark);
+      background: var(--cream); outline: none; transition: border-color var(--transition);
+    }
+    .search-input:focus { border-color: var(--gold); background: var(--white); }
+    .search-btn {
+      padding: 12px 24px; background: var(--gold); color: var(--dark);
+      border: none; border-radius: 3px; cursor: pointer;
+      font-family: var(--font-sans); font-size: 0.8rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase; transition: background var(--transition);
+    }
+    .search-btn:hover { background: var(--gold-light); }
+
+    /* LISTINGS */
+    .listings-section { padding: 56px 0 96px; }
+    .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 28px; }
+
+    .listing-card {
+      background: var(--white); border-radius: 6px; overflow: hidden;
+      border: 1px solid var(--cream-2); box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      transition: all var(--transition); display: block;
+    }
+    .listing-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); border-color: var(--gold); }
+
+    .card-image {
+      height: 200px; overflow: hidden; background: var(--dark);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .card-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+    .listing-card:hover .card-image img { transform: scale(1.05); }
+    .card-image .no-img { font-size: 3rem; opacity: 0.4; }
+    .card-image .badge {
+      position: absolute; top: 14px; left: 14px;
+      background: var(--gold); color: var(--dark);
+      font-size: 0.66rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 4px 12px; border-radius: 20px;
+    }
+
+    .card-body { padding: 22px 26px 26px; }
+    .card-meta { font-size: 0.75rem; color: var(--gold-dark); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+    .card-body h3 { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; line-height: 1.3; }
+    .card-body p { font-size: 0.86rem; color: var(--text-mid); line-height: 1.65; margin-bottom: 18px; }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--cream-2); padding-top: 14px; }
+    .card-footer .loc { font-size: 0.76rem; color: var(--text-light); }
+    .card-footer .more { font-size: 0.76rem; color: var(--gold-dark); font-weight: 500; }
+
+    /* STATES */
+    .state-box { text-align: center; padding: 72px 24px; }
+    .state-box .icon { font-size: 2.8rem; margin-bottom: 16px; }
+    .state-box h3 { font-family: var(--font-serif); font-size: 1.6rem; margin-bottom: 10px; }
+    .state-box p { font-size: 0.9rem; color: var(--text-mid); max-width: 400px; margin: 0 auto 28px; }
+    .spinner { width: 32px; height: 32px; border: 2px solid var(--cream-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* LEAVE INTEREST MODAL */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(20,18,14,0.75); align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--white); border-radius: 8px; padding: 40px 36px;
+      max-width: 480px; width: 100%; position: relative;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+    }
+    .modal-close { position: absolute; top: 16px; right: 20px; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-light); }
+    .modal h3 { font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 6px; }
+    .modal .sub { font-size: 0.84rem; color: var(--text-light); margin-bottom: 28px; }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 7px; font-weight: 500; }
+    .form-group input, .form-group textarea {
+      width: 100%; padding: 11px 15px;
+      border: 1px solid var(--cream-2); border-radius: 3px;
+      background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
+      outline: none; transition: border-color var(--transition);
+    }
+    .form-group input:focus, .form-group textarea:focus { border-color: var(--gold); background: var(--white); }
+    .form-group textarea { height: 88px; resize: vertical; }
+    .submit-btn {
+      width: 100%; padding: 13px; background: var(--gold); color: var(--dark);
+      border: none; border-radius: 3px; font-family: var(--font-sans);
+      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+      cursor: pointer; transition: background var(--transition);
+    }
+    .submit-btn:hover { background: var(--gold-light); }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-err { background: #fff3f3; border: 1px solid #ffcccc; color: #c0392b; padding: 9px 13px; border-radius: 3px; font-size: 0.82rem; margin-bottom: 14px; display: none; }
+    .form-success-msg { text-align: center; padding: 24px 0; }
+    .form-success-msg .big { font-size: 2.4rem; margin-bottom: 12px; }
+    .form-success-msg h4 { font-family: var(--font-serif); font-size: 1.4rem; margin-bottom: 8px; }
+    .form-success-msg p { font-size: 0.86rem; color: var(--text-light); }
+
+    /* FOOTER */
+    .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(200,169,110,0.15); }
+    .footer p { font-size: 0.86rem; line-height: 1.9; }
+    .footer h5 { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
+    .footer ul li { margin-bottom: 8px; }
+    .footer ul a { font-size: 0.86rem; transition: color var(--transition); }
+    .footer ul a:hover { color: var(--gold-light); }
+    .footer-bottom { text-align: center; padding: 18px; font-size: 0.75rem; color: rgba(245,240,232,0.3); }
+
+    @media (max-width: 700px) {
+      .nav-links { display: none; } .nav-toggle { display: block; }
+      .listings-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+      .search-bar-inner { flex-direction: column; }
+    }
+  </style>
 </head>
 <body>
 
   <nav class="navbar">
     <div class="nav-inner">
-      <a href="index.html" class="logo">The Centre</a>
+      <a href="index.html" class="logo">Isha Place <span>Vijayanagar, Bengaluru</span></a>
       <ul class="nav-links">
-        <li><a href="programs.html" style="color:var(--gold)">Programs</a></li>
+        <li><a href="programs.html" class="active">Programs</a></li>
         <li><a href="volunteering.html">Volunteering</a></li>
       </ul>
-      <button class="nav-toggle" onclick="toggleMenu()">&#9776;</button>
+      <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
     </div>
-    <ul class="mobile-menu" id="mobileMenu">
+    <ul class="mobile-menu" id="mob">
       <li><a href="programs.html">Programs</a></li>
       <li><a href="volunteering.html">Volunteering</a></li>
     </ul>
   </nav>
 
   <div class="page-header">
-    <span class="section-label">What We Offer</span>
+    <span class="section-label">Isha Foundation</span>
     <h1>Upcoming Programs</h1>
-    <p>Explore our workshops, retreats, and learning experiences designed to inspire and transform.</p>
+    <p>Workshops, yoga sessions, and transformative experiences at your local Isha centre.</p>
+  </div>
+
+  <div class="search-bar-section">
+    <div class="container">
+      <div class="search-bar-inner">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search programs..." oninput="filterPrograms()"/>
+        <button class="search-btn">Search</button>
+      </div>
+    </div>
   </div>
 
   <section class="listings-section">
     <div class="container">
-      <div id="listings-container">
-        <div class="loading-state">
-          <div class="loading-spinner"></div>
+      <div id="listingsContainer">
+        <div class="state-box">
+          <div class="spinner"></div>
           <p>Loading programs...</p>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- Leave Interest Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <h3>Stay Informed</h3>
+      <p class="sub">Leave your contact and we'll notify you when new programs are scheduled.</p>
+      <div class="form-err" id="formErr">Please fill in all required fields.</div>
+      <div id="formBody">
+        <div class="form-group"><label>Full Name *</label><input type="text" id="fName" placeholder="Your name"/></div>
+        <div class="form-group"><label>WhatsApp Number *</label><input type="tel" id="fPhone" placeholder="+91 98765 43210"/></div>
+        <div class="form-group"><label>Area of Stay *</label><input type="text" id="fArea" placeholder="e.g. Rajajinagar, Malleswaram"/></div>
+        <div class="form-group"><label>Remarks</label><textarea id="fRemarks" placeholder="Any specific programs you're interested in..."></textarea></div>
+        <button class="submit-btn" id="submitBtn" onclick="submitInterest()">Submit</button>
+      </div>
+      <div class="form-success-msg" id="formSuccess" style="display:none">
+        <div class="big">🙏</div>
+        <h4>Thank you!</h4>
+        <p>We'll reach out to you on WhatsApp when new programs are announced.</p>
+      </div>
+    </div>
+  </div>
+
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
         <div>
-          <h4 class="footer-logo">The Centre</h4>
-          <p>A place of growth, community, and transformation.</p>
+          <h5>Address</h5>
+          <p>195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
         </div>
         <div>
-          <h5>Quick Links</h5>
-          <ul>
-            <li><a href="programs.html">Programs</a></li>
-            <li><a href="volunteering.html">Volunteering</a></li>
-          </ul>
+          <h5>Navigate</h5>
+          <ul><li><a href="programs.html">Programs</a></li><li><a href="volunteering.html">Volunteering</a></li></ul>
         </div>
         <div>
           <h5>Contact</h5>
-          <p>contact@thecentre.org</p>
-          <p>Bangalore, India</p>
+          <p>📞 +91 80957 63111</p><br/>
+          <h5>Hours</h5>
+          <p>Mon – Sun<br/>10:00 AM – 8:00 PM</p>
         </div>
       </div>
-      <div class="footer-bottom">
-        <p>© 2025 The Centre. All Rights Reserved.</p>
-      </div>
+      <div class="footer-bottom"><p>© 2026 Isha Foundation.</p></div>
     </div>
   </footer>
 
   <script src="config.js"></script>
   <script>
-    function toggleMenu() {
-      document.getElementById('mobileMenu').classList.toggle('open');
-    }
+    let allPrograms = [];
 
     async function loadPrograms() {
-      const container = document.getElementById('listings-container');
+      const container = document.getElementById('listingsContainer');
       try {
         const res = await fetch(`${APPS_SCRIPT_URL}?type=programs`);
         const data = await res.json();
+        allPrograms = data.items || [];
+        renderPrograms(allPrograms);
+      } catch (err) {
+        renderNoPrograms();
+      }
+    }
 
-        if (!data.items || data.items.length === 0) {
-          container.innerHTML = `<div class="empty-state"><p>No programs currently scheduled. Check back soon!</p></div>`;
-          return;
+    function renderPrograms(items) {
+      const container = document.getElementById('listingsContainer');
+      if (!items || items.length === 0) { renderNoPrograms(); return; }
+
+      const grid = document.createElement('div');
+      grid.className = 'listings-grid';
+
+      items.forEach(item => {
+        const card = document.createElement('a');
+        card.href = `detail.html?id=${item.id}&type=program`;
+        card.className = 'listing-card';
+
+        // Fix Google Drive image URLs
+        let imgHtml = `<div class="no-img">🌿</div>`;
+        if (item.image) {
+          const src = fixDriveUrl(item.image);
+          imgHtml = `<img src="${src}" alt="${item.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'no-img\\'>🌿</div>'"/>`;
         }
 
-        const grid = document.createElement('div');
-        grid.className = 'listings-grid';
+        card.innerHTML = `
+          <div class="card-image">
+            ${imgHtml}
+            <span class="badge">Program</span>
+          </div>
+          <div class="card-body">
+            <div class="card-meta">${item.date || ''}</div>
+            <h3>${item.title}</h3>
+            <p>${(item.description || '').substring(0, 110)}${item.description && item.description.length > 110 ? '...' : ''}</p>
+            <div class="card-footer">
+              <span class="loc">${item.location ? '📍 ' + item.location : ''}</span>
+              <span class="more">Details →</span>
+            </div>
+          </div>`;
+        grid.appendChild(card);
+      });
 
-        data.items.forEach(item => {
-          const card = document.createElement('a');
-          card.href = `detail.html?id=${item.id}&type=program`;
-          card.className = 'listing-card';
-          card.innerHTML = `
-            <div class="listing-card-image">
-              ${item.image
-                ? `<img src="${item.image}" alt="${item.title}" loading="lazy"/>`
-                : `<div style="height:100%;background:var(--cream-2);display:flex;align-items:center;justify-content:center;color:var(--text-light);font-size:2rem;">🌿</div>`}
-              <span class="card-type-badge">Program</span>
-            </div>
-            <div class="listing-card-body">
-              <div class="meta">${item.date || ''}</div>
-              <h3>${item.title}</h3>
-              <p>${item.description ? item.description.substring(0, 120) + '...' : ''}</p>
-              <div class="card-footer">
-                <span class="location">📍 ${item.location || 'The Centre'}</span>
-                <span class="arrow-link">View Details →</span>
-              </div>
-            </div>
-          `;
-          grid.appendChild(card);
+      container.innerHTML = '';
+      container.appendChild(grid);
+    }
+
+    function renderNoPrograms() {
+      document.getElementById('listingsContainer').innerHTML = `
+        <div class="state-box">
+          <div class="icon">🌿</div>
+          <h3>No Programs Scheduled</h3>
+          <p>There are no upcoming programs right now. Leave your contact and we'll notify you when new programs are announced.</p>
+          <button onclick="openModal()" style="display:inline-block;padding:13px 36px;background:var(--gold);color:var(--dark);border:none;border-radius:3px;font-family:var(--font-sans);font-size:0.8rem;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;cursor:pointer;">
+            Notify Me
+          </button>
+        </div>`;
+    }
+
+    function filterPrograms() {
+      const q = document.getElementById('searchInput').value.toLowerCase().trim();
+      if (!q) { renderPrograms(allPrograms); return; }
+      const filtered = allPrograms.filter(p =>
+        (p.title || '').toLowerCase().includes(q) ||
+        (p.description || '').toLowerCase().includes(q) ||
+        (p.date || '').toLowerCase().includes(q)
+      );
+      renderPrograms(filtered);
+    }
+
+    function fixDriveUrl(url) {
+      // Convert Drive share links to direct image URLs
+      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+      const ucMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
+      if (ucMatch) return `https://drive.google.com/uc?export=view&id=${ucMatch[1]}`;
+      return url;
+    }
+
+    function openModal() { document.getElementById('modalOverlay').classList.add('open'); }
+    function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+    async function submitInterest() {
+      const name = document.getElementById('fName').value.trim();
+      const phone = document.getElementById('fPhone').value.trim();
+      const area = document.getElementById('fArea').value.trim();
+      const remarks = document.getElementById('fRemarks').value.trim();
+      const err = document.getElementById('formErr');
+      const btn = document.getElementById('submitBtn');
+
+      err.style.display = 'none';
+      if (!name || !phone || !area) { err.style.display = 'block'; return; }
+
+      btn.disabled = true; btn.textContent = 'Submitting...';
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'contact', name, phone, area, remarks, itemTitle: 'General Program Interest', itemType: 'Program', timestamp: new Date().toISOString() })
         });
-
-        container.innerHTML = '';
-        container.appendChild(grid);
-
-      } catch (err) {
-        container.innerHTML = `<div class="empty-state"><p>Could not load programs. Please try again later.</p></div>`;
-        console.error(err);
+        document.getElementById('formBody').style.display = 'none';
+        document.getElementById('formSuccess').style.display = 'block';
+      } catch (e) {
+        err.textContent = 'Something went wrong. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Submit';
       }
     }
 

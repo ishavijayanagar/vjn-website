@@ -3,23 +3,200 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>The Centre</title>
+  <title>Home – Isha Foundation</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
+  <style>
+    :root {
+      --dark: #1c1c1e;
+      --dark-2: #2a2a2d;
+      --gold: #c8a96e;
+      --gold-light: #e0c88a;
+      --gold-dark: #a8893e;
+      --cream: #f5f0e8;
+      --cream-2: #ede8de;
+      --white: #ffffff;
+      --text-mid: #555;
+      --text-light: #888;
+      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-sans: 'Jost', sans-serif;
+      --transition: 0.28s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
+    a { text-decoration: none; color: inherit; }
+    ul { list-style: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* NAV */
+    .navbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: var(--dark);
+      border-bottom: 1px solid rgba(200,169,110,0.2);
+    }
+    .nav-inner {
+      max-width: 1100px; margin: 0 auto; padding: 0 24px;
+      height: 64px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo {
+      font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600;
+      color: var(--gold); letter-spacing: 0.04em; line-height: 1.2;
+    }
+    .logo span { display: block; font-size: 0.7rem; letter-spacing: 0.2em; font-weight: 300; text-transform: uppercase; color: rgba(200,169,110,0.7); font-family: var(--font-sans); }
+    .nav-links { display: flex; gap: 40px; }
+    .nav-links a {
+      font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--cream); transition: color var(--transition);
+    }
+    .nav-links a:hover { color: var(--gold); }
+    .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
+    .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
+    .mobile-menu.open { display: block; }
+    .mobile-menu li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .mobile-menu a { color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* HERO */
+    .hero {
+      position: relative; height: 100vh; min-height: 600px;
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      background: var(--dark);
+      overflow: hidden;
+    }
+    /* CSS gradient background as fallback — no external image dependency */
+    .hero-bg {
+      position: absolute; inset: 0;
+      background: 
+        radial-gradient(ellipse at 20% 50%, rgba(200,169,110,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(200,169,110,0.08) 0%, transparent 50%),
+        linear-gradient(160deg, #1a1410 0%, #1c1c1e 40%, #12100e 100%);
+    }
+    /* Decorative geometric pattern */
+    .hero-pattern {
+      position: absolute; inset: 0; opacity: 0.04;
+      background-image: 
+        repeating-linear-gradient(45deg, var(--gold) 0, var(--gold) 1px, transparent 0, transparent 50%);
+      background-size: 40px 40px;
+    }
+    .hero-glow {
+      position: absolute; bottom: -100px; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(200,169,110,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-content { position: relative; z-index: 1; padding: 24px; max-width: 760px; }
+    .hero-eyebrow {
+      display: inline-block;
+      font-size: 0.72rem; letter-spacing: 0.35em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 48px;
+      border-top: 1px solid rgba(200,169,110,0.4);
+      border-bottom: 1px solid rgba(200,169,110,0.4);
+      padding: 6px 20px;
+    }
+    /* Sadhguru quote */
+    .hero-quote {
+      font-family: var(--font-serif); font-size: clamp(1.05rem, 2.5vw, 1.4rem);
+      font-style: italic; font-weight: 300;
+      color: rgba(245,240,232,0.82); line-height: 1.6;
+      max-width: 620px; margin: 0 auto 12px;
+      border-left: 2px solid var(--gold);
+      padding-left: 20px; text-align: left;
+    }
+    .hero-quote-attr {
+      text-align: left; padding-left: 20px;
+      font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--gold-dark); margin-bottom: 48px;
+    }
+    .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-block; padding: 13px 36px;
+      font-family: var(--font-sans); font-size: 0.8rem; font-weight: 500;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      border-radius: 3px; transition: all var(--transition); cursor: pointer;
+    }
+    .btn-gold { background: var(--gold); color: var(--dark); }
+    .btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); }
+    .btn-outline { border: 1px solid rgba(200,169,110,0.6); color: var(--gold); background: transparent; }
+    .btn-outline:hover { background: rgba(200,169,110,0.1); border-color: var(--gold); }
+
+    /* ABOUT STRIP */
+    .about-strip {
+      background: var(--white); padding: 72px 0;
+      border-bottom: 1px solid var(--cream-2);
+    }
+    .about-inner { text-align: center; max-width: 700px; margin: 0 auto; }
+    .section-label {
+      display: block; font-size: 0.7rem; letter-spacing: 0.28em;
+      text-transform: uppercase; color: var(--gold-dark); margin-bottom: 16px; font-weight: 500;
+    }
+    .about-inner h2 {
+      font-family: var(--font-serif); font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 400; margin-bottom: 20px; line-height: 1.25;
+    }
+    .about-inner p { color: var(--text-mid); font-size: 0.97rem; }
+
+    /* EXPLORE CARDS */
+    .explore { padding: 80px 0; background: var(--cream); }
+    .explore-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 48px; }
+    .explore-card {
+      background: var(--white); border: 1px solid var(--cream-2);
+      border-radius: 6px; overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      transition: all var(--transition); display: block;
+    }
+    .explore-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); border-color: var(--gold); }
+    .explore-card-img {
+      height: 200px; background: var(--dark);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3.5rem; position: relative; overflow: hidden;
+    }
+    .explore-card-img::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(28,28,30,0.5) 0%, transparent 60%);
+    }
+    .explore-card-body { padding: 28px 32px 32px; }
+    .explore-card-body h3 { font-family: var(--font-serif); font-size: 1.6rem; font-weight: 600; margin-bottom: 10px; }
+    .explore-card-body p { font-size: 0.88rem; color: var(--text-mid); margin-bottom: 24px; line-height: 1.7; }
+    .card-cta { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-dark); font-weight: 500; }
+    .explore-card:hover .card-cta { color: var(--gold); }
+
+    /* FOOTER */
+    .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(200,169,110,0.15); }
+    .footer p { font-size: 0.86rem; line-height: 1.9; }
+    .footer h5 { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; font-weight: 500; }
+    .footer ul li { margin-bottom: 8px; }
+    .footer ul a { font-size: 0.86rem; transition: color var(--transition); }
+    .footer ul a:hover { color: var(--gold-light); }
+    .footer-bottom { text-align: center; padding: 18px; font-size: 0.75rem; color: rgba(245,240,232,0.3); }
+
+    /* RESPONSIVE */
+    @media (max-width: 700px) {
+      .nav-links { display: none; }
+      .nav-toggle { display: block; }
+      .explore-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+      .hero-buttons { flex-direction: column; align-items: center; }
+      .hero-quote { font-size: 1rem; }
+    }
+  </style>
 </head>
 <body>
 
   <!-- NAV -->
   <nav class="navbar">
     <div class="nav-inner">
-      <a href="index.html" class="logo">The Centre</a>
+      <a href="index.html" class="logo">
+        Isha Place
+        <span>Vijayanagar, Bengaluru</span>
+      </a>
       <ul class="nav-links">
         <li><a href="programs.html">Programs</a></li>
         <li><a href="volunteering.html">Volunteering</a></li>
       </ul>
-      <button class="nav-toggle" onclick="toggleMenu()">&#9776;</button>
+      <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
     </div>
-    <ul class="mobile-menu" id="mobileMenu">
+    <ul class="mobile-menu" id="mob">
       <li><a href="programs.html">Programs</a></li>
       <li><a href="volunteering.html">Volunteering</a></li>
     </ul>
@@ -27,50 +204,55 @@
 
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-overlay"></div>
+    <div class="hero-bg"></div>
+    <div class="hero-pattern"></div>
+    <div class="hero-glow"></div>
     <div class="hero-content">
-      <p class="hero-sub">Welcome to</p>
-      <h1 class="hero-title">The Centre</h1>
-      <p class="hero-tagline">A place of growth, community, and transformation</p>
+      <span class="hero-eyebrow">Isha Foundation</span>
+      <blockquote class="hero-quote">
+        "The most beautiful moments in life are moments when you are expressing your joy, not when you are seeking it."
+      </blockquote>
+      <p class="hero-quote-attr">— Sadhguru</p>
       <div class="hero-buttons">
-        <a href="programs.html" class="btn btn-primary">Explore Programs</a>
-        <a href="volunteering.html" class="btn btn-outline">Volunteer With Us</a>
+        <a href="programs.html" class="btn btn-gold">Explore Programs</a>
+        <a href="volunteering.html" class="btn btn-outline">Volunteering Opportunities</a>
       </div>
     </div>
   </section>
 
-  <!-- INTRO -->
-  <section class="intro">
+  <!-- ABOUT -->
+  <section class="about-strip">
     <div class="container">
-      <div class="intro-grid">
-        <div class="intro-text">
-          <span class="section-label">About Us</span>
-          <h2>A Space for Inner Growth & Community</h2>
-          <p>We offer a variety of programs and volunteering opportunities to help individuals discover their potential, connect with their community, and contribute to a better world.</p>
-          <p>Whether you're here to learn, serve, or both — there is a place for you here.</p>
-        </div>
-        <div class="intro-cards">
-          <a href="programs.html" class="feature-card">
-            <div class="feature-icon">🌿</div>
-            <h3>Programs</h3>
-            <p>Explore our upcoming workshops, retreats, and courses</p>
-            <span class="card-link">View All Programs →</span>
-          </a>
-          <a href="volunteering.html" class="feature-card">
-            <div class="feature-icon">🤝</div>
-            <h3>Volunteering</h3>
-            <p>Give back and grow through meaningful service</p>
-            <span class="card-link">View Opportunities →</span>
-          </a>
-        </div>
+      <div class="about-inner">
+        <span class="section-label">About This Centre</span>
+        <h2>A Space for Inner Wellbeing</h2>
+        <p>A local Isha Foundation centre offering yoga, meditation, and inner wellbeing programs. Whether you are a beginner or a seasoned practitioner, this is a space for you to grow, transform, and contribute.</p>
       </div>
     </div>
   </section>
 
-  <!-- QUOTE BANNER -->
-  <section class="quote-banner">
+  <!-- EXPLORE -->
+  <section class="explore">
     <div class="container">
-      <blockquote>"The greatest contribution you can make is not with your money — it is with yourself."</blockquote>
+      <span class="section-label" style="text-align:center;display:block">What We Offer</span>
+      <div class="explore-grid">
+        <a href="programs.html" class="explore-card">
+          <div class="explore-card-img">🌿</div>
+          <div class="explore-card-body">
+            <h3>Upcoming Programs</h3>
+            <p>Explore our upcoming yoga sessions, inner engineering programs, meditation workshops, and more — designed to help you discover your highest potential.</p>
+            <span class="card-cta">View All Programs →</span>
+          </div>
+        </a>
+        <a href="volunteering.html" class="explore-card">
+          <div class="explore-card-img">🤝</div>
+          <div class="explore-card-body">
+            <h3>Volunteering Opportunities</h3>
+            <p>Volunteering is a powerful way of giving. Be part of the Isha volunteer community and contribute your time, energy, and skills to something larger than yourself.</p>
+            <span class="card-cta">View Opportunities →</span>
+          </div>
+        </a>
+      </div>
     </div>
   </section>
 
@@ -79,11 +261,11 @@
     <div class="container">
       <div class="footer-grid">
         <div>
-          <h4 class="footer-logo">The Centre</h4>
-          <p>A place of growth, community, and transformation.</p>
+          <h5>Address</h5>
+          <p>195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
         </div>
         <div>
-          <h5>Quick Links</h5>
+          <h5>Navigate</h5>
           <ul>
             <li><a href="programs.html">Programs</a></li>
             <li><a href="volunteering.html">Volunteering</a></li>
@@ -91,21 +273,17 @@
         </div>
         <div>
           <h5>Contact</h5>
-          <p>contact@thecentre.org</p>
-          <p>Bangalore, India</p>
+          <p>📞 +91 80957 63111</p>
+          <br/>
+          <h5>Hours</h5>
+          <p>Mon – Sun<br/>10:00 AM – 8:00 PM</p>
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© 2025 The Centre. All Rights Reserved.</p>
+        <p>© 2026 Isha Foundation.</p>
       </div>
     </div>
   </footer>
 
-  <script>
-    function toggleMenu() {
-      const menu = document.getElementById('mobileMenu');
-      menu.classList.toggle('open');
-    }
-  </script>
 </body>
 </html>

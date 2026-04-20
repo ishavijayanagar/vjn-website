@@ -3,22 +3,92 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Volunteering – The Centre</title>
+  <title>Volunteering</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
+  <style>
+    :root {
+      --dark: #1c1c1e; --dark-2: #2a2a2d; --gold: #c8a96e; --gold-light: #e0c88a;
+      --gold-dark: #a8893e; --cream: #f5f0e8; --cream-2: #ede8de; --white: #ffffff;
+      --text-mid: #555; --text-light: #888;
+      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-sans: 'Jost', sans-serif; --transition: 0.28s ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
+    a { text-decoration: none; color: inherit; } ul { list-style: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--dark); border-bottom: 1px solid rgba(200,169,110,0.2); }
+    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; color: var(--gold); letter-spacing: 0.04em; line-height: 1.2; }
+    .logo span { display: block; font-size: 0.7rem; letter-spacing: 0.2em; font-weight: 300; text-transform: uppercase; color: rgba(200,169,110,0.7); font-family: var(--font-sans); }
+    .nav-links { display: flex; gap: 40px; }
+    .nav-links a { font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream); transition: color var(--transition); }
+    .nav-links a:hover, .nav-links a.active { color: var(--gold); }
+    .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
+    .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
+    .mobile-menu.open { display: block; }
+    .mobile-menu li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .mobile-menu a { color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .page-header { background: var(--dark); padding: 110px 24px 56px; text-align: center; }
+    .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
+    .page-header h1 { font-family: var(--font-serif); font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 300; color: var(--white); margin-bottom: 12px; }
+    .page-header p { color: rgba(245,240,232,0.65); font-size: 0.95rem; max-width: 500px; margin: 0 auto; }
+
+    .listings-section { padding: 56px 0 96px; }
+    .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 28px; }
+
+    .listing-card { background: var(--white); border-radius: 6px; overflow: hidden; border: 1px solid var(--cream-2); box-shadow: 0 4px 20px rgba(0,0,0,0.06); transition: all var(--transition); display: block; }
+    .listing-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); border-color: var(--gold); }
+    .card-image { height: 200px; overflow: hidden; background: var(--dark); display: flex; align-items: center; justify-content: center; position: relative; }
+    .card-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+    .listing-card:hover .card-image img { transform: scale(1.05); }
+    .card-image .no-img { font-size: 3rem; opacity: 0.4; }
+    .card-image .badge { position: absolute; top: 14px; left: 14px; background: var(--gold); color: var(--dark); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; }
+    .card-body { padding: 22px 26px 26px; }
+    .card-meta { font-size: 0.75rem; color: var(--gold-dark); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+    .card-body h3 { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; line-height: 1.3; }
+    .card-body p { font-size: 0.86rem; color: var(--text-mid); line-height: 1.65; margin-bottom: 18px; }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--cream-2); padding-top: 14px; }
+    .card-footer .loc { font-size: 0.76rem; color: var(--text-light); }
+    .card-footer .more { font-size: 0.76rem; color: var(--gold-dark); font-weight: 500; }
+
+    .state-box { text-align: center; padding: 72px 24px; }
+    .state-box .icon { font-size: 2.8rem; margin-bottom: 16px; }
+    .state-box h3 { font-family: var(--font-serif); font-size: 1.6rem; margin-bottom: 10px; }
+    .state-box p { font-size: 0.9rem; color: var(--text-mid); max-width: 400px; margin: 0 auto; }
+    .spinner { width: 32px; height: 32px; border: 2px solid var(--cream-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(200,169,110,0.15); }
+    .footer p { font-size: 0.86rem; line-height: 1.9; }
+    .footer h5 { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
+    .footer ul li { margin-bottom: 8px; }
+    .footer ul a { font-size: 0.86rem; transition: color var(--transition); }
+    .footer ul a:hover { color: var(--gold-light); }
+    .footer-bottom { text-align: center; padding: 18px; font-size: 0.75rem; color: rgba(245,240,232,0.3); }
+
+    @media (max-width: 700px) {
+      .nav-links { display: none; } .nav-toggle { display: block; }
+      .listings-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+    }
+  </style>
 </head>
 <body>
 
   <nav class="navbar">
     <div class="nav-inner">
-      <a href="index.html" class="logo">The Centre</a>
+      <a href="index.html" class="logo">Isha Place <span>Vijayanagar, Bengaluru</span></a>
       <ul class="nav-links">
         <li><a href="programs.html">Programs</a></li>
-        <li><a href="volunteering.html" style="color:var(--gold)">Volunteering</a></li>
+        <li><a href="volunteering.html" class="active">Volunteering</a></li>
       </ul>
-      <button class="nav-toggle" onclick="toggleMenu()">&#9776;</button>
+      <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
     </div>
-    <ul class="mobile-menu" id="mobileMenu">
+    <ul class="mobile-menu" id="mob">
       <li><a href="programs.html">Programs</a></li>
       <li><a href="volunteering.html">Volunteering</a></li>
     </ul>
@@ -27,23 +97,17 @@
   <div class="page-header">
     <span class="section-label">Give Back</span>
     <h1>Volunteering Opportunities</h1>
-    <p>Be part of something meaningful. Explore ways to contribute your time, skills, and energy.</p>
+    <p>Be part of the Isha volunteer community. Contribute your time, energy, and skills.</p>
   </div>
 
   <section class="listings-section">
     <div class="container">
-      <div id="listings-container">
-        <div class="loading-state">
-          <div class="loading-spinner"></div>
+      <div id="listingsContainer">
+        <div class="state-box">
+          <div class="spinner"></div>
           <p>Loading opportunities...</p>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section class="quote-banner">
-    <div class="container">
-      <blockquote>"Volunteering is not charity. It is an investment in people and in community."</blockquote>
     </div>
   </section>
 
@@ -51,78 +115,78 @@
     <div class="container">
       <div class="footer-grid">
         <div>
-          <h4 class="footer-logo">The Centre</h4>
-          <p>A place of growth, community, and transformation.</p>
+          <h5>Address</h5>
+          <p>195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
         </div>
         <div>
-          <h5>Quick Links</h5>
-          <ul>
-            <li><a href="programs.html">Programs</a></li>
-            <li><a href="volunteering.html">Volunteering</a></li>
-          </ul>
+          <h5>Navigate</h5>
+          <ul><li><a href="programs.html">Programs</a></li><li><a href="volunteering.html">Volunteering</a></li></ul>
         </div>
         <div>
           <h5>Contact</h5>
-          <p>contact@thecentre.org</p>
-          <p>Bangalore, India</p>
+          <p>📞 +91 80957 63111</p><br/>
+          <h5>Hours</h5>
+          <p>Mon – Sun<br/>10:00 AM – 8:00 PM</p>
         </div>
       </div>
-      <div class="footer-bottom">
-        <p>© 2025 The Centre. All Rights Reserved.</p>
-      </div>
+      <div class="footer-bottom"><p>© 2026 Isha Foundation.</p></div>
     </div>
   </footer>
 
   <script src="config.js"></script>
   <script>
-    function toggleMenu() {
-      document.getElementById('mobileMenu').classList.toggle('open');
+    function fixDriveUrl(url) {
+      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+      const ucMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
+      if (ucMatch) return `https://drive.google.com/uc?export=view&id=${ucMatch[1]}`;
+      return url;
     }
 
     async function loadVolunteering() {
-      const container = document.getElementById('listings-container');
+      const container = document.getElementById('listingsContainer');
       try {
         const res = await fetch(`${APPS_SCRIPT_URL}?type=volunteering`);
         const data = await res.json();
+        const items = data.items || [];
 
-        if (!data.items || data.items.length === 0) {
-          container.innerHTML = `<div class="empty-state"><p>No volunteering opportunities listed right now. Check back soon!</p></div>`;
+        if (!items.length) {
+          container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>No Opportunities Listed</h3><p>Check back soon for new volunteering opportunities.</p></div>`;
           return;
         }
 
         const grid = document.createElement('div');
         grid.className = 'listings-grid';
 
-        data.items.forEach(item => {
+        items.forEach(item => {
           const card = document.createElement('a');
           card.href = `detail.html?id=${item.id}&type=volunteering`;
           card.className = 'listing-card';
+
+          let imgHtml = `<div class="no-img">🤝</div>`;
+          if (item.image) {
+            const src = fixDriveUrl(item.image);
+            imgHtml = `<img src="${src}" alt="${item.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'no-img\\'>🤝</div>'"/>`;
+          }
+
           card.innerHTML = `
-            <div class="listing-card-image">
-              ${item.image
-                ? `<img src="${item.image}" alt="${item.title}" loading="lazy"/>`
-                : `<div style="height:100%;background:var(--cream-2);display:flex;align-items:center;justify-content:center;color:var(--text-light);font-size:2rem;">🤝</div>`}
-              <span class="card-type-badge">Volunteer</span>
-            </div>
-            <div class="listing-card-body">
-              <div class="meta">${item.date || 'Ongoing'}</div>
+            <div class="card-image">${imgHtml}<span class="badge">Volunteer</span></div>
+            <div class="card-body">
+              <div class="card-meta">${item.date || 'Ongoing'}</div>
               <h3>${item.title}</h3>
-              <p>${item.description ? item.description.substring(0, 120) + '...' : ''}</p>
+              <p>${(item.description || '').substring(0, 110)}${item.description && item.description.length > 110 ? '...' : ''}</p>
               <div class="card-footer">
-                <span class="location">📍 ${item.location || 'The Centre'}</span>
-                <span class="arrow-link">View Details →</span>
+                <span class="loc">${item.location ? '📍 ' + item.location : ''}</span>
+                <span class="more">Details →</span>
               </div>
-            </div>
-          `;
+            </div>`;
           grid.appendChild(card);
         });
 
         container.innerHTML = '';
         container.appendChild(grid);
-
       } catch (err) {
-        container.innerHTML = `<div class="empty-state"><p>Could not load opportunities. Please try again later.</p></div>`;
-        console.error(err);
+        container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>Could not load</h3><p>Please try again later.</p></div>`;
       }
     }
 

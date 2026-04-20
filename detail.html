@@ -178,10 +178,12 @@
         `;
 
         // Show register button for programs if link exists
-        if (itemType === 'program' && data.item.registerLink) {
+        // Sheet header is registerlink; Apps Script lowercases keys
+        const registerUrl = data.item.registerlink || data.item.registerLink;
+        if (itemType === 'program' && registerUrl) {
           const regBlock = document.getElementById('register-block');
           const regLink = document.getElementById('register-link');
-          regLink.href = data.item.registerLink;
+          regLink.href = registerUrl;
           regBlock.style.display = 'block';
         }
 
