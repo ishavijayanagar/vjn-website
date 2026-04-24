@@ -2,16 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Details – The Centre</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+  <title>Details – Isha Place, Vijayanagar</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
-<body>
+<body class="detail-page">
 
   <nav class="navbar">
     <div class="nav-inner">
-      <a href="index.html" class="logo">The Centre</a>
+      <a href="index.html" class="logo">
+        <img src="assets/logo.png" alt="Isha Foundation"/>
+        <span class="sr-only">Home</span>
+      </a>
       <ul class="nav-links">
         <li><a href="programs.html">Programs</a></li>
         <li><a href="volunteering.html">Volunteering</a></li>
@@ -19,16 +22,11 @@
       <button class="nav-toggle" onclick="toggleMenu()">&#9776;</button>
     </div>
     <ul class="mobile-menu" id="mobileMenu">
+      <li><a href="index.html">Home</a></li>
       <li><a href="programs.html">Programs</a></li>
       <li><a href="volunteering.html">Volunteering</a></li>
     </ul>
   </nav>
-
-  <!-- PAGE HEADER (dynamic title) -->
-  <div class="page-header" id="pageHeader">
-    <span class="section-label" id="headerLabel">Loading...</span>
-    <h1 id="headerTitle">Please wait</h1>
-  </div>
 
   <section class="detail-section">
     <div class="container">
@@ -47,13 +45,7 @@
         </div>
 
         <!-- RIGHT: Form -->
-        <div>
-          <!-- Register button block (programs only, if link exists) -->
-          <div class="register-block" id="register-block" style="display:none">
-            <p>Ready to join? Complete your registration on our partner platform.</p>
-            <a href="#" id="register-link" target="_blank" class="btn btn-primary">Register Now →</a>
-          </div>
-
+        <div class="detail-sidebar">
           <!-- Contact Form -->
           <div class="contact-form-card">
             <h3>Express Interest</h3>
@@ -68,15 +60,11 @@
               </div>
               <div class="form-group">
                 <label>WhatsApp Number *</label>
-                <input type="tel" id="fieldPhone" placeholder="+91 98765 43210"/>
+                <input type="text" id="fieldPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only"/>
               </div>
               <div class="form-group">
                 <label>Area of Stay *</label>
                 <input type="text" id="fieldArea" placeholder="e.g. Jayanagar, Koramangala"/>
-              </div>
-              <div class="form-group">
-                <label>Remarks</label>
-                <textarea id="fieldRemarks" placeholder="Any questions or additional information..."></textarea>
               </div>
               <button class="submit-btn" id="submitBtn" onclick="submitForm()">Submit Interest</button>
             </div>
@@ -84,7 +72,7 @@
             <div class="form-success" id="formSuccess" style="display:none">
               <div class="success-icon">🙏</div>
               <h4>Thank you!</h4>
-              <p>We've received your interest and will reach out to you on WhatsApp shortly.</p>
+              <p>We've received your interest and will get in touch with you shortly.</p>
             </div>
           </div>
         </div>
@@ -97,8 +85,7 @@
     <div class="container">
       <div class="footer-grid">
         <div>
-          <h4 class="footer-logo">The Centre</h4>
-          <p>A place of growth, community, and transformation.</p>
+          <h4 class="footer-logo">Isha Place, Vijayanagar</h4>
         </div>
         <div>
           <h5>Quick Links</h5>
@@ -109,20 +96,45 @@
         </div>
         <div>
           <h5>Contact</h5>
-          <p>contact@thecentre.org</p>
+          <p>ishaplacevjn@gmail.com</p>
           <p>Bangalore, India</p>
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© 2025 The Centre. All Rights Reserved.</p>
+        <p>© 2025 Isha Place, Vijayanagar. All Rights Reserved.</p>
       </div>
     </div>
   </footer>
 
+  <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script>
     function toggleMenu() {
       document.getElementById('mobileMenu').classList.toggle('open');
+    }
+
+    function escapeHtmlAttr(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function fixDriveUrl(url) {
+      if (!url || typeof url !== 'string') return url;
+      const u = url.trim();
+      if (/^https:\/\/lh\d*\.googleusercontent\.com\//i.test(u)) return u;
+      if (/thumbnail\?.*\bid=/.test(u)) return u;
+      const match = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`;
+      const ucMatch = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (ucMatch) return `https://drive.google.com/thumbnail?id=${ucMatch[1]}&sz=w1200`;
+      return u;
     }
 
     // Parse URL params
@@ -157,35 +169,41 @@
 
         currentItem = data.item;
 
-        // Update page header
-        document.getElementById('headerLabel').textContent = itemType === 'program' ? 'Program Details' : 'Volunteering Opportunity';
-        document.getElementById('headerTitle').textContent = data.item.title;
-        document.title = `${data.item.title} – The Centre`;
+        document.title = `${data.item.title} – Isha Place, Vijayanagar`;
+
+        const registerUrl = data.item.registerlink || data.item.registerLink;
+        const registerSection =
+          itemType === 'program' && registerUrl
+            ? `<div class="detail-register"><a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-register">Register for this program</a></div>`
+            : '';
+
+        const timingsRaw = data.item.timings && String(data.item.timings).trim();
+        const timingsHtml = timingsRaw
+          ? `<span class="detail-meta-timings" data-icon="🕐">${escapeHtml(timingsRaw)}</span>`
+          : '';
+        const dateHtml = data.item.date
+          ? `<span data-icon="📅">${escapeHtml(data.item.date)}</span>`
+          : '';
+        const datetimeBlock =
+          dateHtml || timingsHtml
+            ? `<div class="detail-meta-datetime">${dateHtml}${timingsHtml}</div>`
+            : '';
 
         // Build detail content
         const content = document.getElementById('detail-content');
         content.innerHTML = `
           ${data.item.image
-            ? `<div class="detail-image"><img src="${data.item.image}" alt="${data.item.title}"/></div>`
+            ? `<div class="detail-image"><img src="${fixDriveUrl(data.item.image)}" alt="${data.item.title}"/></div>`
             : ''}
           <div class="detail-meta">
-            ${data.item.date ? `<span data-icon="📅">${data.item.date}</span>` : ''}
-            ${data.item.location ? `<span data-icon="📍">${data.item.location}</span>` : ''}
-            ${data.item.duration ? `<span data-icon="⏱">${data.item.duration}</span>` : ''}
+            ${datetimeBlock}
+            ${data.item.location ? `<span data-icon="📍">${escapeHtml(data.item.location)}</span>` : ''}
+            ${data.item.duration ? `<span data-icon="⏱">${escapeHtml(data.item.duration)}</span>` : ''}
           </div>
           <h2>${data.item.title}</h2>
           <div class="description">${data.item.description || ''}</div>
+          ${registerSection}
         `;
-
-        // Show register button for programs if link exists
-        // Sheet header is registerlink; Apps Script lowercases keys
-        const registerUrl = data.item.registerlink || data.item.registerLink;
-        if (itemType === 'program' && registerUrl) {
-          const regBlock = document.getElementById('register-block');
-          const regLink = document.getElementById('register-link');
-          regLink.href = registerUrl;
-          regBlock.style.display = 'block';
-        }
 
         loading.style.display = 'none';
         layout.style.display = 'grid';
@@ -198,34 +216,49 @@
 
     async function submitForm() {
       const name = document.getElementById('fieldName').value.trim();
-      const phone = document.getElementById('fieldPhone').value.trim();
       const area = document.getElementById('fieldArea').value.trim();
-      const remarks = document.getElementById('fieldRemarks').value.trim();
       const errEl = document.getElementById('formError');
       const btn = document.getElementById('submitBtn');
 
       errEl.style.display = 'none';
 
-      if (!name || !phone || !area) {
+      if (!name || !area) {
         errEl.textContent = 'Please fill in all required fields.';
         errEl.style.display = 'block';
         return;
       }
+      const phoneCheck = validateWhatsAppNumber(document.getElementById('fieldPhone').value);
+      if (!phoneCheck.ok) {
+        errEl.textContent = phoneCheck.message;
+        errEl.style.display = 'block';
+        return;
+      }
+      const phone = phoneCheck.normalized;
 
       btn.disabled = true;
       btn.textContent = 'Submitting...';
 
       try {
-        const payload = {
-          action: 'contact',
-          name,
-          phone,
-          area,
-          remarks,
-          itemTitle: currentItem ? currentItem.title : '',
-          itemType: itemType === 'program' ? 'Program' : 'Volunteering',
-          timestamp: new Date().toISOString()
-        };
+        const payload =
+          itemType === 'program'
+            ? {
+                formType: 'programInterest',
+                name,
+                phone,
+                area,
+                programName: currentItem ? currentItem.title : '',
+                programId: currentItem ? currentItem.id : '',
+                timestamp: new Date().toISOString()
+              }
+            : {
+                formType: 'volunteeringInterest',
+                name,
+                phone,
+                area,
+                opportunityName: currentItem ? currentItem.title : '',
+                opportunityId: currentItem ? currentItem.id : '',
+                timestamp: new Date().toISOString()
+              };
 
         await fetch(APPS_SCRIPT_URL, {
           method: 'POST',

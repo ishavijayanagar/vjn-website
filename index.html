@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Home – Isha Foundation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+  <title>Home – Isha Place, Vijayanagar</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -23,7 +23,7 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; touch-action: manipulation; }
     body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
     a { text-decoration: none; color: inherit; }
     ul { list-style: none; }
@@ -39,11 +39,9 @@
       max-width: 1100px; margin: 0 auto; padding: 0 24px;
       height: 64px; display: flex; align-items: center; justify-content: space-between;
     }
-    .logo {
-      font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600;
-      color: var(--gold); letter-spacing: 0.04em; line-height: 1.2;
-    }
-    .logo span { display: block; font-size: 0.7rem; letter-spacing: 0.2em; font-weight: 300; text-transform: uppercase; color: rgba(200,169,110,0.7); font-family: var(--font-sans); }
+    .logo { display: flex; align-items: center; line-height: 1; }
+    .logo img { height: 34px; width: auto; display: block; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     .nav-links { display: flex; gap: 40px; }
     .nav-links a {
       font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em;
@@ -53,8 +51,8 @@
     .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
     .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
     .mobile-menu.open { display: block; }
-    .mobile-menu li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
-    .mobile-menu a { color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    .mobile-menu li { padding: 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .mobile-menu a { display: block; padding: 14px 0; color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
 
     /* HERO */
     .hero {
@@ -107,7 +105,14 @@
       font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase;
       color: var(--gold-dark); margin-bottom: 48px;
     }
-    .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .hero-buttons {
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .hero-buttons-row {
+      display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    }
+    .hero-query-btn { border: 1px solid rgba(200,169,110,0.45); color: rgba(245,240,232,0.95); background: rgba(255,255,255,0.06); }
+    .hero-query-btn:hover { background: rgba(200,169,110,0.12); border-color: var(--gold); color: var(--gold-light); transform: translateY(-2px); }
     .btn {
       display: inline-block; padding: 13px 36px;
       font-family: var(--font-sans); font-size: 0.8rem; font-weight: 500;
@@ -160,6 +165,60 @@
     .card-cta { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-dark); font-weight: 500; }
     .explore-card:hover .card-cta { color: var(--gold); }
 
+    /* QUERY MODAL */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(20,18,14,0.75); align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .query-modal {
+      background: var(--white); border-radius: 8px; padding: 36px 32px 40px;
+      max-width: 480px; width: 100%; position: relative;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+      max-height: min(90vh, 640px); overflow-y: auto;
+    }
+    .query-modal .modal-close {
+      position: absolute; top: 14px; right: 18px;
+      background: none; border: none; font-size: 1.35rem; cursor: pointer; color: var(--text-light); line-height: 1;
+    }
+    .query-modal h2 {
+      font-family: var(--font-serif); font-size: 1.45rem; font-weight: 400;
+      margin-bottom: 6px; padding-right: 28px;
+    }
+    .query-modal .query-lead { font-size: 0.84rem; color: var(--text-light); margin-bottom: 22px; }
+    .query-modal .form-group { margin-bottom: 16px; }
+    .query-modal label {
+      display: block; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-mid); margin-bottom: 6px; font-weight: 500;
+    }
+    .query-modal input,
+    .query-modal textarea {
+      width: 100%; padding: 11px 14px;
+      border: 1px solid var(--cream-2); border-radius: 3px;
+      background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
+      outline: none; transition: border-color var(--transition), background var(--transition);
+    }
+    .query-modal input:focus,
+    .query-modal textarea:focus { border-color: var(--gold); background: var(--white); }
+    .query-modal textarea { min-height: 96px; resize: vertical; }
+    .query-modal .submit-btn {
+      width: 100%; margin-top: 4px; padding: 13px;
+      background: var(--gold); color: var(--dark); border: none; border-radius: 3px;
+      font-family: var(--font-sans); font-size: 0.8rem; font-weight: 600;
+      letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: background var(--transition);
+    }
+    .query-modal .submit-btn:hover { background: var(--gold-light); }
+    .query-modal .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .query-err {
+      display: none;
+      background: #fff3f3; border: 1px solid #ffcccc; color: #c0392b;
+      padding: 10px 12px; border-radius: 3px; font-size: 0.82rem; margin-bottom: 14px;
+    }
+    .query-success { display: none; text-align: center; padding: 20px 8px 8px; }
+    .query-success .success-icon { font-size: 2.4rem; margin-bottom: 12px; }
+    .query-success h3 { font-family: var(--font-serif); font-size: 1.35rem; margin-bottom: 8px; }
+    .query-success p { font-size: 0.88rem; color: var(--text-light); }
+
     /* FOOTER */
     .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
     .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(200,169,110,0.15); }
@@ -176,7 +235,9 @@
       .nav-toggle { display: block; }
       .explore-grid { grid-template-columns: 1fr; }
       .footer-grid { grid-template-columns: 1fr; gap: 32px; }
-      .hero-buttons { flex-direction: column; align-items: center; }
+      .hero-buttons-row { flex-direction: column; align-items: center; width: 100%; }
+      .hero-buttons-row .btn { width: 100%; max-width: 320px; text-align: center; }
+      .hero-query-btn { max-width: 320px; width: 100%; }
       .hero-quote { font-size: 1rem; }
     }
   </style>
@@ -187,8 +248,8 @@
   <nav class="navbar">
     <div class="nav-inner">
       <a href="index.html" class="logo">
-        Isha Place
-        <span>Vijayanagar, Bengaluru</span>
+        <img src="assets/logo.png" alt="Isha Foundation"/>
+        <span class="sr-only">Home</span>
       </a>
       <ul class="nav-links">
         <li><a href="programs.html">Programs</a></li>
@@ -197,6 +258,7 @@
       <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
     </div>
     <ul class="mobile-menu" id="mob">
+      <li><a href="index.html">Home</a></li>
       <li><a href="programs.html">Programs</a></li>
       <li><a href="volunteering.html">Volunteering</a></li>
     </ul>
@@ -208,14 +270,16 @@
     <div class="hero-pattern"></div>
     <div class="hero-glow"></div>
     <div class="hero-content">
-      <span class="hero-eyebrow">Isha Foundation</span>
       <blockquote class="hero-quote">
-        "The most beautiful moments in life are moments when you are expressing your joy, not when you are seeking it."
+        "If tears of joy, tears of love, tears of ecstasy have not washed your cheeks, you are yet to experience life."
       </blockquote>
       <p class="hero-quote-attr">— Sadhguru</p>
       <div class="hero-buttons">
-        <a href="programs.html" class="btn btn-gold">Explore Programs</a>
-        <a href="volunteering.html" class="btn btn-outline">Volunteering Opportunities</a>
+        <div class="hero-buttons-row">
+          <a href="programs.html" class="btn btn-gold">Explore Programs at Vijayanagar</a>
+          <a href="volunteering.html" class="btn btn-outline">Volunteering Opportunities</a>
+        </div>
+        <button type="button" class="btn hero-query-btn" onclick="openQueryModal()">Submit a Query</button>
       </div>
     </div>
   </section>
@@ -256,6 +320,43 @@
     </div>
   </section>
 
+  <!-- SUBMIT A QUERY (modal) -->
+  <div class="modal-overlay" id="queryModalOverlay" role="dialog" aria-modal="true" aria-labelledby="queryModalTitle">
+    <div class="query-modal">
+      <button type="button" class="modal-close" onclick="closeQueryModal()" aria-label="Close">✕</button>
+      <h2 id="queryModalTitle">Submit a Query</h2>
+
+      <div class="query-err" id="homeQueryErr">Please fill in all required fields.</div>
+
+      <form id="homeQueryForm" onsubmit="return false;">
+        <div id="homeQueryFields">
+          <div class="form-group">
+            <label for="hqName">Full Name *</label>
+            <input type="text" id="hqName" name="name" autocomplete="name" placeholder="Your name"/>
+          </div>
+          <div class="form-group">
+            <label for="hqPhone">WhatsApp Number *</label>
+            <input type="text" id="hqPhone" name="phone" data-ten-digit-phone placeholder="9876543210" title="10 digits only"/>
+          </div>
+          <div class="form-group">
+            <label for="hqArea">Area of Stay *</label>
+            <input type="text" id="hqArea" name="area" placeholder="e.g. Vijayanagar, Rajajinagar"/>
+          </div>
+          <div class="form-group">
+            <label for="hqQuery">Your Query *</label>
+            <textarea id="hqQuery" name="query" placeholder="What would you like to know?"></textarea>
+          </div>
+          <button type="button" class="submit-btn" id="homeQueryBtn" onclick="submitHomeQuery()">Submit Query</button>
+        </div>
+        <div class="query-success" id="homeQuerySuccess">
+          <div class="success-icon">🙏</div>
+          <h3>Thank you</h3>
+          <p>We’ve received your query and will get in touch with you shortly.</p>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- FOOTER -->
   <footer class="footer">
     <div class="container">
@@ -284,6 +385,83 @@
       </div>
     </div>
   </footer>
+
+  <script src="whatsapp-validate.js"></script>
+  <script src="config.js"></script>
+  <script>
+    function openQueryModal() {
+      document.getElementById('queryModalOverlay').classList.add('open');
+      document.getElementById('homeQueryErr').style.display = 'none';
+      document.getElementById('homeQueryFields').style.display = 'block';
+      document.getElementById('homeQuerySuccess').style.display = 'none';
+      const btn = document.getElementById('homeQueryBtn');
+      btn.disabled = false;
+      btn.textContent = 'Submit Query';
+      ['hqName', 'hqPhone', 'hqArea', 'hqQuery'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+    }
+
+    function closeQueryModal() {
+      document.getElementById('queryModalOverlay').classList.remove('open');
+    }
+
+    document.getElementById('queryModalOverlay').addEventListener('click', function (e) {
+      if (e.target === this) closeQueryModal();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      const ov = document.getElementById('queryModalOverlay');
+      if (e.key === 'Escape' && ov && ov.classList.contains('open')) closeQueryModal();
+    });
+
+    async function submitHomeQuery() {
+      const name = document.getElementById('hqName').value.trim();
+      const area = document.getElementById('hqArea').value.trim();
+      const query = document.getElementById('hqQuery').value.trim();
+      const err = document.getElementById('homeQueryErr');
+      const btn = document.getElementById('homeQueryBtn');
+
+      err.style.display = 'none';
+      if (!name || !area || !query) {
+        err.textContent = 'Please fill in all required fields.';
+        err.style.display = 'block';
+        return;
+      }
+      const phoneCheck = validateWhatsAppNumber(document.getElementById('hqPhone').value);
+      if (!phoneCheck.ok) {
+        err.textContent = phoneCheck.message;
+        err.style.display = 'block';
+        return;
+      }
+      const phone = phoneCheck.normalized;
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            formType: 'homeQuery',
+            name,
+            phone,
+            area,
+            query,
+            timestamp: new Date().toISOString()
+          })
+        });
+        document.getElementById('homeQueryFields').style.display = 'none';
+        document.getElementById('homeQuerySuccess').style.display = 'block';
+        document.getElementById('homeQueryErr').style.display = 'none';
+      } catch (e) {
+        err.textContent = 'Something went wrong. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Submit Query';
+      }
+    }
+  </script>
 
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Volunteering</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
   <style>
@@ -14,27 +14,31 @@
       --font-sans: 'Jost', sans-serif; --transition: 0.28s ease;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { touch-action: manipulation; }
     body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
     a { text-decoration: none; color: inherit; } ul { list-style: none; }
     .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
 
     .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--dark); border-bottom: 1px solid rgba(200,169,110,0.2); }
-    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; color: var(--gold); letter-spacing: 0.04em; line-height: 1.2; }
-    .logo span { display: block; font-size: 0.7rem; letter-spacing: 0.2em; font-weight: 300; text-transform: uppercase; color: rgba(200,169,110,0.7); font-family: var(--font-sans); }
+    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; line-height: 1; }
+    .logo img { height: 28px; width: auto; display: block; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     .nav-links { display: flex; gap: 40px; }
     .nav-links a { font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream); transition: color var(--transition); }
     .nav-links a:hover, .nav-links a.active { color: var(--gold); }
     .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
     .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
     .mobile-menu.open { display: block; }
-    .mobile-menu li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
-    .mobile-menu a { color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    .mobile-menu li { padding: 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .mobile-menu a { display: block; padding: 14px 0; color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
 
-    .page-header { background: var(--dark); padding: 110px 24px 56px; text-align: center; }
+    /* PAGE HEADER — match programs.html compact band */
+    .page-header { background: var(--dark); padding: 72px 20px 22px; text-align: center; }
     .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
-    .page-header h1 { font-family: var(--font-serif); font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 300; color: var(--white); margin-bottom: 12px; }
-    .page-header p { color: rgba(245,240,232,0.65); font-size: 0.95rem; max-width: 500px; margin: 0 auto; }
+    .page-header .section-label { margin-bottom: 6px; }
+    .page-header h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 3.2vw, 2.1rem); font-weight: 400; color: var(--white); margin-bottom: 4px; letter-spacing: 0.02em; }
+    .page-header p { color: rgba(245,240,232,0.55); font-size: 0.8rem; max-width: 420px; margin: 0 auto; letter-spacing: 0.06em; text-transform: uppercase; }
 
     .listings-section { padding: 56px 0 96px; }
     .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 28px; }
@@ -61,6 +65,61 @@
     .spinner { width: 32px; height: 32px; border: 2px solid var(--cream-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .interest-strip {
+      background: var(--white);
+      border-bottom: 1px solid var(--cream-2);
+      padding: 0.85rem 0;
+    }
+    .interest-strip-inner {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .interest-strip-inner p { font-size: 0.88rem; color: var(--text-mid); margin: 0; }
+    .interest-btn {
+      padding: 10px 22px; background: var(--gold); color: var(--dark);
+      border: none; border-radius: 3px; cursor: pointer;
+      font-family: var(--font-sans); font-size: 0.8rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase; transition: background var(--transition);
+    }
+    .interest-btn:hover { background: var(--gold-light); }
+
+    /* VOLUNTEER INTEREST MODAL */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(20,18,14,0.75); align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--white); border-radius: 8px; padding: 40px 36px;
+      max-width: 480px; width: 100%; position: relative;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+    }
+    .modal-close { position: absolute; top: 16px; right: 20px; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-light); }
+    .modal h3 { font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 6px; }
+    .modal .sub { font-size: 0.84rem; color: var(--text-light); margin-bottom: 28px; }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 7px; font-weight: 500; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 11px 15px;
+      border: 1px solid var(--cream-2); border-radius: 3px;
+      background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
+      outline: none; transition: border-color var(--transition);
+    }
+    .form-group select { cursor: pointer; }
+    .form-group input:focus, .form-group select:focus { border-color: var(--gold); background: var(--white); }
+    .submit-btn {
+      width: 100%; padding: 13px; background: var(--gold); color: var(--dark);
+      border: none; border-radius: 3px; font-family: var(--font-sans);
+      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+      cursor: pointer; transition: background var(--transition);
+    }
+    .submit-btn:hover { background: var(--gold-light); }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-err { background: #fff3f3; border: 1px solid #ffcccc; color: #c0392b; padding: 9px 13px; border-radius: 3px; font-size: 0.82rem; margin-bottom: 14px; display: none; }
+    .form-success-msg { text-align: center; padding: 24px 0; }
+    .form-success-msg .big { font-size: 2.4rem; margin-bottom: 12px; }
+    .form-success-msg h4 { font-family: var(--font-serif); font-size: 1.4rem; margin-bottom: 8px; }
+    .form-success-msg p { font-size: 0.86rem; color: var(--text-light); }
+
     .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
     .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(200,169,110,0.15); }
     .footer p { font-size: 0.86rem; line-height: 1.9; }
@@ -81,7 +140,10 @@
 
   <nav class="navbar">
     <div class="nav-inner">
-      <a href="index.html" class="logo">Isha Place <span>Vijayanagar, Bengaluru</span></a>
+      <a href="index.html" class="logo">
+        <img src="assets/logo.png" alt="Isha Foundation"/>
+        <span class="sr-only">Home</span>
+      </a>
       <ul class="nav-links">
         <li><a href="programs.html">Programs</a></li>
         <li><a href="volunteering.html" class="active">Volunteering</a></li>
@@ -89,15 +151,22 @@
       <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
     </div>
     <ul class="mobile-menu" id="mob">
+      <li><a href="index.html">Home</a></li>
       <li><a href="programs.html">Programs</a></li>
       <li><a href="volunteering.html">Volunteering</a></li>
     </ul>
   </nav>
 
   <div class="page-header">
-    <span class="section-label">Give Back</span>
     <h1>Volunteering Opportunities</h1>
-    <p>Be part of the Isha volunteer community. Contribute your time, energy, and skills.</p>
+    <p>At Vijayanagar Centre</p>
+  </div>
+
+  <div class="interest-strip">
+    <div class="container interest-strip-inner">
+      <p>Interested in volunteering with us?</p>
+      <button type="button" class="interest-btn" onclick="openVolunteerModal()">Express interest</button>
+    </div>
   </div>
 
   <section class="listings-section">
@@ -110,6 +179,27 @@
       </div>
     </div>
   </section>
+
+  <div class="modal-overlay" id="volunteerModalOverlay">
+    <div class="modal">
+      <button type="button" class="modal-close" onclick="closeVolunteerModal()" aria-label="Close">✕</button>
+      <h3>Volunteering interest</h3>
+      <p class="sub">Leave your details and we’ll get in touch with you.</p>
+      <div class="form-err" id="vFormErr">Please fill in all required fields.</div>
+      <div id="vFormBody">
+        <div class="form-group"><label>Full Name *</label><input type="text" id="vName" placeholder="Your name"/></div>
+        <div class="form-group"><label>WhatsApp Number *</label><input type="text" id="vPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only"/></div>
+        <div class="form-group"><label>Area of Stay *</label><input type="text" id="vArea" placeholder="e.g. Vijayanagar, Rajajinagar"/></div>
+        <div class="form-group"><label>Opportunity *</label><select id="vOpportunity" aria-label="Volunteering opportunity"></select></div>
+        <button type="button" class="submit-btn" id="vSubmitBtn" onclick="submitVolunteerInterest()">Submit</button>
+      </div>
+      <div class="form-success-msg" id="vFormSuccess" style="display:none">
+        <div class="big">🙏</div>
+        <h4>Thank you!</h4>
+        <p>We’ll reach out to you on WhatsApp soon.</p>
+      </div>
+    </div>
+  </div>
 
   <footer class="footer">
     <div class="container">
@@ -133,14 +223,106 @@
     </div>
   </footer>
 
+  <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script>
+    let allVolunteering = [];
+
     function fixDriveUrl(url) {
-      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-      const ucMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
-      if (ucMatch) return `https://drive.google.com/uc?export=view&id=${ucMatch[1]}`;
-      return url;
+      if (!url || typeof url !== 'string') return url;
+      const u = url.trim();
+      if (/^https:\/\/lh\d*\.googleusercontent\.com\//i.test(u)) return u;
+      if (/thumbnail\?.*\bid=/.test(u)) return u;
+      const match = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`;
+      const ucMatch = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (ucMatch) return `https://drive.google.com/thumbnail?id=${ucMatch[1]}&sz=w1200`;
+      return u;
+    }
+
+    function populateVolunteerSelect() {
+      const sel = document.getElementById('vOpportunity');
+      if (!sel) return;
+      sel.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = '— Select opportunity —';
+      sel.appendChild(opt0);
+      (allVolunteering || []).forEach((item) => {
+        const o = document.createElement('option');
+        o.value = item.title || '';
+        o.textContent = item.title || 'Untitled';
+        o.dataset.id = item.id || '';
+        sel.appendChild(o);
+      });
+      [
+        { value: 'Hatha Yoga', label: 'Hatha Yoga Volunteering' },
+        { value: 'Inner Engineering', label: 'Inner Engineering Volunteering' },
+        { value: 'General', label: 'General Volunteering' }
+      ].forEach((f) => {
+        const o = document.createElement('option');
+        o.value = f.value;
+        o.textContent = f.label;
+        sel.appendChild(o);
+      });
+    }
+
+    function openVolunteerModal() {
+      populateVolunteerSelect();
+      document.getElementById('volunteerModalOverlay').classList.add('open');
+    }
+    function closeVolunteerModal() {
+      document.getElementById('volunteerModalOverlay').classList.remove('open');
+    }
+
+    async function submitVolunteerInterest() {
+      const name = document.getElementById('vName').value.trim();
+      const area = document.getElementById('vArea').value.trim();
+      const oppSel = document.getElementById('vOpportunity');
+      const opportunityName = oppSel.value.trim();
+      const opportunityId = oppSel.options[oppSel.selectedIndex]
+        ? oppSel.options[oppSel.selectedIndex].dataset.id || ''
+        : '';
+      const err = document.getElementById('vFormErr');
+      const btn = document.getElementById('vSubmitBtn');
+
+      err.style.display = 'none';
+      if (!name || !area || !opportunityName) {
+        err.textContent = 'Please fill in all required fields.';
+        err.style.display = 'block';
+        return;
+      }
+      const phoneCheck = validateWhatsAppNumber(document.getElementById('vPhone').value);
+      if (!phoneCheck.ok) {
+        err.textContent = phoneCheck.message;
+        err.style.display = 'block';
+        return;
+      }
+      const phone = phoneCheck.normalized;
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            formType: 'volunteeringInterest',
+            name,
+            phone,
+            area,
+            opportunityName,
+            opportunityId,
+            timestamp: new Date().toISOString()
+          })
+        });
+        document.getElementById('vFormBody').style.display = 'none';
+        document.getElementById('vFormSuccess').style.display = 'block';
+      } catch (e) {
+        err.textContent = 'Something went wrong. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Submit';
+      }
     }
 
     async function loadVolunteering() {
@@ -149,9 +331,11 @@
         const res = await fetch(`${APPS_SCRIPT_URL}?type=volunteering`);
         const data = await res.json();
         const items = data.items || [];
+        allVolunteering = items;
+        populateVolunteerSelect();
 
         if (!items.length) {
-          container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>No Opportunities Listed</h3><p>Check back soon for new volunteering opportunities.</p></div>`;
+          container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>No Opportunities Listed</h3><p>Check back soon — or leave your interest and we’ll contact you regarding the opportunities.</p><button type="button" onclick="openVolunteerModal()" class="interest-btn" style="margin-top:1rem">Express interest</button></div>`;
           return;
         }
 
@@ -186,6 +370,8 @@
         container.innerHTML = '';
         container.appendChild(grid);
       } catch (err) {
+        allVolunteering = [];
+        populateVolunteerSelect();
         container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>Could not load</h3><p>Please try again later.</p></div>`;
       }
     }

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Programs</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
   <style>
@@ -14,7 +14,7 @@
       --font-sans: 'Jost', sans-serif; --transition: 0.28s ease;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; touch-action: manipulation; }
     body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
     a { text-decoration: none; color: inherit; }
     ul { list-style: none; }
@@ -22,75 +22,143 @@
 
     /* NAV */
     .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--dark); border-bottom: 1px solid rgba(200,169,110,0.2); }
-    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; color: var(--gold); letter-spacing: 0.04em; line-height: 1.2; }
-    .logo span { display: block; font-size: 0.7rem; letter-spacing: 0.2em; font-weight: 300; text-transform: uppercase; color: rgba(200,169,110,0.7); font-family: var(--font-sans); }
+    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; line-height: 1; }
+    .logo img { height: 28px; width: auto; display: block; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     .nav-links { display: flex; gap: 40px; }
     .nav-links a { font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream); transition: color var(--transition); }
     .nav-links a:hover, .nav-links a.active { color: var(--gold); }
     .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
     .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
     .mobile-menu.open { display: block; }
-    .mobile-menu li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
-    .mobile-menu a { color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    .mobile-menu li { padding: 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .mobile-menu a { display: block; padding: 14px 0; color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
 
-    /* PAGE HEADER */
-    .page-header { background: var(--dark); padding: 110px 24px 56px; text-align: center; }
+    /* PAGE HEADER — compact band (nav offset + short title block) */
+    .page-header { background: var(--dark); padding: 72px 20px 22px; text-align: center; }
     .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
-    .page-header h1 { font-family: var(--font-serif); font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 300; color: var(--white); margin-bottom: 12px; }
-    .page-header p { color: rgba(245,240,232,0.65); font-size: 0.95rem; max-width: 500px; margin: 0 auto; }
+    .page-header h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 3.2vw, 2.1rem); font-weight: 400; color: var(--white); margin-bottom: 4px; letter-spacing: 0.02em; }
+    .page-header p { color: rgba(245,240,232,0.55); font-size: 0.8rem; max-width: 420px; margin: 0 auto; letter-spacing: 0.06em; text-transform: uppercase; }
 
     /* SEARCH BAR */
-    .search-bar-section { background: var(--white); padding: 28px 0; border-bottom: 1px solid var(--cream-2); }
-    .search-bar-inner { display: flex; gap: 12px; max-width: 540px; margin: 0 auto; }
+    .search-bar-section { background: var(--white); padding: 14px 0; border-bottom: 1px solid var(--cream-2); }
+    .search-bar-inner { max-width: 520px; margin: 0 auto; }
+    .search-field-wrap { position: relative; width: 100%; }
     .search-input {
-      flex: 1; padding: 12px 18px;
+      width: 100%; padding: 9px 40px 9px 14px;
       border: 1px solid var(--cream-2); border-radius: 3px;
       font-family: var(--font-sans); font-size: 0.92rem; color: var(--dark);
       background: var(--cream); outline: none; transition: border-color var(--transition);
     }
     .search-input:focus { border-color: var(--gold); background: var(--white); }
-    .search-btn {
-      padding: 12px 24px; background: var(--gold); color: var(--dark);
-      border: none; border-radius: 3px; cursor: pointer;
-      font-family: var(--font-sans); font-size: 0.8rem; font-weight: 500;
-      letter-spacing: 0.1em; text-transform: uppercase; transition: background var(--transition);
+    .search-clear-btn {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      width: 30px; height: 30px; padding: 0; border: none; border-radius: 50%;
+      background: transparent; color: var(--text-light); cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      transition: color var(--transition), background var(--transition);
     }
-    .search-btn:hover { background: var(--gold-light); }
+    .search-clear-btn:hover { color: var(--dark); background: rgba(0,0,0,0.06); }
+    .search-clear-btn.visible { display: flex; }
+    .search-clear-btn svg { display: block; }
 
-    /* LISTINGS */
-    .listings-section { padding: 56px 0 96px; }
-    .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 28px; }
+    /* FREQUENCY FILTER PILLS */
+    .filter-pills-section {
+      background: var(--white);
+      padding: 12px 0 16px;
+      border-bottom: 1px solid var(--cream-2);
+    }
+    .filter-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .filter-pill {
+      font-family: var(--font-sans);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--cream-2);
+      background: var(--cream);
+      color: var(--text-mid);
+      cursor: pointer;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+    .filter-pill:hover {
+      border-color: var(--gold);
+      color: var(--dark);
+    }
+    .filter-pill.active {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: var(--dark);
+    }
+
+    /* LISTINGS — compact event-style cards */
+    .listings-section { padding: 32px 0 64px; }
+    .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
 
     .listing-card {
-      background: var(--white); border-radius: 6px; overflow: hidden;
-      border: 1px solid var(--cream-2); box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      background: var(--white); border-radius: 5px; overflow: hidden;
+      border: 1px solid var(--cream-2); box-shadow: 0 2px 12px rgba(0,0,0,0.05);
       transition: all var(--transition); display: block;
     }
-    .listing-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); border-color: var(--gold); }
+    .listing-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.1); border-color: var(--gold); }
 
+    /* Square image area — matches 1:1 program artwork from Drive */
     .card-image {
-      height: 200px; overflow: hidden; background: var(--dark);
-      display: flex; align-items: center; justify-content: center;
       position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      background: var(--dark);
     }
-    .card-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
-    .listing-card:hover .card-image img { transform: scale(1.05); }
-    .card-image .no-img { font-size: 3rem; opacity: 0.4; }
+    .card-image img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.35s ease;
+    }
+    .listing-card:hover .card-image img { transform: scale(1.04); }
+    .card-image .no-img {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(2rem, 12vw, 3rem);
+      opacity: 0.4;
+    }
     .card-image .badge {
-      position: absolute; top: 14px; left: 14px;
+      position: absolute; top: 8px; left: 8px;
       background: var(--gold); color: var(--dark);
-      font-size: 0.66rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
-      padding: 4px 12px; border-radius: 20px;
+      font-size: 0.58rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 3px;
     }
 
-    .card-body { padding: 22px 26px 26px; }
-    .card-meta { font-size: 0.75rem; color: var(--gold-dark); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
-    .card-body h3 { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; line-height: 1.3; }
-    .card-body p { font-size: 0.86rem; color: var(--text-mid); line-height: 1.65; margin-bottom: 18px; }
-    .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--cream-2); padding-top: 14px; }
-    .card-footer .loc { font-size: 0.76rem; color: var(--text-light); }
-    .card-footer .more { font-size: 0.76rem; color: var(--gold-dark); font-weight: 500; }
+    .card-body { padding: 12px 14px 14px; }
+    .card-meta { font-size: 0.68rem; color: var(--gold-dark); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
+    .card-timings {
+      font-size: 0.66rem; color: var(--text-mid); letter-spacing: 0.04em; line-height: 1.35;
+      margin-bottom: 6px; text-transform: none;
+    }
+    .card-body h3 { font-family: var(--font-serif); font-size: 1.08rem; font-weight: 600; margin-bottom: 6px; line-height: 1.25; }
+    .card-body p {
+      font-size: 0.8rem; color: var(--text-mid); line-height: 1.45; margin-bottom: 10px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--cream-2); padding-top: 10px; margin-top: 2px; }
+    .card-footer .loc { font-size: 0.7rem; color: var(--text-light); line-height: 1.3; }
+    .card-footer .more { font-size: 0.7rem; color: var(--gold-dark); font-weight: 500; flex-shrink: 0; }
 
     /* STATES */
     .state-box { text-align: center; padding: 72px 24px; }
@@ -122,7 +190,14 @@
       background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
       outline: none; transition: border-color var(--transition);
     }
-    .form-group input:focus, .form-group textarea:focus { border-color: var(--gold); background: var(--white); }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--gold); background: var(--white); }
+    .form-group select {
+      width: 100%; padding: 11px 15px;
+      border: 1px solid var(--cream-2); border-radius: 3px;
+      background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
+      outline: none; transition: border-color var(--transition);
+      cursor: pointer;
+    }
     .form-group textarea { height: 88px; resize: vertical; }
     .submit-btn {
       width: 100%; padding: 13px; background: var(--gold); color: var(--dark);
@@ -137,6 +212,30 @@
     .form-success-msg .big { font-size: 2.4rem; margin-bottom: 12px; }
     .form-success-msg h4 { font-family: var(--font-serif); font-size: 1.4rem; margin-bottom: 8px; }
     .form-success-msg p { font-size: 0.86rem; color: var(--text-light); }
+    .form-success-msg .form-success-program-note { margin-top: 14px; font-size: 0.86rem; color: var(--text-mid); }
+
+    .modal-program-search {
+      margin: -8px 0 22px;
+      padding: 14px 16px;
+      background: var(--cream);
+      border: 1px solid var(--cream-2);
+      border-radius: 3px;
+    }
+    .modal-program-search-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-mid);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .modal-program-search-value {
+      font-family: var(--font-serif);
+      font-size: 1.12rem;
+      color: var(--dark);
+      line-height: 1.35;
+      word-break: break-word;
+    }
 
     /* FOOTER */
     .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
@@ -152,7 +251,6 @@
       .nav-links { display: none; } .nav-toggle { display: block; }
       .listings-grid { grid-template-columns: 1fr; }
       .footer-grid { grid-template-columns: 1fr; gap: 32px; }
-      .search-bar-inner { flex-direction: column; }
     }
   </style>
 </head>
@@ -160,7 +258,10 @@
 
   <nav class="navbar">
     <div class="nav-inner">
-      <a href="index.html" class="logo">Isha Place <span>Vijayanagar, Bengaluru</span></a>
+      <a href="index.html" class="logo">
+        <img src="assets/logo.png" alt="Isha Foundation"/>
+        <span class="sr-only">Home</span>
+      </a>
       <ul class="nav-links">
         <li><a href="programs.html" class="active">Programs</a></li>
         <li><a href="volunteering.html">Volunteering</a></li>
@@ -168,22 +269,38 @@
       <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
     </div>
     <ul class="mobile-menu" id="mob">
+      <li><a href="index.html">Home</a></li>
       <li><a href="programs.html">Programs</a></li>
       <li><a href="volunteering.html">Volunteering</a></li>
     </ul>
   </nav>
 
   <div class="page-header">
-    <span class="section-label">Isha Foundation</span>
     <h1>Upcoming Programs</h1>
-    <p>Workshops, yoga sessions, and transformative experiences at your local Isha centre.</p>
+    <p>At Vijayanagar Centre</p>
   </div>
 
   <div class="search-bar-section">
     <div class="container">
       <div class="search-bar-inner">
-        <input type="text" class="search-input" id="searchInput" placeholder="Search programs..." oninput="filterPrograms()"/>
-        <button class="search-btn">Search</button>
+        <div class="search-field-wrap">
+          <input type="text" class="search-input" id="searchInput" placeholder="Search programs..." oninput="filterPrograms()" autocomplete="off"/>
+          <button type="button" class="search-clear-btn" id="searchClearBtn" onclick="clearProgramSearch()" aria-label="Clear search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-pills-section">
+    <div class="container">
+      <div class="filter-pills" id="frequencyPills" role="tablist" aria-label="Filter by program frequency">
+        <button type="button" class="filter-pill active" data-frequency="all" role="tab" aria-selected="true" aria-pressed="true">All</button>
+        <button type="button" class="filter-pill" data-frequency="daily" role="tab" aria-selected="false" aria-pressed="false">Daily</button>
+        <button type="button" class="filter-pill" data-frequency="weekly" role="tab" aria-selected="false" aria-pressed="false">Weekly</button>
+        <button type="button" class="filter-pill" data-frequency="monthly" role="tab" aria-selected="false" aria-pressed="false">Monthly</button>
+        <button type="button" class="filter-pill" data-frequency="scheduled" role="tab" aria-selected="false" aria-pressed="false">Scheduled Programs</button>
       </div>
     </div>
   </div>
@@ -205,18 +322,26 @@
       <button class="modal-close" onclick="closeModal()">✕</button>
       <h3>Stay Informed</h3>
       <p class="sub">Leave your contact and we'll notify you when new programs are scheduled.</p>
+      <div id="modalProgramSearchContext" class="modal-program-search" style="display:none" aria-live="polite">
+        <div class="modal-program-search-label">Program you searched for</div>
+        <div id="modalProgramSearchValue" class="modal-program-search-value"></div>
+      </div>
       <div class="form-err" id="formErr">Please fill in all required fields.</div>
       <div id="formBody">
         <div class="form-group"><label>Full Name *</label><input type="text" id="fName" placeholder="Your name"/></div>
-        <div class="form-group"><label>WhatsApp Number *</label><input type="tel" id="fPhone" placeholder="+91 98765 43210"/></div>
+        <div class="form-group"><label>WhatsApp Number *</label><input type="text" id="fPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only"/></div>
         <div class="form-group"><label>Area of Stay *</label><input type="text" id="fArea" placeholder="e.g. Rajajinagar, Malleswaram"/></div>
-        <div class="form-group"><label>Remarks</label><textarea id="fRemarks" placeholder="Any specific programs you're interested in..."></textarea></div>
+        <div class="form-group" id="fProgramGroupWrap">
+          <label for="fProgram">Program *</label>
+          <select id="fProgram" aria-label="Program"></select>
+        </div>
         <button class="submit-btn" id="submitBtn" onclick="submitInterest()">Submit</button>
       </div>
       <div class="form-success-msg" id="formSuccess" style="display:none">
         <div class="big">🙏</div>
         <h4>Thank you!</h4>
         <p>We'll reach out to you on WhatsApp when new programs are announced.</p>
+        <p id="formSuccessProgramNote" class="form-success-program-note" style="display:none"></p>
       </div>
     </div>
   </div>
@@ -243,25 +368,100 @@
     </div>
   </footer>
 
+  <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script>
     let allPrograms = [];
+    let activeFrequencyPill = 'all';
+
+    /** Match sheet dropdown "Open" / "Closed" (any case, trim, NBSP). */
+    function normalizeProgramStatusValue(raw) {
+      if (raw === undefined || raw === null) return '';
+      return String(raw)
+        .replace(/\u00a0/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    /** Hide closed rows if API still returns them (e.g. old deployment) or status lives under another JSON key. */
+    function programListingStatusIsOpen(item) {
+      const keys = ['status', 'program status', 'listing status'];
+      for (let k = 0; k < keys.length; k++) {
+        const v = item[keys[k]];
+        if (v !== undefined && v !== null && String(v).replace(/\u00a0/g, ' ').trim() !== '') {
+          return normalizeProgramStatusValue(v) === 'open';
+        }
+      }
+      return true;
+    }
+
+    function canonicalFrequency(program) {
+      const raw = (program.frequency || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!raw) return '';
+      if (raw === 'daily' || raw.startsWith('daily ')) return 'daily';
+      if (raw === 'weekly' || raw.startsWith('weekly ')) return 'weekly';
+      if (raw === 'monthly' || raw.startsWith('monthly ')) return 'monthly';
+      if (
+        raw.includes('scheduled') ||
+        raw === 'once' ||
+        raw.includes('one-time') ||
+        raw.includes('one time') ||
+        raw === 'event'
+      ) {
+        return 'scheduled';
+      }
+      return 'other';
+    }
+
+    function programsMatchingPill(programs) {
+      if (activeFrequencyPill === 'all') return programs.slice();
+      return programs.filter((p) => canonicalFrequency(p) === activeFrequencyPill);
+    }
+
+    function setFrequencyFilter(key) {
+      activeFrequencyPill = key;
+      document.querySelectorAll('#frequencyPills .filter-pill').forEach((b) => {
+        const on = b.getAttribute('data-frequency') === key;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      filterPrograms();
+    }
+
+    (function initFrequencyPills() {
+      const el = document.getElementById('frequencyPills');
+      if (!el) return;
+      el.addEventListener('click', function (e) {
+        const btn = e.target.closest('button[data-frequency]');
+        if (!btn) return;
+        setFrequencyFilter(btn.getAttribute('data-frequency'));
+      });
+    })();
 
     async function loadPrograms() {
-      const container = document.getElementById('listingsContainer');
       try {
         const res = await fetch(`${APPS_SCRIPT_URL}?type=programs`);
         const data = await res.json();
-        allPrograms = data.items || [];
-        renderPrograms(allPrograms);
+        allPrograms = (data.items || []).filter(programListingStatusIsOpen);
+        populateProgramSelect();
+        setFrequencyFilter('all');
       } catch (err) {
-        renderNoPrograms();
+        allPrograms = [];
+        populateProgramSelect();
+        setFrequencyFilter('all');
       }
     }
 
-    function renderPrograms(items) {
+    function renderPrograms(items, options) {
+      options = options || {};
       const container = document.getElementById('listingsContainer');
-      if (!items || items.length === 0) { renderNoPrograms(); return; }
+      if (!items || items.length === 0) {
+        const pillForMsg = allPrograms.length === 0 ? '' : (options.activePill || activeFrequencyPill || '');
+        renderNoPrograms(options.searchKeyword || '', pillForMsg);
+        return;
+      }
 
       const grid = document.createElement('div');
       grid.className = 'listings-grid';
@@ -284,9 +484,10 @@
             <span class="badge">Program</span>
           </div>
           <div class="card-body">
-            <div class="card-meta">${item.date || ''}</div>
+            ${item.date ? `<div class="card-meta">${escapeHtml(item.date)}</div>` : ''}
+            ${item.timings && String(item.timings).trim() ? `<div class="card-timings">${escapeHtml(String(item.timings).trim())}</div>` : ''}
             <h3>${item.title}</h3>
-            <p>${(item.description || '').substring(0, 110)}${item.description && item.description.length > 110 ? '...' : ''}</p>
+            <p>${(item.description || '').substring(0, 88)}${item.description && item.description.length > 88 ? '…' : ''}</p>
             <div class="card-footer">
               <span class="loc">${item.location ? '📍 ' + item.location : ''}</span>
               <span class="more">Details →</span>
@@ -299,60 +500,222 @@
       container.appendChild(grid);
     }
 
-    function renderNoPrograms() {
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function renderNoPrograms(searchKeyword = '', activePill = '') {
+      const kw = (searchKeyword || '').trim();
+      let msg;
+      if (kw) {
+        msg = `We couldn't find any scheduled programs matching <strong>“${escapeHtml(kw)}”</strong>. Leave your contact and we'll notify you when it is announced.`;
+      } else if (activePill && activePill !== 'all') {
+        msg =
+          'No programs in this category right now. Try another filter, or leave your contact and we will notify you when new programs are announced.';
+      } else {
+        msg =
+          'There are no upcoming programs right now. Leave your contact and we will notify you when new programs are announced.';
+      }
       document.getElementById('listingsContainer').innerHTML = `
         <div class="state-box">
           <div class="icon">🌿</div>
           <h3>No Programs Scheduled</h3>
-          <p>There are no upcoming programs right now. Leave your contact and we'll notify you when new programs are announced.</p>
+          <p>${msg}</p>
           <button onclick="openModal()" style="display:inline-block;padding:13px 36px;background:var(--gold);color:var(--dark);border:none;border-radius:3px;font-family:var(--font-sans);font-size:0.8rem;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;cursor:pointer;">
             Notify Me
           </button>
         </div>`;
     }
 
+    function updateSearchClearVisibility() {
+      const input = document.getElementById('searchInput');
+      const btn = document.getElementById('searchClearBtn');
+      if (!input || !btn) return;
+      btn.classList.toggle('visible', (input.value || '').trim().length > 0);
+    }
+
+    function clearProgramSearch() {
+      const input = document.getElementById('searchInput');
+      if (input) input.value = '';
+      filterPrograms();
+    }
+
     function filterPrograms() {
-      const q = document.getElementById('searchInput').value.toLowerCase().trim();
-      if (!q) { renderPrograms(allPrograms); return; }
-      const filtered = allPrograms.filter(p =>
-        (p.title || '').toLowerCase().includes(q) ||
-        (p.description || '').toLowerCase().includes(q) ||
-        (p.date || '').toLowerCase().includes(q)
+      const base = programsMatchingPill(allPrograms);
+      const input = document.getElementById('searchInput');
+      const raw = (input.value || '').trim();
+      const q = raw.toLowerCase();
+      const pill = activeFrequencyPill || 'all';
+
+      if (!q) {
+        renderPrograms(base, { activePill: pill });
+        syncModalProgramSearchContext();
+        updateSearchClearVisibility();
+        return;
+      }
+      const filtered = base.filter(
+        (p) =>
+          (p.title || '').toLowerCase().includes(q) ||
+          (p.description || '').toLowerCase().includes(q) ||
+          (p.date || '').toLowerCase().includes(q) ||
+          (p.frequency || '').toLowerCase().includes(q) ||
+          (p.timings || '').toLowerCase().includes(q)
       );
+      if (!filtered || filtered.length === 0) {
+        renderNoPrograms(raw, pill);
+        syncModalProgramSearchContext();
+        updateSearchClearVisibility();
+        return;
+      }
       renderPrograms(filtered);
+      syncModalProgramSearchContext();
+      updateSearchClearVisibility();
+    }
+
+    function syncModalProgramSearchContext() {
+      const overlay = document.getElementById('modalOverlay');
+      const wrap = document.getElementById('modalProgramSearchContext');
+      const valEl = document.getElementById('modalProgramSearchValue');
+      const programGroup = document.getElementById('fProgramGroupWrap');
+      if (!overlay || !wrap || !valEl || !overlay.classList.contains('open')) return;
+
+      const raw = (document.getElementById('searchInput')?.value || '').trim();
+      if (raw) {
+        valEl.textContent = raw;
+        wrap.style.display = 'block';
+        if (programGroup) programGroup.style.display = 'none';
+      } else {
+        wrap.style.display = 'none';
+        valEl.textContent = '';
+        if (programGroup) programGroup.style.display = '';
+      }
     }
 
     function fixDriveUrl(url) {
-      // Convert Drive share links to direct image URLs
-      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-      const ucMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
-      if (ucMatch) return `https://drive.google.com/uc?export=view&id=${ucMatch[1]}`;
-      return url;
+      // Use Drive's thumbnail endpoint: it redirects to lh3.googleusercontent.com, which allows
+      // embedding. uc?export=view redirects to usercontent.google.com with CORP: same-site, which
+      // often breaks <img> from external sites (403 / blocked load).
+      if (!url || typeof url !== 'string') return url;
+      const u = url.trim();
+      if (/^https:\/\/lh\d*\.googleusercontent\.com\//i.test(u)) return u;
+      if (/thumbnail\?.*\bid=/.test(u)) return u;
+      const match = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`;
+      const ucMatch = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (ucMatch) return `https://drive.google.com/thumbnail?id=${ucMatch[1]}&sz=w1200`;
+      return u;
     }
 
-    function openModal() { document.getElementById('modalOverlay').classList.add('open'); }
+    function populateProgramSelect() {
+      const sel = document.getElementById('fProgram');
+      if (!sel) return;
+      sel.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = '— Select program —';
+      sel.appendChild(opt0);
+      (allPrograms || []).forEach((p) => {
+        const o = document.createElement('option');
+        o.value = p.title || '';
+        o.textContent = p.title || 'Untitled';
+        o.dataset.id = p.id || '';
+        sel.appendChild(o);
+      });
+      const gen = document.createElement('option');
+      gen.value = 'General interest';
+      gen.textContent = 'General / not listed';
+      gen.dataset.id = '';
+      sel.appendChild(gen);
+    }
+
+    function openModal() {
+      const err = document.getElementById('formErr');
+      err.style.display = 'none';
+      document.getElementById('formBody').style.display = 'block';
+      document.getElementById('formSuccess').style.display = 'none';
+      const successNote = document.getElementById('formSuccessProgramNote');
+      if (successNote) {
+        successNote.style.display = 'none';
+        successNote.textContent = '';
+      }
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+
+      populateProgramSelect();
+      document.getElementById('modalOverlay').classList.add('open');
+      syncModalProgramSearchContext();
+    }
     function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
 
     async function submitInterest() {
       const name = document.getElementById('fName').value.trim();
-      const phone = document.getElementById('fPhone').value.trim();
       const area = document.getElementById('fArea').value.trim();
-      const remarks = document.getElementById('fRemarks').value.trim();
+      const searchKeyword = (document.getElementById('searchInput')?.value || '').trim();
+      const progSel = document.getElementById('fProgram');
+      let programName = '';
+      let programId = '';
+      if (searchKeyword) {
+        programName = searchKeyword;
+        programId = '';
+      } else {
+        programName = progSel.value.trim();
+        programId = progSel.options[progSel.selectedIndex]
+          ? progSel.options[progSel.selectedIndex].dataset.id || ''
+          : '';
+      }
       const err = document.getElementById('formErr');
       const btn = document.getElementById('submitBtn');
 
       err.style.display = 'none';
-      if (!name || !phone || !area) { err.style.display = 'block'; return; }
+      if (!name || !area || (!searchKeyword && !programName)) {
+        err.textContent = 'Please fill in all required fields.';
+        err.style.display = 'block';
+        return;
+      }
+      const phoneCheck = validateWhatsAppNumber(document.getElementById('fPhone').value);
+      if (!phoneCheck.ok) {
+        err.textContent = phoneCheck.message;
+        err.style.display = 'block';
+        return;
+      }
+      const phone = phoneCheck.normalized;
 
       btn.disabled = true; btn.textContent = 'Submitting...';
       try {
         await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
-          body: JSON.stringify({ action: 'contact', name, phone, area, remarks, itemTitle: 'General Program Interest', itemType: 'Program', timestamp: new Date().toISOString() })
+          body: JSON.stringify({
+            formType: 'programInterest',
+            name,
+            phone,
+            area,
+            programName,
+            programId,
+            searchKeyword,
+            timestamp: new Date().toISOString()
+          })
         });
         document.getElementById('formBody').style.display = 'none';
         document.getElementById('formSuccess').style.display = 'block';
+        const successNote = document.getElementById('formSuccessProgramNote');
+        if (successNote) {
+          if (searchKeyword) {
+            successNote.textContent =
+              'We saved your request and will associate it with the program you searched for: “' +
+              searchKeyword +
+              '”.';
+            successNote.style.display = 'block';
+          } else {
+            successNote.style.display = 'none';
+            successNote.textContent = '';
+          }
+        }
       } catch (e) {
         err.textContent = 'Something went wrong. Please try again.';
         err.style.display = 'block';
