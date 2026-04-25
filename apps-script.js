@@ -4,8 +4,8 @@
 // Google Sheet → Extensions → Apps Script
 // Then deploy as Web App (see setup-guide.md)
 //
-// Creates / uses three tabs for form submissions:
-//   HomeQueries, ProgramInterest, VolunteeringInterest
+// Creates / uses these tabs for form submissions:
+//   HomeQueries, ProgramInterest, ProgramVolunteer, VolunteeringInterest
 // =============================================
 
 // ---- CONFIGURE THESE (content sheets) ----
@@ -15,6 +15,7 @@ const VOLUNTEER_SHEET = "Volunteering";
 // ---- Form response tabs (one per form) ----
 const HOME_QUERIES_SHEET = "HomeQueries";
 const PROGRAM_INTEREST_SHEET = "ProgramInterest";
+const PROGRAM_VOLUNTEER_SHEET = "ProgramVolunteer";
 const VOLUNTEERING_INTEREST_SHEET = "VolunteeringInterest";
 // -------------------------
 
@@ -46,11 +47,16 @@ function doPost(e) {
       saveHomeQuery(data);
     } else if (formType === "programInterest") {
       saveProgramInterest(data);
+    } else if (formType === "programVolunteer") {
+      saveProgramVolunteer(data);
     } else if (formType === "volunteeringInterest") {
       saveVolunteeringInterest(data);
     } else {
       return ContentService.createTextOutput(
-        JSON.stringify({ error: "Unknown formType. Use homeQuery, programInterest, or volunteeringInterest." })
+        JSON.stringify({
+          error:
+            "Unknown formType. Use homeQuery, programInterest, programVolunteer, or volunteeringInterest.",
+        })
       ).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -215,6 +221,26 @@ function saveProgramInterest(data) {
     programName,
     data.programId || "",
     searchKw,
+  ]);
+}
+
+// ---- Program detail: volunteer for a specific program ----
+function saveProgramVolunteer(data) {
+  const sheet = ensureSheet_(PROGRAM_VOLUNTEER_SHEET, [
+    "Timestamp",
+    "Name",
+    "WhatsApp",
+    "Area",
+    "Program Name",
+    "Program ID",
+  ]);
+  sheet.appendRow([
+    data.timestamp || new Date().toISOString(),
+    data.name || "",
+    data.phone || "",
+    data.area || "",
+    (data.programName && String(data.programName).trim()) || "",
+    data.programId || "",
   ]);
 }
 

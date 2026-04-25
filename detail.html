@@ -81,6 +81,48 @@
     </div>
   </section>
 
+  <!-- Program volunteer (modal opens from program detail only) -->
+  <div
+    class="program-volunteer-overlay"
+    id="programVolunteerOverlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="pvModalTitle"
+    aria-hidden="true"
+    onclick="if (event.target === this) closeProgramVolunteerModal()"
+  >
+    <div class="program-volunteer-modal">
+      <button type="button" class="program-volunteer-close" onclick="closeProgramVolunteerModal()" aria-label="Close">✕</button>
+      <h3 id="pvModalTitle">Volunteer for this program</h3>
+      <p class="program-volunteer-sub">Share your details and we will get in touch with you.</p>
+      <div class="form-error program-volunteer-err" id="pvFormErr">Something went wrong. Please try again.</div>
+      <div id="pvFormBody">
+        <div class="form-group">
+          <label for="pvProgramName">Program name</label>
+          <input type="text" id="pvProgramName" readonly autocomplete="off" aria-readonly="true"/>
+        </div>
+        <div class="form-group">
+          <label for="pvName">Full Name *</label>
+          <input type="text" id="pvName" placeholder="Your name" autocomplete="name"/>
+        </div>
+        <div class="form-group">
+          <label for="pvPhone">WhatsApp Number *</label>
+          <input type="text" id="pvPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only" autocomplete="tel"/>
+        </div>
+        <div class="form-group">
+          <label for="pvArea">Area of Stay *</label>
+          <input type="text" id="pvArea" placeholder="e.g. Jayanagar, Koramangala"/>
+        </div>
+        <button type="button" class="submit-btn" id="pvSubmitBtn" onclick="submitProgramVolunteer()">Submit</button>
+      </div>
+      <div class="form-success program-volunteer-success" id="pvFormSuccess" style="display:none">
+        <div class="success-icon">🙏</div>
+        <h4>Thank you!</h4>
+        <p>We have received your volunteer interest for this program and will contact you shortly.</p>
+      </div>
+    </div>
+  </div>
+
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
@@ -172,9 +214,17 @@
         document.title = `${data.item.title} – Isha Place, Vijayanagar`;
 
         const registerUrl = data.item.registerlink || data.item.registerLink;
-        const registerSection =
+        const registerLinkHtml =
           itemType === 'program' && registerUrl
-            ? `<div class="detail-register"><a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-register">Register for this program</a></div>`
+            ? `<a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-register">Register for this program</a>`
+            : '';
+        const volunteerBtnHtml =
+          itemType === 'program'
+            ? `<button type="button" class="btn btn-outline btn-volunteer-program" onclick="openProgramVolunteerModal()">Volunteer for this program</button>`
+            : '';
+        const registerSection =
+          registerLinkHtml || volunteerBtnHtml
+            ? `<div class="detail-register"><div class="detail-register-actions">${registerLinkHtml}${volunteerBtnHtml}</div></div>`
             : '';
 
         const timingsRaw = data.item.timings && String(data.item.timings).trim();
@@ -210,6 +260,97 @@
 
       } catch (err) {
         loading.innerHTML = `<p>Could not load details. Please go back and try again.</p>`;
+        console.error(err);
+      }
+    }
+
+    let programVolunteerEscapeHandler = null;
+
+    function openProgramVolunteerModal() {
+      if (itemType !== 'program' || !currentItem) return;
+      if (programVolunteerEscapeHandler) {
+        document.removeEventListener('keydown', programVolunteerEscapeHandler);
+        programVolunteerEscapeHandler = null;
+      }
+      const overlay = document.getElementById('programVolunteerOverlay');
+      const errEl = document.getElementById('pvFormErr');
+      document.getElementById('pvFormBody').style.display = 'block';
+      document.getElementById('pvFormSuccess').style.display = 'none';
+      document.getElementById('pvName').value = '';
+      document.getElementById('pvPhone').value = '';
+      document.getElementById('pvArea').value = '';
+      document.getElementById('pvProgramName').value = currentItem.title || '';
+      errEl.style.display = 'none';
+      const btn = document.getElementById('pvSubmitBtn');
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+      programVolunteerEscapeHandler = function (e) {
+        if (e.key === 'Escape') closeProgramVolunteerModal();
+      };
+      document.addEventListener('keydown', programVolunteerEscapeHandler);
+      document.getElementById('pvName').focus();
+    }
+
+    function closeProgramVolunteerModal() {
+      const overlay = document.getElementById('programVolunteerOverlay');
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+      if (programVolunteerEscapeHandler) {
+        document.removeEventListener('keydown', programVolunteerEscapeHandler);
+        programVolunteerEscapeHandler = null;
+      }
+    }
+
+    async function submitProgramVolunteer() {
+      if (itemType !== 'program' || !currentItem) return;
+      const name = document.getElementById('pvName').value.trim();
+      const area = document.getElementById('pvArea').value.trim();
+      const errEl = document.getElementById('pvFormErr');
+      const btn = document.getElementById('pvSubmitBtn');
+
+      errEl.style.display = 'none';
+
+      if (!name || !area) {
+        errEl.textContent = 'Please fill in all required fields.';
+        errEl.style.display = 'block';
+        return;
+      }
+      const phoneCheck = validateWhatsAppNumber(document.getElementById('pvPhone').value);
+      if (!phoneCheck.ok) {
+        errEl.textContent = phoneCheck.message;
+        errEl.style.display = 'block';
+        return;
+      }
+      const phone = phoneCheck.normalized;
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            formType: 'programVolunteer',
+            name,
+            phone,
+            area,
+            programName: currentItem.title || '',
+            programId: currentItem.id || '',
+            timestamp: new Date().toISOString(),
+          }),
+        });
+
+        document.getElementById('pvFormBody').style.display = 'none';
+        document.getElementById('pvFormSuccess').style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Submit';
+      } catch (err) {
+        errEl.textContent = 'Submission failed. Please try again.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Submit';
         console.error(err);
       }
     }

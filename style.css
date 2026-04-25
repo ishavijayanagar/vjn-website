@@ -646,14 +646,37 @@ body.detail-page .detail-register {
   margin-top: 22px;
   margin-bottom: 0;
 }
+body.detail-page .detail-register-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+}
 body.detail-page .detail-register .btn-register,
-body.detail-page a.btn-register {
+body.detail-page a.btn-register,
+body.detail-page .detail-register .btn-volunteer-program {
   display: inline-flex;
   justify-content: center;
+  align-items: center;
   width: 100%;
   max-width: 420px;
   padding: 12px 22px;
   font-weight: 600;
+  text-align: center;
+  box-sizing: border-box;
+}
+body.detail-page .detail-register button.btn-volunteer-program {
+  font-family: var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+  border-radius: var(--radius);
+  transition: all var(--transition);
+}
+body.detail-page .detail-register button.btn-volunteer-program:hover {
+  transform: translateY(-1px);
 }
 body.detail-page .detail-content .description {
   font-size: 0.9rem;
@@ -832,6 +855,80 @@ body.detail-page .form-success {
 }
 
 /* =====================
+   PROGRAM VOLUNTEER MODAL (detail.html)
+   ===================== */
+.program-volunteer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 18, 14, 0.75);
+  box-sizing: border-box;
+}
+.program-volunteer-overlay.open {
+  display: flex;
+}
+.program-volunteer-modal {
+  position: relative;
+  background: var(--white);
+  border-radius: 8px;
+  padding: 40px 36px 36px;
+  max-width: 480px;
+  width: 100%;
+  max-height: min(92vh, 640px);
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--cream-2);
+}
+.program-volunteer-modal h3 {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  padding-right: 36px;
+}
+.program-volunteer-sub {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin-bottom: 22px;
+  line-height: 1.55;
+}
+.program-volunteer-close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-light);
+  padding: 4px;
+  transition: color var(--transition);
+}
+.program-volunteer-close:hover {
+  color: var(--dark);
+}
+.program-volunteer-modal .form-group input[readonly] {
+  background: var(--cream-2);
+  color: var(--text-mid);
+  cursor: default;
+}
+.program-volunteer-modal .form-group input:focus[readonly] {
+  border-color: var(--cream-2);
+  background: var(--cream-2);
+}
+.program-volunteer-err {
+  margin-bottom: 14px;
+}
+.program-volunteer-success {
+  padding: 28px 12px 8px;
+}
+
+/* =====================
    BACK LINK
    ===================== */
 .back-link {
@@ -920,7 +1017,11 @@ body.detail-page .form-success {
     max-width: 100%;
   }
   body.detail-page .detail-register .btn-register,
-  body.detail-page a.btn-register {
+  body.detail-page a.btn-register,
+  body.detail-page .detail-register .btn-volunteer-program {
+    max-width: 100%;
+  }
+  body.detail-page .detail-register-actions {
     max-width: 100%;
   }
 }
