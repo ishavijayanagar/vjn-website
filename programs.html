@@ -4,257 +4,10 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Programs</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <style>
-    :root {
-      --dark: #1c1c1e; --dark-2: #2a2a2d; --gold: #c8a96e; --gold-light: #e0c88a;
-      --gold-dark: #a8893e; --cream: #f5f0e8; --cream-2: #ede8de; --white: #ffffff;
-      --text-mid: #555; --text-light: #888;
-      --font-serif: 'Cormorant Garamond', Georgia, serif;
-      --font-sans: 'Jost', sans-serif; --transition: 0.28s ease;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; touch-action: manipulation; }
-    body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
-    a { text-decoration: none; color: inherit; }
-    ul { list-style: none; }
-    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-
-    /* NAV */
-    .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--dark); border-bottom: 1px solid rgba(200,169,110,0.2); }
-    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; }
-    .logo { display: flex; align-items: center; line-height: 1; }
-    .logo img { height: 28px; width: auto; display: block; }
-    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-    .nav-links { display: flex; gap: 40px; }
-    .nav-links a { font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream); transition: color var(--transition); }
-    .nav-links a:hover, .nav-links a.active { color: var(--gold); }
-    .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
-    .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
-    .mobile-menu.open { display: block; }
-    .mobile-menu li { padding: 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
-    .mobile-menu a { display: block; padding: 14px 0; color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
-
-    /* PAGE HEADER — compact band (nav offset + short title block) */
-    .page-header { background: var(--dark); padding: 72px 20px 22px; text-align: center; }
-    .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
-    .page-header h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 3.2vw, 2.1rem); font-weight: 400; color: var(--white); margin-bottom: 4px; letter-spacing: 0.02em; }
-    .page-header p { color: rgba(245,240,232,0.55); font-size: 0.8rem; max-width: 420px; margin: 0 auto; letter-spacing: 0.06em; text-transform: uppercase; }
-
-    /* SEARCH BAR */
-    .search-bar-section { background: var(--white); padding: 14px 0; border-bottom: 1px solid var(--cream-2); }
-    .search-bar-inner { max-width: 520px; margin: 0 auto; }
-    .search-field-wrap { position: relative; width: 100%; }
-    .search-input {
-      width: 100%; padding: 9px 40px 9px 14px;
-      border: 1px solid var(--cream-2); border-radius: 3px;
-      font-family: var(--font-sans); font-size: 0.92rem; color: var(--dark);
-      background: var(--cream); outline: none; transition: border-color var(--transition);
-    }
-    .search-input:focus { border-color: var(--gold); background: var(--white); }
-    .search-clear-btn {
-      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-      width: 30px; height: 30px; padding: 0; border: none; border-radius: 50%;
-      background: transparent; color: var(--text-light); cursor: pointer;
-      display: none; align-items: center; justify-content: center;
-      transition: color var(--transition), background var(--transition);
-    }
-    .search-clear-btn:hover { color: var(--dark); background: rgba(0,0,0,0.06); }
-    .search-clear-btn.visible { display: flex; }
-    .search-clear-btn svg { display: block; }
-
-    /* FREQUENCY FILTER PILLS */
-    .filter-pills-section {
-      background: var(--white);
-      padding: 12px 0 16px;
-      border-bottom: 1px solid var(--cream-2);
-    }
-    .filter-pills {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      max-width: 720px;
-      margin: 0 auto;
-    }
-    .filter-pill {
-      font-family: var(--font-sans);
-      font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      padding: 8px 14px;
-      border-radius: 999px;
-      border: 1px solid var(--cream-2);
-      background: var(--cream);
-      color: var(--text-mid);
-      cursor: pointer;
-      transition: background var(--transition), border-color var(--transition), color var(--transition);
-    }
-    .filter-pill:hover {
-      border-color: var(--gold);
-      color: var(--dark);
-    }
-    .filter-pill.active {
-      background: var(--gold);
-      border-color: var(--gold);
-      color: var(--dark);
-    }
-
-    /* LISTINGS — compact event-style cards */
-    .listings-section { padding: 32px 0 64px; }
-    .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
-
-    .listing-card {
-      background: var(--white); border-radius: 5px; overflow: hidden;
-      border: 1px solid var(--cream-2); box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-      transition: all var(--transition); display: block;
-    }
-    .listing-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.1); border-color: var(--gold); }
-
-    /* Square image area — matches 1:1 program artwork from Drive */
-    .card-image {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      overflow: hidden;
-      background: var(--dark);
-    }
-    .card-image img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform 0.35s ease;
-    }
-    .listing-card:hover .card-image img { transform: scale(1.04); }
-    .card-image .no-img {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: clamp(2rem, 12vw, 3rem);
-      opacity: 0.4;
-    }
-    .card-image .badge {
-      position: absolute; top: 8px; left: 8px;
-      background: var(--gold); color: var(--dark);
-      font-size: 0.58rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
-      padding: 3px 8px; border-radius: 3px;
-    }
-
-    .card-body { padding: 12px 14px 14px; }
-    .card-meta { font-size: 0.68rem; color: var(--gold-dark); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
-    .card-timings {
-      font-size: 0.66rem; color: var(--text-mid); letter-spacing: 0.04em; line-height: 1.35;
-      margin-bottom: 6px; text-transform: none;
-    }
-    .card-body h3 { font-family: var(--font-serif); font-size: 1.08rem; font-weight: 600; margin-bottom: 6px; line-height: 1.25; }
-    .card-body p {
-      font-size: 0.8rem; color: var(--text-mid); line-height: 1.45; margin-bottom: 10px;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-    }
-    .card-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--cream-2); padding-top: 10px; margin-top: 2px; }
-    .card-footer .loc { font-size: 0.7rem; color: var(--text-light); line-height: 1.3; }
-    .card-footer .more { font-size: 0.7rem; color: var(--gold-dark); font-weight: 500; flex-shrink: 0; }
-
-    /* STATES */
-    .state-box { text-align: center; padding: 72px 24px; }
-    .state-box .icon { font-size: 2.8rem; margin-bottom: 16px; }
-    .state-box h3 { font-family: var(--font-serif); font-size: 1.6rem; margin-bottom: 10px; }
-    .state-box p { font-size: 0.9rem; color: var(--text-mid); max-width: 400px; margin: 0 auto 28px; }
-    .spinner { width: 32px; height: 32px; border: 2px solid var(--cream-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* LEAVE INTEREST MODAL */
-    .modal-overlay {
-      display: none; position: fixed; inset: 0; z-index: 200;
-      background: rgba(20,18,14,0.75); align-items: center; justify-content: center; padding: 24px;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal {
-      background: var(--white); border-radius: 8px; padding: 40px 36px;
-      max-width: 480px; width: 100%; position: relative;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.3);
-    }
-    .modal-close { position: absolute; top: 16px; right: 20px; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-light); }
-    .modal h3 { font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 6px; }
-    .modal .sub { font-size: 0.84rem; color: var(--text-light); margin-bottom: 28px; }
-    .form-group { margin-bottom: 18px; }
-    .form-group label { display: block; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 7px; font-weight: 500; }
-    .form-group input, .form-group textarea {
-      width: 100%; padding: 11px 15px;
-      border: 1px solid var(--cream-2); border-radius: 3px;
-      background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
-      outline: none; transition: border-color var(--transition);
-    }
-    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--gold); background: var(--white); }
-    .form-group select {
-      width: 100%; padding: 11px 15px;
-      border: 1px solid var(--cream-2); border-radius: 3px;
-      background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
-      outline: none; transition: border-color var(--transition);
-      cursor: pointer;
-    }
-    .form-group textarea { height: 88px; resize: vertical; }
-    .submit-btn {
-      width: 100%; padding: 13px; background: var(--gold); color: var(--dark);
-      border: none; border-radius: 3px; font-family: var(--font-sans);
-      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
-      cursor: pointer; transition: background var(--transition);
-    }
-    .submit-btn:hover { background: var(--gold-light); }
-    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .form-err { background: #fff3f3; border: 1px solid #ffcccc; color: #c0392b; padding: 9px 13px; border-radius: 3px; font-size: 0.82rem; margin-bottom: 14px; display: none; }
-    .form-success-msg { text-align: center; padding: 24px 0; }
-    .form-success-msg .big { font-size: 2.4rem; margin-bottom: 12px; }
-    .form-success-msg h4 { font-family: var(--font-serif); font-size: 1.4rem; margin-bottom: 8px; }
-    .form-success-msg p { font-size: 0.86rem; color: var(--text-light); }
-    .form-success-msg .form-success-program-note { margin-top: 14px; font-size: 0.86rem; color: var(--text-mid); }
-
-    .modal-program-search {
-      margin: -8px 0 22px;
-      padding: 14px 16px;
-      background: var(--cream);
-      border: 1px solid var(--cream-2);
-      border-radius: 3px;
-    }
-    .modal-program-search-label {
-      font-size: 0.72rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--text-mid);
-      margin-bottom: 6px;
-      font-weight: 500;
-    }
-    .modal-program-search-value {
-      font-family: var(--font-serif);
-      font-size: 1.12rem;
-      color: var(--dark);
-      line-height: 1.35;
-      word-break: break-word;
-    }
-
-    /* FOOTER */
-    .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
-    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(200,169,110,0.15); }
-    .footer p { font-size: 0.86rem; line-height: 1.9; }
-    .footer h5 { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
-    .footer ul li { margin-bottom: 8px; }
-    .footer ul a { font-size: 0.86rem; transition: color var(--transition); }
-    .footer ul a:hover { color: var(--gold-light); }
-    .footer-bottom { text-align: center; padding: 18px; font-size: 0.75rem; color: rgba(245,240,232,0.3); }
-
-    @media (max-width: 700px) {
-      .nav-links { display: none; } .nav-toggle { display: block; }
-      .listings-grid { grid-template-columns: 1fr; }
-      .footer-grid { grid-template-columns: 1fr; gap: 32px; }
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
 </head>
-<body>
+<body class="programs-page">
 
   <nav class="navbar">
     <div class="nav-inner">
@@ -464,33 +217,37 @@
       }
 
       const grid = document.createElement('div');
-      grid.className = 'listings-grid';
+      grid.className = 'listings-grid programs-feed';
 
-      items.forEach(item => {
-        const card = document.createElement('a');
-        card.href = `detail.html?id=${item.id}&type=program`;
-        card.className = 'listing-card';
+      items.forEach((item, index) => {
+        const detailHref = `detail.html?id=${item.id}&type=program`;
+        const card = document.createElement('article');
+        card.className = 'program-card';
 
-        // Fix Google Drive image URLs
-        let imgHtml = `<div class="no-img">🌿</div>`;
-        if (item.image) {
-          const src = fixDriveUrl(item.image);
-          imgHtml = `<img src="${src}" alt="${item.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'no-img\\'>🌿</div>'"/>`;
-        }
+        const frequency = item.frequency ? String(item.frequency).trim() : '';
+
+        const metaHtml = [
+          buildProgramMetaItem(SVG_CALENDAR, item.date),
+          buildProgramMetaItem(SVG_CLOCK, item.timings),
+          buildProgramMetaItem(SVG_PIN, item.location),
+          buildProgramMetaItem(SVG_DURATION, item.duration),
+        ].join('');
 
         card.innerHTML = `
-          <div class="card-image">
-            ${imgHtml}
-            <span class="badge">Program</span>
-          </div>
-          <div class="card-body">
-            ${item.date ? `<div class="card-meta">${escapeHtml(item.date)}</div>` : ''}
-            ${item.timings && String(item.timings).trim() ? `<div class="card-timings">${escapeHtml(String(item.timings).trim())}</div>` : ''}
-            <h3>${item.title}</h3>
-            <p>${(item.description || '').substring(0, 88)}${item.description && item.description.length > 88 ? '…' : ''}</p>
-            <div class="card-footer">
-              <span class="loc">${item.location ? '📍 ' + item.location : ''}</span>
-              <span class="more">Details →</span>
+          ${buildProgramCardHero(item)}
+          <div class="program-card-seam"><span class="program-card-notch l"></span><span class="program-card-notch r"></span></div>
+          <div class="program-card-body">
+            <div class="program-card-title-row">
+              <h2 class="program-card-title"><a href="${escapeHtmlAttr(detailHref)}">${escapeHtml(item.title || 'Program')}</a></h2>
+              ${frequency ? `<span class="program-card-frequency">${escapeHtml(frequency)}</span>` : ''}
+            </div>
+            ${metaHtml ? `<div class="program-card-meta">${metaHtml}</div>` : ''}
+            <div class="program-card-actions">
+              <a href="${escapeHtmlAttr(detailHref)}" class="program-card-more program-card-more-link">
+                <span class="program-card-more-label">More details</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+              </a>
+              ${buildProgramCardAction(item)}
             </div>
           </div>`;
         grid.appendChild(card);
@@ -498,6 +255,53 @@
 
       container.innerHTML = '';
       container.appendChild(grid);
+    }
+
+    const SVG_CALENDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
+    const SVG_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+    const SVG_PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/></svg>';
+    const SVG_DURATION = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
+    const SVG_REGISTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+    const SVG_BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+
+    function buildProgramMetaItem(icon, value) {
+      const text = value ? String(value).trim() : '';
+      if (!text) return '';
+      return `<div class="program-card-meta-item">${icon}<span>${escapeHtml(text)}</span></div>`;
+    }
+
+    function buildProgramCardHero(item) {
+      const img = item.image ? fixDriveUrl(item.image) : '';
+      const mediaStyle = img ? ` style="background-image:url('${escapeHtmlAttr(img)}')"` : '';
+      const mediaClass = img ? 'program-card-hero-media has-image' : 'program-card-hero-media';
+      const flame = img ? '' : `<svg class="program-card-flame" viewBox="0 0 24 32" fill="none" aria-hidden="true"><path d="M12 2C9 8 6 11 6 17a6 6 0 0 0 12 0c0-3-1.5-5-2.5-7 .3 2-.8 3.2-1.5 2.4C15 10 13.5 6 12 2Z" fill="#F3C46B" opacity="0.9"/></svg>`;
+      return `
+        <div class="program-card-hero">
+          <div class="${mediaClass}"${mediaStyle}></div>
+          <div class="program-card-hero-texture"></div>
+          ${flame}
+          <div class="program-card-hero-scrim"></div>
+          <div class="program-card-badge-row">
+            <div class="program-card-badge">${SVG_BELL} Program</div>
+          </div>
+        </div>`;
+    }
+
+    function buildProgramCardAction(item) {
+      const registerUrl = getRegisterUrl(item);
+      if (registerUrl) {
+        return `<a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="program-card-register-btn">${SVG_REGISTER} Register now</a>`;
+      }
+      return `<button type="button" class="program-card-register-btn program-card-interest-btn" data-program-id="${escapeHtml(item.id)}" data-program-title="${escapeHtmlAttr(item.title || '')}">${SVG_BELL} Show interest</button>`;
+    }
+
+    function getRegisterUrl(item) {
+      const url = item.registerlink || item.registerLink || '';
+      return typeof url === 'string' ? url.trim() : '';
+    }
+
+    function escapeHtmlAttr(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     }
 
     function escapeHtml(str) {
@@ -526,7 +330,7 @@
           <div class="icon">🌿</div>
           <h3>No Programs Scheduled</h3>
           <p>${msg}</p>
-          <button onclick="openModal()" style="display:inline-block;padding:13px 36px;background:var(--gold);color:var(--dark);border:none;border-radius:3px;font-family:var(--font-sans);font-size:0.8rem;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;cursor:pointer;">
+          <button type="button" class="btn btn-gold" onclick="openModal()">
             Notify Me
           </button>
         </div>`;
@@ -651,6 +455,33 @@
       document.getElementById('modalOverlay').classList.add('open');
       syncModalProgramSearchContext();
     }
+
+    function openInterestForProgram(programId, programTitle) {
+      openModal();
+      const wrap = document.getElementById('modalProgramSearchContext');
+      if (wrap) wrap.style.display = 'none';
+      const programGroup = document.getElementById('fProgramGroupWrap');
+      if (programGroup) programGroup.style.display = '';
+      const sel = document.getElementById('fProgram');
+      if (sel && programTitle) {
+        sel.value = programTitle;
+        if (!sel.value) {
+          for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].textContent === programTitle) {
+              sel.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('.program-card-interest-btn');
+      if (!btn || !btn.closest('#listingsContainer')) return;
+      e.preventDefault();
+      openInterestForProgram(btn.dataset.programId || '', btn.dataset.programTitle || '');
+    });
     function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
 
     async function submitInterest() {

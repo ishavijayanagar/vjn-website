@@ -4,139 +4,10 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Volunteering</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <style>
-    :root {
-      --dark: #1c1c1e; --dark-2: #2a2a2d; --gold: #c8a96e; --gold-light: #e0c88a;
-      --gold-dark: #a8893e; --cream: #f5f0e8; --cream-2: #ede8de; --white: #ffffff;
-      --text-mid: #555; --text-light: #888;
-      --font-serif: 'Cormorant Garamond', Georgia, serif;
-      --font-sans: 'Jost', sans-serif; --transition: 0.28s ease;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { touch-action: manipulation; }
-    body { font-family: var(--font-sans); background: var(--cream); color: var(--dark); line-height: 1.7; }
-    a { text-decoration: none; color: inherit; } ul { list-style: none; }
-    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-
-    .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--dark); border-bottom: 1px solid rgba(200,169,110,0.2); }
-    .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; }
-    .logo { display: flex; align-items: center; line-height: 1; }
-    .logo img { height: 28px; width: auto; display: block; }
-    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-    .nav-links { display: flex; gap: 40px; }
-    .nav-links a { font-size: 0.82rem; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream); transition: color var(--transition); }
-    .nav-links a:hover, .nav-links a.active { color: var(--gold); }
-    .nav-toggle { display: none; background: none; border: none; color: var(--cream); font-size: 1.4rem; cursor: pointer; }
-    .mobile-menu { display: none; background: var(--dark-2); padding: 12px 24px; border-top: 1px solid rgba(200,169,110,0.15); }
-    .mobile-menu.open { display: block; }
-    .mobile-menu li { padding: 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
-    .mobile-menu a { display: block; padding: 14px 0; color: var(--cream); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; }
-
-    /* PAGE HEADER — match programs.html compact band */
-    .page-header { background: var(--dark); padding: 72px 20px 22px; text-align: center; }
-    .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
-    .page-header .section-label { margin-bottom: 6px; }
-    .page-header h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 3.2vw, 2.1rem); font-weight: 400; color: var(--white); margin-bottom: 4px; letter-spacing: 0.02em; }
-    .page-header p { color: rgba(245,240,232,0.55); font-size: 0.8rem; max-width: 420px; margin: 0 auto; letter-spacing: 0.06em; text-transform: uppercase; }
-
-    .listings-section { padding: 56px 0 96px; }
-    .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 28px; }
-
-    .listing-card { background: var(--white); border-radius: 6px; overflow: hidden; border: 1px solid var(--cream-2); box-shadow: 0 4px 20px rgba(0,0,0,0.06); transition: all var(--transition); display: block; }
-    .listing-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); border-color: var(--gold); }
-    .card-image { height: 200px; overflow: hidden; background: var(--dark); display: flex; align-items: center; justify-content: center; position: relative; }
-    .card-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
-    .listing-card:hover .card-image img { transform: scale(1.05); }
-    .card-image .no-img { font-size: 3rem; opacity: 0.4; }
-    .card-image .badge { position: absolute; top: 14px; left: 14px; background: var(--gold); color: var(--dark); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; }
-    .card-body { padding: 22px 26px 26px; }
-    .card-meta { font-size: 0.75rem; color: var(--gold-dark); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
-    .card-body h3 { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; line-height: 1.3; }
-    .card-body p { font-size: 0.86rem; color: var(--text-mid); line-height: 1.65; margin-bottom: 18px; }
-    .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--cream-2); padding-top: 14px; }
-    .card-footer .loc { font-size: 0.76rem; color: var(--text-light); }
-    .card-footer .more { font-size: 0.76rem; color: var(--gold-dark); font-weight: 500; }
-
-    .state-box { text-align: center; padding: 72px 24px; }
-    .state-box .icon { font-size: 2.8rem; margin-bottom: 16px; }
-    .state-box h3 { font-family: var(--font-serif); font-size: 1.6rem; margin-bottom: 10px; }
-    .state-box p { font-size: 0.9rem; color: var(--text-mid); max-width: 400px; margin: 0 auto; }
-    .spinner { width: 32px; height: 32px; border: 2px solid var(--cream-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .interest-strip {
-      background: var(--white);
-      border-bottom: 1px solid var(--cream-2);
-      padding: 0.85rem 0;
-    }
-    .interest-strip-inner {
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
-    }
-    .interest-strip-inner p { font-size: 0.88rem; color: var(--text-mid); margin: 0; }
-    .interest-btn {
-      padding: 10px 22px; background: var(--gold); color: var(--dark);
-      border: none; border-radius: 3px; cursor: pointer;
-      font-family: var(--font-sans); font-size: 0.8rem; font-weight: 600;
-      letter-spacing: 0.1em; text-transform: uppercase; transition: background var(--transition);
-    }
-    .interest-btn:hover { background: var(--gold-light); }
-
-    /* VOLUNTEER INTEREST MODAL */
-    .modal-overlay {
-      display: none; position: fixed; inset: 0; z-index: 200;
-      background: rgba(20,18,14,0.75); align-items: center; justify-content: center; padding: 24px;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal {
-      background: var(--white); border-radius: 8px; padding: 40px 36px;
-      max-width: 480px; width: 100%; position: relative;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.3);
-    }
-    .modal-close { position: absolute; top: 16px; right: 20px; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-light); }
-    .modal h3 { font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 6px; }
-    .modal .sub { font-size: 0.84rem; color: var(--text-light); margin-bottom: 28px; }
-    .form-group { margin-bottom: 18px; }
-    .form-group label { display: block; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 7px; font-weight: 500; }
-    .form-group input, .form-group select {
-      width: 100%; padding: 11px 15px;
-      border: 1px solid var(--cream-2); border-radius: 3px;
-      background: var(--cream); font-family: var(--font-sans); font-size: 0.9rem; color: var(--dark);
-      outline: none; transition: border-color var(--transition);
-    }
-    .form-group select { cursor: pointer; }
-    .form-group input:focus, .form-group select:focus { border-color: var(--gold); background: var(--white); }
-    .submit-btn {
-      width: 100%; padding: 13px; background: var(--gold); color: var(--dark);
-      border: none; border-radius: 3px; font-family: var(--font-sans);
-      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
-      cursor: pointer; transition: background var(--transition);
-    }
-    .submit-btn:hover { background: var(--gold-light); }
-    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .form-err { background: #fff3f3; border: 1px solid #ffcccc; color: #c0392b; padding: 9px 13px; border-radius: 3px; font-size: 0.82rem; margin-bottom: 14px; display: none; }
-    .form-success-msg { text-align: center; padding: 24px 0; }
-    .form-success-msg .big { font-size: 2.4rem; margin-bottom: 12px; }
-    .form-success-msg h4 { font-family: var(--font-serif); font-size: 1.4rem; margin-bottom: 8px; }
-    .form-success-msg p { font-size: 0.86rem; color: var(--text-light); }
-
-    .footer { background: var(--dark); padding: 56px 0 0; color: rgba(245,240,232,0.7); }
-    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(200,169,110,0.15); }
-    .footer p { font-size: 0.86rem; line-height: 1.9; }
-    .footer h5 { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 500; }
-    .footer ul li { margin-bottom: 8px; }
-    .footer ul a { font-size: 0.86rem; transition: color var(--transition); }
-    .footer ul a:hover { color: var(--gold-light); }
-    .footer-bottom { text-align: center; padding: 18px; font-size: 0.75rem; color: rgba(245,240,232,0.3); }
-
-    @media (max-width: 700px) {
-      .nav-links { display: none; } .nav-toggle { display: block; }
-      .listings-grid { grid-template-columns: 1fr; }
-      .footer-grid { grid-template-columns: 1fr; gap: 32px; }
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
 </head>
-<body>
+<body class="volunteering-page">
 
   <nav class="navbar">
     <div class="nav-inner">
@@ -267,8 +138,21 @@
       });
     }
 
-    function openVolunteerModal() {
+    function openVolunteerModal(opportunityId, opportunityTitle) {
       populateVolunteerSelect();
+      const sel = document.getElementById('vOpportunity');
+      if (sel && (opportunityId || opportunityTitle)) {
+        for (let i = 0; i < sel.options.length; i++) {
+          const opt = sel.options[i];
+          if (
+            (opportunityId && opt.dataset.id === String(opportunityId)) ||
+            (opportunityTitle && opt.value === opportunityTitle)
+          ) {
+            sel.selectedIndex = i;
+            break;
+          }
+        }
+      }
       document.getElementById('volunteerModalOverlay').classList.add('open');
     }
     function closeVolunteerModal() {
@@ -325,6 +209,48 @@
       }
     }
 
+    const SVG_CALENDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
+    const SVG_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+    const SVG_PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/></svg>';
+    const SVG_DURATION = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
+    const SVG_HAND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 11V8a2 2 0 0 1 4 0v3"/><path d="M11 10V7a2 2 0 0 1 4 0v4"/><path d="M15 9V6a2 2 0 0 1 2-2 2 2 0 0 1 2 2v8a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-2a2 2 0 0 1 4 0"/></svg>';
+
+    function escapeHtmlAttr(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function buildVolunteerMetaItem(icon, value) {
+      const text = value ? String(value).trim() : '';
+      if (!text) return '';
+      return `<div class="program-card-meta-item">${icon}<span>${escapeHtml(text)}</span></div>`;
+    }
+
+    function buildVolunteerCardHero(item) {
+      const img = item.image ? fixDriveUrl(item.image) : '';
+      const mediaStyle = img ? ` style="background-image:url('${escapeHtmlAttr(img)}')"` : '';
+      const mediaClass = img ? 'program-card-hero-media leaf has-image' : 'program-card-hero-media leaf';
+      const icon = img ? '' : `<svg class="program-card-flame" viewBox="0 0 24 32" fill="none" aria-hidden="true"><path d="M12 2C9 8 6 11 6 17a6 6 0 0 0 12 0c0-3-1.5-5-2.5-7 .3 2-.8 3.2-1.5 2.4C15 10 13.5 6 12 2Z" fill="#A8D4AE" opacity="0.9"/></svg>`;
+      return `
+        <div class="program-card-hero">
+          <div class="${mediaClass}"${mediaStyle}></div>
+          <div class="program-card-hero-texture"></div>
+          ${icon}
+          <div class="program-card-hero-scrim"></div>
+          <div class="program-card-badge-row">
+            <div class="program-card-badge">${SVG_HAND} Volunteer</div>
+          </div>
+        </div>`;
+    }
+
     async function loadVolunteering() {
       const container = document.getElementById('listingsContainer');
       try {
@@ -340,28 +266,37 @@
         }
 
         const grid = document.createElement('div');
-        grid.className = 'listings-grid';
+        grid.className = 'listings-grid listings-feed';
 
-        items.forEach(item => {
-          const card = document.createElement('a');
-          card.href = `detail.html?id=${item.id}&type=volunteering`;
-          card.className = 'listing-card';
+        items.forEach((item, index) => {
+          const detailHref = `detail.html?id=${item.id}&type=volunteering`;
+          const card = document.createElement('article');
+          card.className = 'program-card';
 
-          let imgHtml = `<div class="no-img">🤝</div>`;
-          if (item.image) {
-            const src = fixDriveUrl(item.image);
-            imgHtml = `<img src="${src}" alt="${item.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'no-img\\'>🤝</div>'"/>`;
-          }
+          const dateLabel = item.date ? String(item.date).trim() : 'Ongoing';
+
+          const metaHtml = [
+            buildVolunteerMetaItem(SVG_CALENDAR, item.date || 'Ongoing'),
+            buildVolunteerMetaItem(SVG_CLOCK, item.timings),
+            buildVolunteerMetaItem(SVG_PIN, item.location),
+            buildVolunteerMetaItem(SVG_DURATION, item.duration),
+          ].join('');
 
           card.innerHTML = `
-            <div class="card-image">${imgHtml}<span class="badge">Volunteer</span></div>
-            <div class="card-body">
-              <div class="card-meta">${item.date || 'Ongoing'}</div>
-              <h3>${item.title}</h3>
-              <p>${(item.description || '').substring(0, 110)}${item.description && item.description.length > 110 ? '...' : ''}</p>
-              <div class="card-footer">
-                <span class="loc">${item.location ? '📍 ' + item.location : ''}</span>
-                <span class="more">Details →</span>
+            ${buildVolunteerCardHero(item)}
+            <div class="program-card-seam"><span class="program-card-notch l"></span><span class="program-card-notch r"></span></div>
+            <div class="program-card-body">
+              <div class="program-card-title-row">
+                <h2 class="program-card-title"><a href="${escapeHtmlAttr(detailHref)}">${escapeHtml(item.title || 'Volunteering')}</a></h2>
+                <span class="program-card-frequency">${escapeHtml(dateLabel)}</span>
+              </div>
+              ${metaHtml ? `<div class="program-card-meta">${metaHtml}</div>` : ''}
+              <div class="program-card-actions">
+                <a href="${escapeHtmlAttr(detailHref)}" class="program-card-more program-card-more-link">
+                  <span class="program-card-more-label">More details</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+                </a>
+                <button type="button" class="program-card-register-btn program-card-interest-btn" data-opportunity-id="${escapeHtml(item.id || '')}" data-opportunity-title="${escapeHtmlAttr(item.title || '')}">${SVG_HAND} Express interest</button>
               </div>
             </div>`;
           grid.appendChild(card);
@@ -375,6 +310,13 @@
         container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>Could not load</h3><p>Please try again later.</p></div>`;
       }
     }
+
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('.program-card-interest-btn[data-opportunity-id], .program-card-interest-btn[data-opportunity-title]');
+      if (btn) {
+        openVolunteerModal(btn.dataset.opportunityId || '', btn.dataset.opportunityTitle || '');
+      }
+    });
 
     loadVolunteering();
   </script>
