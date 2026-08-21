@@ -5,7 +5,8 @@
   <meta name="referrer" content="no-referrer"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Programs</title>
-  <link rel="stylesheet" href="style.css?v=time-slots"/>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="stylesheet" href="style.css?v=volunteering-redesign"/>
 </head>
 <body class="programs-page" data-wait-load="1">
 
@@ -36,38 +37,40 @@
     </div>
   </nav>
 
-  <div class="page-header">
-    <h1>Upcoming Programs</h1>
-    <p>At Vijayanagar Centre</p>
-  </div>
-
-  <div class="search-bar-section">
-    <div class="container">
-      <div class="search-bar-inner">
-        <div class="search-field-wrap">
-          <input type="text" class="search-input" id="searchInput" placeholder="Search programs..." oninput="filterPrograms()" autocomplete="off"/>
-          <button type="button" class="search-clear-btn" id="searchClearBtn" onclick="clearProgramSearch()" aria-label="Clear search">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
-      </div>
+  <header class="programs-hero">
+    <div class="container programs-hero-inner">
+      <span class="section-label">Isha Place, Vijayanagar</span>
+      <h1>Upcoming Programs</h1>
     </div>
-  </div>
+  </header>
 
-  <div class="filter-pills-section">
-    <div class="container">
-      <div class="filter-pills" id="frequencyPills" role="tablist" aria-label="Filter by program frequency">
-        <button type="button" class="filter-pill active" data-frequency="all" role="tab" aria-selected="true" aria-pressed="true">All</button>
-        <button type="button" class="filter-pill" data-frequency="daily" role="tab" aria-selected="false" aria-pressed="false">Daily</button>
-        <button type="button" class="filter-pill" data-frequency="weekly" role="tab" aria-selected="false" aria-pressed="false">Weekly</button>
-        <button type="button" class="filter-pill" data-frequency="monthly" role="tab" aria-selected="false" aria-pressed="false">Monthly</button>
-        <button type="button" class="filter-pill" data-frequency="scheduled" role="tab" aria-selected="false" aria-pressed="false">Scheduled Programs</button>
+  <div class="programs-browse">
+    <div class="container programs-browse-inner">
+      <div class="search-field-wrap">
+        <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search programs, dates, timings…" oninput="filterPrograms()" autocomplete="off" aria-label="Search programs"/>
+        <button type="button" class="search-clear-btn" id="searchClearBtn" onclick="clearProgramSearch()" aria-label="Clear search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="filter-pills-rail">
+        <div class="filter-pills" id="frequencyPills" role="tablist" aria-label="Filter by program frequency">
+          <button type="button" class="filter-pill active" data-frequency="all" role="tab" aria-selected="true" aria-pressed="true">All</button>
+          <button type="button" class="filter-pill" data-frequency="daily" role="tab" aria-selected="false" aria-pressed="false">Daily</button>
+          <button type="button" class="filter-pill" data-frequency="weekly" role="tab" aria-selected="false" aria-pressed="false">Weekly</button>
+          <button type="button" class="filter-pill" data-frequency="monthly" role="tab" aria-selected="false" aria-pressed="false">Monthly</button>
+          <button type="button" class="filter-pill" data-frequency="scheduled" role="tab" aria-selected="false" aria-pressed="false">Scheduled</button>
+        </div>
       </div>
     </div>
   </div>
 
   <section class="listings-section">
     <div class="container">
+      <div class="programs-result-bar" id="programsResultBar" hidden>
+        <p class="programs-result-count" id="programsResultCount"></p>
+        <button type="button" class="programs-result-reset" id="programsResultReset" onclick="resetProgramFilters()" hidden>Clear filters</button>
+      </div>
       <div id="listingsContainer">
         <div class="state-box">
           <div class="spinner"></div>
@@ -126,6 +129,7 @@
         </div>
       </div>
       <div class="footer-bottom">
+        <p>Managed and run by volunteers</p>
         <p>© 2026 Isha Vijayanagar</p>
       </div>
     </div>
@@ -134,7 +138,7 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js"></script>
-  <script src="site.js?v=time-slots"></script>
+  <script src="site.js?v=volunteering-redesign"></script>
   <script>
     let allPrograms = [];
     let activeFrequencyPill = 'all';
@@ -221,6 +225,31 @@
       }
     }
 
+    function hasActiveProgramFilters() {
+      const searching = (document.getElementById('searchInput')?.value || '').trim().length > 0;
+      return searching || activeFrequencyPill !== 'all';
+    }
+
+    function updateResultBar(count) {
+      const bar = document.getElementById('programsResultBar');
+      const label = document.getElementById('programsResultCount');
+      const reset = document.getElementById('programsResultReset');
+      if (!bar || !label || !reset) return;
+      if (!allPrograms.length) {
+        bar.hidden = true;
+        return;
+      }
+      bar.hidden = false;
+      label.textContent = count === 1 ? '1 program' : count + ' programs';
+      reset.hidden = !hasActiveProgramFilters();
+    }
+
+    function resetProgramFilters() {
+      const input = document.getElementById('searchInput');
+      if (input) input.value = '';
+      setFrequencyFilter('all');
+    }
+
     function renderPrograms(items, options) {
       options = options || {};
       const container = document.getElementById('listingsContainer');
@@ -229,6 +258,7 @@
         renderNoPrograms(options.searchKeyword || '', pillForMsg);
         return;
       }
+      updateResultBar(items.length);
 
       const grid = document.createElement('div');
       grid.className = 'listings-grid programs-feed';
@@ -330,6 +360,7 @@
     }
 
     function renderNoPrograms(searchKeyword = '', activePill = '') {
+      updateResultBar(0);
       const kw = (searchKeyword || '').trim();
       let msg;
       if (kw) {

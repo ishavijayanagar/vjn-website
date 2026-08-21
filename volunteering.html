@@ -5,7 +5,8 @@
   <meta name="referrer" content="no-referrer"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Volunteering</title>
-  <link rel="stylesheet" href="style.css?v=time-slots"/>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="stylesheet" href="style.css?v=volunteering-redesign"/>
 </head>
 <body class="volunteering-page" data-wait-load="1">
 
@@ -36,20 +37,25 @@
     </div>
   </nav>
 
-  <div class="page-header">
-    <h1>Volunteering Opportunities</h1>
-    <p>At Vijayanagar Centre</p>
-  </div>
+  <header class="volunteering-hero">
+    <div class="container volunteering-hero-inner">
+      <span class="section-label">Isha Place, Vijayanagar</span>
+      <h1>Volunteering</h1>
+    </div>
+  </header>
 
-  <div class="interest-strip" id="volunteerInterestStrip">
-    <div class="container interest-strip-inner">
-      <p>Interested in volunteering with us?</p>
+  <div class="volunteering-browse" id="volunteerInterestStrip">
+    <div class="container volunteering-browse-inner">
+      <p class="volunteering-browse-copy">Interested in volunteering with us?</p>
       <button type="button" class="interest-btn" onclick="openVolunteerModal()">Express interest</button>
     </div>
   </div>
 
   <section class="listings-section">
     <div class="container">
+      <div class="volunteering-result-bar" id="volunteeringResultBar" hidden>
+        <p class="volunteering-result-count" id="volunteeringResultCount"></p>
+      </div>
       <div id="listingsContainer">
         <div class="state-box">
           <div class="spinner"></div>
@@ -99,6 +105,7 @@
         </div>
       </div>
       <div class="footer-bottom">
+        <p>Managed and run by volunteers</p>
         <p>© 2026 Isha Vijayanagar</p>
       </div>
     </div>
@@ -107,7 +114,7 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js"></script>
-  <script src="site.js?v=time-slots"></script>
+  <script src="site.js?v=volunteering-redesign"></script>
   <script>
     let allVolunteering = [];
 
@@ -283,12 +290,22 @@
         if (!items.length) {
           const strip = document.getElementById('volunteerInterestStrip');
           if (strip) strip.style.display = 'none';
+          const bar = document.getElementById('volunteeringResultBar');
+          if (bar) bar.hidden = true;
           container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>No Opportunities Listed</h3><p>Check back soon — or leave your interest and we’ll contact you regarding opportunities.</p><button type="button" onclick="openVolunteerModal()" class="interest-btn" style="margin-top:1.5rem">Express interest</button></div>`;
           return;
         }
 
         const strip = document.getElementById('volunteerInterestStrip');
         if (strip) strip.style.display = '';
+
+        const bar = document.getElementById('volunteeringResultBar');
+        const countEl = document.getElementById('volunteeringResultCount');
+        if (bar && countEl) {
+          bar.hidden = false;
+          countEl.textContent =
+            items.length === 1 ? '1 opportunity' : items.length + ' opportunities';
+        }
 
         const grid = document.createElement('div');
         grid.className = 'listings-grid listings-feed';
@@ -337,6 +354,8 @@
         populateVolunteerSelect();
         const strip = document.getElementById('volunteerInterestStrip');
         if (strip) strip.style.display = 'none';
+        const bar = document.getElementById('volunteeringResultBar');
+        if (bar) bar.hidden = true;
         container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>Could not load</h3><p>Please try again later.</p><button type="button" onclick="openVolunteerModal()" class="interest-btn" style="margin-top:1.5rem">Express interest</button></div>`;
       } finally {
         if (window.endPageLoad) endPageLoad();
