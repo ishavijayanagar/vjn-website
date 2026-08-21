@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
+  <meta name="referrer" content="no-referrer"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Programs</title>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="style.css?v=time-slots"/>
 </head>
-<body class="programs-page">
+<body class="programs-page" data-wait-load="1">
 
   <nav class="navbar">
     <div class="nav-inner">
@@ -19,13 +19,21 @@
         <li><a href="programs.html" class="active">Programs</a></li>
         <li><a href="volunteering.html">Volunteering</a></li>
       </ul>
-      <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
+      <button type="button" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mob">
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </button>
     </div>
-    <ul class="mobile-menu" id="mob">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="programs.html">Programs</a></li>
-      <li><a href="volunteering.html">Volunteering</a></li>
-    </ul>
+    <div class="nav-backdrop" data-nav-backdrop aria-hidden="true"></div>
+    <div class="mobile-menu" id="mob" aria-hidden="true">
+      <ul class="mobile-menu-list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="programs.html" class="active">Programs</a></li>
+        <li><a href="volunteering.html">Volunteering</a></li>
+      </ul>
+      <p class="mobile-menu-footer" data-admin-longpress>Isha Place, Vijayanagar</p>
+    </div>
   </nav>
 
   <div class="page-header">
@@ -104,7 +112,7 @@
       <div class="footer-grid">
         <div>
           <h5>Address</h5>
-          <p>195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
+          <p data-site="footer_address" data-site-mode="html">195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
         </div>
         <div>
           <h5>Navigate</h5>
@@ -112,17 +120,21 @@
         </div>
         <div>
           <h5>Contact</h5>
-          <p>📞 +91 80957 63111</p><br/>
+          <p>📞 <span data-site="footer_phone">+91 80957 63111</span></p><br/>
           <h5>Hours</h5>
-          <p>Mon – Sun<br/>10:00 AM – 8:00 PM</p>
+          <p data-site="footer_hours" data-site-mode="html">Mon – Sun<br/>10:00 AM – 8:00 PM</p>
         </div>
       </div>
-      <div class="footer-bottom"><p>© 2026 Isha Vijayanagar</p></div>
+      <div class="footer-bottom">
+        <p>© 2026 Isha Vijayanagar</p>
+      </div>
     </div>
   </footer>
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
+  <script src="protect.js"></script>
+  <script src="site.js?v=time-slots"></script>
   <script>
     let allPrograms = [];
     let activeFrequencyPill = 'all';
@@ -204,6 +216,8 @@
         allPrograms = [];
         populateProgramSelect();
         setFrequencyFilter('all');
+      } finally {
+        if (window.endPageLoad) endPageLoad();
       }
     }
 
@@ -227,8 +241,8 @@
         const frequency = item.frequency ? String(item.frequency).trim() : '';
 
         const metaHtml = [
-          buildProgramMetaItem(SVG_CALENDAR, item.date),
-          buildProgramMetaItem(SVG_CLOCK, item.timings),
+          buildProgramMetaItem(SVG_CALENDAR, listingDateLabel(item)),
+          buildProgramMetaItem(SVG_CLOCK, typeof formatEventSlots === 'function' ? formatEventSlots(item) : item.timings),
           buildProgramMetaItem(SVG_PIN, item.location),
           buildProgramMetaItem(SVG_DURATION, item.duration),
         ].join('');
@@ -272,12 +286,14 @@
 
     function buildProgramCardHero(item) {
       const img = item.image ? fixDriveUrl(item.image) : '';
-      const mediaStyle = img ? ` style="background-image:url('${escapeHtmlAttr(img)}')"` : '';
       const mediaClass = img ? 'program-card-hero-media has-image' : 'program-card-hero-media';
+      const photo = img
+        ? `<img class="program-card-hero-photo" src="${escapeHtmlAttr(img)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>`
+        : '';
       const flame = img ? '' : `<svg class="program-card-flame" viewBox="0 0 24 32" fill="none" aria-hidden="true"><path d="M12 2C9 8 6 11 6 17a6 6 0 0 0 12 0c0-3-1.5-5-2.5-7 .3 2-.8 3.2-1.5 2.4C15 10 13.5 6 12 2Z" fill="#F3C46B" opacity="0.9"/></svg>`;
       return `
         <div class="program-card-hero">
-          <div class="${mediaClass}"${mediaStyle}></div>
+          <div class="${mediaClass}">${photo}</div>
           <div class="program-card-hero-texture"></div>
           ${flame}
           <div class="program-card-hero-scrim"></div>
@@ -367,6 +383,8 @@
           (p.title || '').toLowerCase().includes(q) ||
           (p.description || '').toLowerCase().includes(q) ||
           (p.date || '').toLowerCase().includes(q) ||
+          (p.startdate || '').toLowerCase().includes(q) ||
+          (p.enddate || '').toLowerCase().includes(q) ||
           (p.frequency || '').toLowerCase().includes(q) ||
           (p.timings || '').toLowerCase().includes(q)
       );
@@ -400,19 +418,22 @@
       }
     }
 
-    function fixDriveUrl(url) {
-      // Use Drive's thumbnail endpoint: it redirects to lh3.googleusercontent.com, which allows
-      // embedding. uc?export=view redirects to usercontent.google.com with CORP: same-site, which
-      // often breaks <img> from external sites (403 / blocked load).
-      if (!url || typeof url !== 'string') return url;
+    function driveFileId(url) {
+      if (!url || typeof url !== 'string') return '';
       const u = url.trim();
-      if (/^https:\/\/lh\d*\.googleusercontent\.com\//i.test(u)) return u;
-      if (/thumbnail\?.*\bid=/.test(u)) return u;
-      const match = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`;
-      const ucMatch = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-      if (ucMatch) return `https://drive.google.com/thumbnail?id=${ucMatch[1]}&sz=w1200`;
-      return u;
+      const fromPath = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (fromPath) return fromPath[1];
+      const fromQuery = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (fromQuery) return fromQuery[1];
+      const fromLh = u.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+      if (fromLh) return fromLh[1];
+      return '';
+    }
+
+    function fixDriveUrl(url) {
+      const id = driveFileId(url);
+      if (id) return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w800';
+      return url;
     }
 
     function populateProgramSelect() {

@@ -4,8 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Home – Isha Place, Vijayanagar</title>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="style.css?v=time-slots"/>
 </head>
 <body class="home-page">
 
@@ -20,31 +19,64 @@
         <li><a href="programs.html">Programs</a></li>
         <li><a href="volunteering.html">Volunteering</a></li>
       </ul>
-      <button class="nav-toggle" onclick="document.getElementById('mob').classList.toggle('open')">&#9776;</button>
+      <button type="button" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mob">
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </button>
     </div>
-    <ul class="mobile-menu" id="mob">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="programs.html">Programs</a></li>
-      <li><a href="volunteering.html">Volunteering</a></li>
-    </ul>
+    <div class="nav-backdrop" data-nav-backdrop aria-hidden="true"></div>
+    <div class="mobile-menu" id="mob" aria-hidden="true">
+      <ul class="mobile-menu-list">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="programs.html">Programs</a></li>
+        <li><a href="volunteering.html">Volunteering</a></li>
+      </ul>
+      <p class="mobile-menu-footer" data-admin-longpress>Isha Place, Vijayanagar</p>
+    </div>
   </nav>
 
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-bg"></div>
-    <div class="hero-pattern"></div>
-    <div class="hero-glow"></div>
+    <div class="hero-media">
+      <picture>
+        <source
+          media="(max-width: 767px)"
+          srcset="assets/sg.jpg"
+          width="923"
+          height="1171"
+          data-site-src="hero_image_mobile"
+        />
+        <img
+          class="hero-photo"
+          src="assets/sadhguru-hero.jpg"
+          alt="Sadhguru"
+          data-site-src="hero_image"
+          width="1024"
+          height="512"
+          fetchpriority="high"
+          decoding="async"
+          sizes="100vw"
+        />
+      </picture>
+    </div>
     <div class="hero-content">
-      <blockquote class="hero-quote">
+      <blockquote class="hero-quote" data-site="hero_quote">
         "If tears of joy, tears of love, tears of ecstasy have not washed your cheeks, you are yet to experience life."
       </blockquote>
-      <p class="hero-quote-attr">— Sadhguru</p>
+      <p class="hero-quote-attr">
+        <img
+          class="hero-signature"
+          src="assets/signature-40159.png"
+          alt="Sadhguru"
+          width="277"
+          height="130"
+        />
+      </p>
       <div class="hero-buttons">
-        <div class="hero-buttons-row">
-          <a href="programs.html" class="btn btn-gold">Explore Programs at Vijayanagar</a>
-          <a href="volunteering.html" class="btn btn-outline">Volunteering Opportunities</a>
-        </div>
-        <button type="button" class="btn hero-query-btn" onclick="openQueryModal()">Submit a Query</button>
+        <a href="programs.html" class="btn btn-gold">Explore Programs</a>
+        <a href="volunteering.html" class="btn btn-outline">Volunteering</a>
+        <button type="button" class="btn btn-outline" onclick="openQueryModal()">Submit a Query</button>
       </div>
     </div>
   </section>
@@ -53,9 +85,9 @@
   <section class="about-strip">
     <div class="container">
       <div class="about-inner">
-        <span class="section-label">About This Centre</span>
-        <h2>A Space for Inner Wellbeing</h2>
-        <p>A local Isha Foundation centre offering yoga, meditation, and inner wellbeing programs. Whether you are a beginner or a seasoned practitioner, this is a space for you to grow, transform, and contribute.</p>
+        <span class="section-label" data-site="about_label">About This Centre</span>
+        <h2 data-site="about_heading">A Space for Inner Wellbeing</h2>
+        <p data-site="about_body">A local Isha Foundation centre offering yoga, meditation, and inner wellbeing programs. Whether you are a beginner or a seasoned practitioner, this is a space for you to grow, transform, and contribute.</p>
       </div>
     </div>
   </section>
@@ -111,7 +143,7 @@
             <label for="hqQuery">Your Query *</label>
             <textarea id="hqQuery" name="query" placeholder="What would you like to know?"></textarea>
           </div>
-          <button type="button" class="submit-btn" id="homeQueryBtn" onclick="submitHomeQuery()">Submit Query</button>
+          <button type="button" class="submit-btn" id="homeQueryBtn" onclick="submitHomeQuery()" aria-busy="false">Submit Query</button>
         </div>
         <div class="query-success" id="homeQuerySuccess">
           <div class="success-icon">🙏</div>
@@ -128,7 +160,7 @@
       <div class="footer-grid">
         <div>
           <h5>Address</h5>
-          <p>195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
+          <p data-site="footer_address" data-site-mode="html">195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
         </div>
         <div>
           <h5>Navigate</h5>
@@ -139,10 +171,10 @@
         </div>
         <div>
           <h5>Contact</h5>
-          <p>📞 +91 80957 63111</p>
+          <p>📞 <span data-site="footer_phone">+91 80957 63111</span></p>
           <br/>
           <h5>Hours</h5>
-          <p>Mon – Sun<br/>10:00 AM – 8:00 PM</p>
+          <p data-site="footer_hours" data-site-mode="html">Mon – Sun<br/>10:00 AM – 8:00 PM</p>
         </div>
       </div>
       <div class="footer-bottom">
@@ -153,15 +185,40 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
+  <script src="protect.js"></script>
+  <script src="site.js?v=time-slots"></script>
   <script>
+    (function () {
+      var nav = document.querySelector('.navbar');
+      if (!nav) return;
+      function syncNav() {
+        nav.classList.toggle('is-scrolled', window.scrollY > 24);
+      }
+      syncNav();
+      window.addEventListener('scroll', syncNav, { passive: true });
+    })();
+
+    function setHomeQueryLoading(on) {
+      const btn = document.getElementById('homeQueryBtn');
+      const fields = document.getElementById('homeQueryFields');
+      if (!btn) return;
+      btn.disabled = !!on;
+      btn.classList.toggle('is-loading', !!on);
+      btn.setAttribute('aria-busy', on ? 'true' : 'false');
+      btn.textContent = on ? 'Submitting' : 'Submit Query';
+      if (fields) {
+        fields.querySelectorAll('input, textarea').forEach(function (el) {
+          el.disabled = !!on;
+        });
+      }
+    }
+
     function openQueryModal() {
       document.getElementById('queryModalOverlay').classList.add('open');
       document.getElementById('homeQueryErr').style.display = 'none';
       document.getElementById('homeQueryFields').style.display = 'block';
       document.getElementById('homeQuerySuccess').style.display = 'none';
-      const btn = document.getElementById('homeQueryBtn');
-      btn.disabled = false;
-      btn.textContent = 'Submit Query';
+      setHomeQueryLoading(false);
       ['hqName', 'hqPhone', 'hqArea', 'hqQuery'].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -169,6 +226,8 @@
     }
 
     function closeQueryModal() {
+      const btn = document.getElementById('homeQueryBtn');
+      if (btn && btn.classList.contains('is-loading')) return;
       document.getElementById('queryModalOverlay').classList.remove('open');
     }
 
@@ -188,6 +247,8 @@
       const err = document.getElementById('homeQueryErr');
       const btn = document.getElementById('homeQueryBtn');
 
+      if (btn && btn.classList.contains('is-loading')) return;
+
       err.style.display = 'none';
       if (!name || !area || !query) {
         err.textContent = 'Please fill in all required fields.';
@@ -202,8 +263,7 @@
       }
       const phone = phoneCheck.normalized;
 
-      btn.disabled = true;
-      btn.textContent = 'Submitting...';
+      setHomeQueryLoading(true);
       try {
         await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
@@ -219,11 +279,11 @@
         document.getElementById('homeQueryFields').style.display = 'none';
         document.getElementById('homeQuerySuccess').style.display = 'block';
         document.getElementById('homeQueryErr').style.display = 'none';
+        setHomeQueryLoading(false);
       } catch (e) {
         err.textContent = 'Something went wrong. Please try again.';
         err.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = 'Submit Query';
+        setHomeQueryLoading(false);
       }
     }
   </script>

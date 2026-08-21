@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
+  <meta name="referrer" content="no-referrer"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Details – Isha Place, Vijayanagar</title>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="style.css?v=time-slots"/>
 </head>
-<body class="detail-page">
+<body class="detail-page" data-wait-load="1">
 
   <nav class="navbar">
     <div class="nav-inner">
@@ -19,13 +19,21 @@
         <li><a href="programs.html">Programs</a></li>
         <li><a href="volunteering.html">Volunteering</a></li>
       </ul>
-      <button class="nav-toggle" onclick="toggleMenu()">&#9776;</button>
+      <button type="button" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mob">
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </button>
     </div>
-    <ul class="mobile-menu" id="mobileMenu">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="programs.html">Programs</a></li>
-      <li><a href="volunteering.html">Volunteering</a></li>
-    </ul>
+    <div class="nav-backdrop" data-nav-backdrop aria-hidden="true"></div>
+    <div class="mobile-menu" id="mob" aria-hidden="true">
+      <ul class="mobile-menu-list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="programs.html">Programs</a></li>
+        <li><a href="volunteering.html">Volunteering</a></li>
+      </ul>
+      <p class="mobile-menu-footer" data-admin-longpress>Isha Place, Vijayanagar</p>
+    </div>
   </nav>
 
   <section class="detail-section">
@@ -150,11 +158,9 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
+  <script src="protect.js"></script>
+  <script src="site.js?v=time-slots"></script>
   <script>
-    function toggleMenu() {
-      document.getElementById('mobileMenu').classList.toggle('open');
-    }
-
     function escapeHtmlAttr(s) {
       return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     }
@@ -167,16 +173,22 @@
         .replace(/"/g, '&quot;');
     }
 
-    function fixDriveUrl(url) {
-      if (!url || typeof url !== 'string') return url;
+    function driveFileId(url) {
+      if (!url || typeof url !== 'string') return '';
       const u = url.trim();
-      if (/^https:\/\/lh\d*\.googleusercontent\.com\//i.test(u)) return u;
-      if (/thumbnail\?.*\bid=/.test(u)) return u;
-      const match = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`;
-      const ucMatch = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-      if (ucMatch) return `https://drive.google.com/thumbnail?id=${ucMatch[1]}&sz=w1200`;
-      return u;
+      const fromPath = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (fromPath) return fromPath[1];
+      const fromQuery = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (fromQuery) return fromQuery[1];
+      const fromLh = u.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+      if (fromLh) return fromLh[1];
+      return '';
+    }
+
+    function fixDriveUrl(url) {
+      const id = driveFileId(url);
+      if (id) return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w800';
+      return url;
     }
 
     // Parse URL params
@@ -227,12 +239,20 @@
             ? `<div class="detail-register"><div class="detail-register-actions">${registerLinkHtml}${volunteerBtnHtml}</div></div>`
             : '';
 
-        const timingsRaw = data.item.timings && String(data.item.timings).trim();
-        const timingsHtml = timingsRaw
-          ? `<span class="detail-meta-timings" data-icon="🕐">${escapeHtml(timingsRaw)}</span>`
+        const slotLines =
+          typeof formatEventSlotLines === 'function'
+            ? formatEventSlotLines(data.item)
+            : (data.item.timings ? String(data.item.timings).split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean) : []);
+        const timingsHtml = slotLines.length
+          ? `<div class="detail-meta-slots">${slotLines
+              .map(function (line) {
+                return `<span class="detail-meta-timings" data-icon="🕐">${escapeHtml(line)}</span>`;
+              })
+              .join('')}</div>`
           : '';
-        const dateHtml = data.item.date
-          ? `<span data-icon="📅">${escapeHtml(data.item.date)}</span>`
+        const dateLabel = typeof listingDateLabel === 'function' ? listingDateLabel(data.item) : (data.item.date || '');
+        const dateHtml = dateLabel
+          ? `<span data-icon="📅">${escapeHtml(dateLabel)}</span>`
           : '';
         const datetimeBlock =
           dateHtml || timingsHtml
@@ -243,7 +263,7 @@
         const content = document.getElementById('detail-content');
         content.innerHTML = `
           ${data.item.image
-            ? `<div class="detail-image"><img src="${fixDriveUrl(data.item.image)}" alt="${data.item.title}"/></div>`
+            ? `<div class="detail-image"><img src="${fixDriveUrl(data.item.image)}" alt="${escapeHtmlAttr(data.item.title || '')}" loading="eager" decoding="async" referrerpolicy="no-referrer"/></div>`
             : ''}
           <div class="detail-meta">
             ${datetimeBlock}
@@ -261,6 +281,8 @@
       } catch (err) {
         loading.innerHTML = `<p>Could not load details. Please go back and try again.</p>`;
         console.error(err);
+      } finally {
+        if (window.endPageLoad) endPageLoad();
       }
     }
 

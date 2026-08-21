@@ -5,6 +5,8 @@
 - `programs.html` — Programs listing  
 - `volunteering.html` — Volunteering listing  
 - `detail.html` — Detail page + contact form  
+- `admin.html` / `admin.js` — Admin login to edit content  
+- `site.js` — Loads home/footer text from the sheet  
 - `style.css` — All styling  
 - `config.js` — Where you paste your Apps Script URL  
 - `apps-script.js` — The Google Apps Script code  
@@ -120,9 +122,38 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/XXXXXX/exec";
 
 ## How to Update Content Later
 
-- **Add a program/volunteering:** Add a new row in the Google Sheet → site updates instantly
-- **Hide an item:** Change `status` to `inactive`
-- **Update website design:** Edit the HTML/CSS files on GitHub
+Use the **admin** page at `admin.html` (also linked as “Admin login” in the footer).
+
+You can still edit the Google Sheet directly if you prefer.
+
+---
+
+## STEP 6 — Admin (edit the site without opening Sheets)
+
+The public site still **reads** from Google Sheets. The admin page **writes** back to those sheets, and uploads photos to Google Drive.
+
+Google does **not** ask for Drive access when you click Deploy. You have to **Run** a function once.
+
+1. Paste the updated `apps-script.js` into Apps Script (replace all existing code).
+2. At the top of the file, set `ADMIN_PASSWORD` to your admin password (6+ characters). **Save**.
+3. In the toolbar, open the function dropdown (it may say `onOpen` or `doGet`) → choose **`setupAdmin`** → click **Run**.
+4. A permissions window appears:
+   - Choose your Google account
+   - If you see “Google hasn’t verified this app” → **Advanced** → **Go to … (unsafe)**
+   - Click **Allow** (this includes Drive)
+5. **Deploy → Manage deployments → pencil → New version → Deploy**.
+6. Open `/admin.html` and sign in with that password.
+
+The **Website** menu on the spreadsheet only appears after this Run/Allow step, and only after you fully reload the sheet. You do not need that menu if you set `ADMIN_PASSWORD` in the script.
+
+### What you can edit
+- **Programs** — title, description, date, timings, location, duration, frequency, register link, status (Open/Closed), image
+- **Volunteering** — same fields except frequency/register; status is Active/Inactive
+- **Home & footer** — hero quote, about text, address, phone, hours, desktop/mobile hero photos
+
+Images are stored in a Drive folder named **Isha Place Centre Images** (created automatically) and the URL is written into the sheet.
+
+The admin session lasts about 6 hours in that browser tab.
 
 ---
 
@@ -140,6 +171,12 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/XXXXXX/exec";
 - Re-deploy your Apps Script (Deploy → Manage deployments → Edit → Deploy)
 - Make sure you authorized the script
 
+**Admin login fails / cannot upload images:**
+- Set the password from the sheet: **Website → Set admin password**
+- Redeploy the web app as a **new version** after pasting the updated script
+- When Google asks for Drive access, click Allow
+- Serve the site over http (use `./serve.sh`), not as a local `file://` page
+
 ---
 
 ## Your Site Structure
@@ -150,6 +187,10 @@ yourusername.github.io/centre-website/
 ├── programs.html      ← All programs
 ├── volunteering.html  ← All volunteering
 ├── detail.html        ← Single item detail
+├── admin.html         ← Admin login / content editor
+├── admin.js
+├── site.js            ← Loads home/footer text from the Site sheet
 ├── style.css          ← Styling
-└── config.js          ← Apps Script URL
+├── config.js          ← Apps Script URL
+└── apps-script.js     ← Paste into Google Apps Script
 ```
