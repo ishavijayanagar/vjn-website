@@ -1,4 +1,10 @@
 (function () {
+  var deferredInstallPrompt = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+  });
+
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, "&amp;")
@@ -409,6 +415,88 @@
   window.formatEventSlots = formatEventSlots;
   window.formatEventSlotLines = formatEventSlotLines;
 
+  function isStandaloneApp() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function isIosDevice() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  function showPwaHelp(ios) {
+    var existing = document.getElementById("pwaHelpOverlay");
+    if (existing) existing.remove();
+
+    var overlay = document.createElement("div");
+    overlay.className = "modal-overlay open";
+    overlay.id = "pwaHelpOverlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "pwaHelpTitle");
+    overlay.innerHTML =
+      '<div class="pwa-help-card">' +
+        '<button type="button" class="modal-close" data-pwa-close aria-label="Close">✕</button>' +
+        '<h2 id="pwaHelpTitle">Install this app</h2>' +
+        (ios
+          ? '<ol class="pwa-help-steps">' +
+              '<li>Tap the <strong>Share</strong> button in Safari.</li>' +
+              '<li>Scroll and tap <strong>Add to Home Screen</strong>.</li>' +
+              '<li>Tap <strong>Add</strong>.</li>' +
+            '</ol>'
+          : '<p>Open your browser menu and choose <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</p>') +
+        '<button type="button" class="btn btn-outline" data-pwa-close>Close</button>' +
+      '</div>';
+
+    function closeHelp() {
+      overlay.remove();
+    }
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay || e.target.closest("[data-pwa-close]")) closeHelp();
+    });
+    document.addEventListener("keydown", function onEsc(e) {
+      if (e.key === "Escape") {
+        document.removeEventListener("keydown", onEsc);
+        closeHelp();
+      }
+    });
+    document.body.appendChild(overlay);
+  }
+
+  function initPwa() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+    if (isStandaloneApp()) return;
+
+    var footer = document.querySelector(".footer-bottom");
+    if (!footer) return;
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pwa-install-btn";
+    btn.textContent = "Install app";
+    footer.appendChild(btn);
+
+    window.addEventListener("appinstalled", function () {
+      deferredInstallPrompt = null;
+      btn.remove();
+      var help = document.getElementById("pwaHelpOverlay");
+      if (help) help.remove();
+    });
+
+    btn.addEventListener("click", function () {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        deferredInstallPrompt.userChoice.finally(function () {
+          deferredInstallPrompt = null;
+        });
+        return;
+      }
+      showPwaHelp(isIosDevice());
+    });
+  }
+
   window.beginPageLoad = function () {
     document.documentElement.classList.add("is-page-loading");
     document.documentElement.setAttribute("aria-busy", "true");
@@ -431,6 +519,7 @@
     }
     initModalScrollLock();
     initMobileNav();
+    initPwa();
   }
 
   if (document.readyState === "loading") {

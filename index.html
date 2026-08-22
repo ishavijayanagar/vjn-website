@@ -4,8 +4,16 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
   <title>Home – Isha Place, Vijayanagar</title>
+  <meta name="description" content="Yoga, meditation, and volunteering at Isha Place, Vijayanagar."/>
+  <meta name="theme-color" content="#1c1c1e"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Isha VJN"/>
+  <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
-  <link rel="stylesheet" href="style.css?v=volunteering-redesign"/>
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn"/>
+  <link rel="stylesheet" href="style.css?v=pwa-install"/>
 </head>
 <body class="home-page">
 
@@ -161,7 +169,10 @@
       <div class="footer-grid">
         <div>
           <h5>Address</h5>
-          <p data-site="footer_address" data-site-mode="html">195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
+          <a class="footer-address" href="https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6" target="_blank" rel="noopener noreferrer">
+            <p>Isha Place, Vijayanagar</p>
+            <p data-site="footer_address" data-site-mode="html">195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
+          </a>
         </div>
         <div>
           <h5>Navigate</h5>
@@ -180,7 +191,7 @@
       </div>
       <div class="footer-bottom">
         <p>Managed and run by volunteers</p>
-        <p>© 2026 Isha Vijayanagar</p>
+        <p>© 2026 Isha Vijayanagar. All rights reserved.</p>
       </div>
     </div>
   </footer>
@@ -188,7 +199,7 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js"></script>
-  <script src="site.js?v=volunteering-redesign"></script>
+  <script src="site.js?v=pwa-install"></script>
   <script>
     (function () {
       var nav = document.querySelector('.navbar');

@@ -476,6 +476,17 @@ html.nav-open .mobile-menu {
   line-height: var(--leading-relaxed);
 }
 
+.footer-address {
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.footer-address:hover {
+  color: var(--gold-light);
+}
+
 .footer h5 {
   font-size: 0.72rem;
   letter-spacing: 0.12em;
@@ -515,6 +526,56 @@ html.nav-open .mobile-menu {
 
 .footer-bottom p + p {
   margin-top: 0.35rem;
+}
+
+.pwa-install-btn {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold);
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.pwa-install-btn:hover {
+  color: var(--gold-light);
+}
+
+.pwa-help-card {
+  background: var(--white);
+  border-radius: 8px;
+  padding: var(--space-7) var(--space-6);
+  max-width: 400px;
+  width: 100%;
+  position: relative;
+  color: var(--text-dark);
+}
+
+.pwa-help-card h2 {
+  font-family: var(--font-serif);
+  font-size: 1.4rem;
+  font-weight: 400;
+  margin: 0 0 var(--space-4);
+}
+
+.pwa-help-card p,
+.pwa-help-steps {
+  font-size: 0.95rem;
+  line-height: var(--leading-body);
+  margin: 0 0 var(--space-5);
+}
+
+.pwa-help-steps {
+  padding-left: 1.2rem;
+}
+
+.pwa-help-steps li + li {
+  margin-top: 0.45rem;
 }
 
 html.modal-scroll-locked,
