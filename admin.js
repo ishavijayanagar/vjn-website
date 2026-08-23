@@ -1,5 +1,8 @@
 (function () {
   const TOKEN_KEY = "vjn_admin_token";
+  const INQUIRY_STAMP_KEY = "vjn_inquiry_stamp";
+  const QUERY_NOTIFY_KEY = "vjn_query_notify";
+  const QUERY_WATCH_MS = 45000;
   const MAX_IMAGE_EDGE = 1400;
   const JPEG_QUALITY = 0.82;
   const FREQUENCY_OPTIONS = ["Daily", "Weekly", "Monthly", "Scheduled"];
@@ -43,7 +46,7 @@
       document.documentElement.classList.remove("is-page-loading");
     }
     document.querySelectorAll(
-      "button, .filter-pill, .inquiry-type-pill, .inquiry-status-tab, .inquiry-action, .admin-hub-path"
+      "button, .filter-pill, .inquiry-type-pill, .inquiry-status-tab, .inquiry-action, .admin-hub-path, .admin-hub-panel, .admin-card"
     ).forEach(function (el) {
       if (!el) return;
       if (on) {
@@ -141,6 +144,261 @@
     el.style.display = message ? "block" : "none";
   }
 
+  function isInstalledApp() {
+    return (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: minimal-ui)").matches ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function notificationAllowed() {
+    return typeof Notification !== "undefined" && Notification.permission === "granted";
+  }
+
+  function queryNotifyPref() {
+    try {
+      return localStorage.getItem(QUERY_NOTIFY_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function setQueryNotifyPref(value) {
+    try {
+      if (value) localStorage.setItem(QUERY_NOTIFY_KEY, value);
+      else localStorage.removeItem(QUERY_NOTIFY_KEY);
+    } catch (e) {}
+  }
+
+  function queryNotifyEnabled() {
+    return queryNotifyPref() !== "off" && notificationAllowed();
+  }
+
+  function updateNotifyButton() {
+    const btn = $("queryNotifyBtn");
+    if (!btn) return;
+    if (!token() || !isInstalledApp() || typeof Notification === "undefined" || Notification.permission === "denied") {
+      btn.hidden = true;
+      return;
+    }
+    const on = queryNotifyEnabled();
+    btn.hidden = false;
+    btn.classList.toggle("is-on", on);
+    btn.classList.toggle("is-off", !on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.setAttribute("aria-label", on ? "Turn off alerts" : "Turn on alerts");
+    btn.title = on ? "Turn off alerts" : "Turn on alerts";
+  }
+
+  async function requestQueryNotifications() {
+    if (typeof Notification === "undefined") return false;
+    if (Notification.permission === "granted") return true;
+    if (Notification.permission === "denied") return false;
+    try {
+      const result = await Notification.requestPermission();
+      updateNotifyButton();
+      return result === "granted";
+    } catch (err) {
+      return false;
+    }
+  }
+
+  async function turnOnQueryAlerts() {
+    const ok = await requestQueryNotifications();
+    if (!ok) {
+      updateNotifyButton();
+      return false;
+    }
+    setQueryNotifyPref("on");
+    startQueryWatch();
+    return true;
+  }
+
+  function openNotifyOffConfirm() {
+    const overlay = $("notifyOffOverlay");
+    if (overlay) overlay.classList.add("open");
+  }
+
+  function closeNotifyOffConfirm() {
+    const overlay = $("notifyOffOverlay");
+    if (overlay) overlay.classList.remove("open");
+  }
+
+  function turnOffQueryAlerts() {
+    setQueryNotifyPref("off");
+    stopQueryWatch();
+    updateNotifyButton();
+    closeNotifyOffConfirm();
+  }
+
+  function readInquiryStamp() {
+    try {
+      return localStorage.getItem(INQUIRY_STAMP_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function writeInquiryStamp(stamp) {
+    try {
+      if (stamp) localStorage.setItem(INQUIRY_STAMP_KEY, stamp);
+    } catch (e) {}
+  }
+
+  function stampFromGroups(groups) {
+    return (groups || [])
+      .map(function (g) {
+        return g.key + ":" + (g.total || 0);
+      })
+      .join("|");
+  }
+
+  function parseInquiryStamp(stamp) {
+    const map = {};
+    String(stamp || "")
+      .split("|")
+      .forEach(function (part) {
+        const i = part.lastIndexOf(":");
+        if (i < 0) return;
+        map[part.slice(0, i)] = parseInt(part.slice(i + 1), 10) || 0;
+      });
+    return map;
+  }
+
+  function countNewQueries(prevStamp, nextStamp) {
+    const prev = parseInquiryStamp(prevStamp);
+    const next = parseInquiryStamp(nextStamp);
+    let n = 0;
+    Object.keys(next).forEach(function (key) {
+      const delta = (next[key] || 0) - (prev[key] || 0);
+      if (delta > 0) n += delta;
+    });
+    return n;
+  }
+
+  function latestNewQuery(groups, prevStamp, nextStamp) {
+    const prev = parseInquiryStamp(prevStamp);
+    const next = parseInquiryStamp(nextStamp);
+    for (let i = 0; i < (groups || []).length; i++) {
+      const g = groups[i];
+      if ((next[g.key] || 0) > (prev[g.key] || 0) && g.latest) return g;
+    }
+    return (groups || []).find(function (g) {
+      return g.latest;
+    }) || null;
+  }
+
+  async function showQueryNotification(count, group) {
+    if (!queryNotifyEnabled() || !navigator.serviceWorker) return;
+    const latest = group && group.latest;
+    const title = count > 1 ? count + " new queries" : "New query";
+    let body = "A new query was submitted.";
+    if (count === 1 && latest) {
+      const name = latest.name || "Someone";
+      body = latest.preview ? name + " — " + latest.preview : "From " + name;
+    } else if (count > 1 && latest && latest.name) {
+      body = "Latest from " + latest.name;
+    }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, {
+        body: body,
+        icon: "assets/icon-192.png",
+        badge: "assets/icon-192.png",
+        tag: "vjn-new-query",
+        renotify: true,
+        data: { url: "admin.html#queries" },
+      });
+      return;
+    } catch (err) {}
+    try {
+      new Notification(title, { body: body, icon: "assets/icon-192.png" });
+    } catch (err) {}
+  }
+
+  async function refreshQueriesAfterNotify() {
+    hubStatsDirty = true;
+    const app = $("adminApp");
+    if (app && app.classList.contains("is-hub")) {
+      loadHubStats(true);
+      return;
+    }
+    if (!app || !app.classList.contains("is-queries")) return;
+    try {
+      const meta = await apiGet("inquiries", true);
+      if (meta.error) return;
+      inquiryGroups = (meta.groups || []).map(function (g) {
+        const prev = inquiryGroups.find(function (old) {
+          return old.key === g.key;
+        });
+        return {
+          key: g.key,
+          title: g.title,
+          openCount: g.openCount || 0,
+          total: g.total || 0,
+          latest: g.latest || null,
+          items: (prev && prev.loaded && prev.items) || g.items || [],
+          loaded: !!(prev && prev.loaded),
+        };
+      });
+      ensureInquiryType();
+      renderInquiryTypeTabs();
+      await loadInquiryGroup(inquiryType, true);
+      renderInquiries();
+    } catch (err) {}
+  }
+
+  async function checkNewQueries() {
+    if (queryWatchBusy || !token() || !queryNotifyEnabled()) return;
+    queryWatchBusy = true;
+    try {
+      const meta = await apiGet("inquiries", true);
+      if (meta && meta.error && /Unauthorized/i.test(meta.error)) {
+        stopQueryWatch();
+        logout();
+        loginError(meta.error);
+        return;
+      }
+      if (!meta || meta.error) return;
+      const nextStamp = meta.stamp || stampFromGroups(meta.groups);
+      const prevStamp = readInquiryStamp();
+      if (!prevStamp) {
+        writeInquiryStamp(nextStamp);
+        return;
+      }
+      if (nextStamp === prevStamp) return;
+      const added = countNewQueries(prevStamp, nextStamp);
+      writeInquiryStamp(nextStamp);
+      if (added < 1) return;
+      const group = latestNewQuery(meta.groups, prevStamp, nextStamp);
+      await showQueryNotification(added, group);
+      refreshQueriesAfterNotify();
+    } catch (err) {
+      // Keep watching; a single failed poll should not stop alerts.
+    } finally {
+      queryWatchBusy = false;
+    }
+  }
+
+  function stopQueryWatch() {
+    if (queryWatchTimer) {
+      clearInterval(queryWatchTimer);
+      queryWatchTimer = 0;
+    }
+  }
+
+  function startQueryWatch() {
+    stopQueryWatch();
+    if (!token() || !isInstalledApp() || !queryNotifyEnabled()) {
+      updateNotifyButton();
+      return;
+    }
+    updateNotifyButton();
+    checkNewQueries();
+    queryWatchTimer = setInterval(checkNewQueries, QUERY_WATCH_MS);
+  }
+
   function enterApp() {
     document.documentElement.classList.add("admin-authed");
     show($("loginScreen"), false);
@@ -152,6 +410,7 @@
       showAdminHub(true);
       if (window.endPageLoad) endPageLoad();
     }
+    startQueryWatch();
   }
 
   function setAdminTitle(title) {
@@ -160,21 +419,12 @@
     document.title = title + " – Isha Place, Vijayanagar";
   }
 
-  function hubGreeting(now) {
-    const hour = now.getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    if (hour < 21) return "Good evening";
-    return "Good night";
-  }
-
   function renderHubIntro() {
-    const now = new Date();
     const greet = $("hubGreeting");
-    if (greet) greet.textContent = hubGreeting(now);
+    if (greet) greet.textContent = "Namaskaram";
     const date = $("hubDate");
     if (date) {
-      date.textContent = now.toLocaleDateString("en-IN", {
+      date.textContent = new Date().toLocaleDateString("en-IN", {
         weekday: "long",
         day: "numeric",
         month: "long",
@@ -183,14 +433,31 @@
     }
   }
 
-  function setHubStat(key, open, total) {
-    const value = document.querySelector('[data-stat-value="' + key + '"]');
-    const sub = document.querySelector('[data-stat-sub="' + key + '"]');
-    if (value) value.textContent = open == null ? "—" : String(open);
-    if (sub) {
-      sub.textContent =
-        total == null ? "" : total === 0 ? "nothing yet" : "of " + total + " total";
+  function setHubStat(key, open) {
+    document.querySelectorAll('[data-stat-value="' + key + '"]').forEach(function (value) {
+      value.textContent = open == null ? "—" : String(open);
+    });
+    document.querySelectorAll('[data-stat-row="' + key + '"]').forEach(function (row) {
+      row.classList.toggle("is-none", open === 0);
+    });
+  }
+
+  function setHubLead(openQueries) {
+    const lead = $("hubLead");
+    if (!lead) return;
+    if (openQueries > 0) {
+      lead.innerHTML =
+        openQueries === 1
+          ? "There is <b>1</b> enquiry waiting for a reply."
+          : "There are <b>" + openQueries + "</b> enquiries waiting for a reply.";
+      return;
     }
+    lead.textContent = "All quiet for now. Choose a path below.";
+  }
+
+  function setNotifyDot(on) {
+    const dot = $("queryNotifyDot");
+    if (dot) show(dot, !!on);
   }
 
   function hubStatsNote(message) {
@@ -229,8 +496,10 @@
       const volunteerItems = (volunteering && volunteering.items) || [];
       listingPrefetch.programs = { items: programItems, at: Date.now() };
       listingPrefetch.volunteering = { items: volunteerItems, at: Date.now() };
-      setHubStat("programs", countOpenListings(programItems), programItems.length);
-      setHubStat("volunteering", countOpenListings(volunteerItems), volunteerItems.length);
+      const openPrograms = countOpenListings(programItems);
+      const openVolunteer = countOpenListings(volunteerItems);
+      setHubStat("programs", openPrograms);
+      setHubStat("volunteering", openVolunteer);
       const groups = (inquiries && inquiries.groups) || [];
       const openQueries = groups.reduce(function (sum, g) {
         return sum + (g.openCount || 0);
@@ -238,13 +507,19 @@
       const totalQueries = groups.reduce(function (sum, g) {
         return sum + (g.total || 0);
       }, 0);
-      setHubStat("queries", openQueries, totalQueries);
+      const resolvedQueries = Math.max(0, totalQueries - openQueries);
+      setHubStat("queries", openQueries);
+      setHubStat("queries-resolved", resolvedQueries);
+      setHubLead(openQueries);
+      setNotifyDot(openQueries > 0);
       hubStatsAt = Date.now();
       hubStatsDirty = false;
     } catch (err) {
-      setHubStat("programs", null, null);
-      setHubStat("volunteering", null, null);
-      setHubStat("queries", null, null);
+      setHubStat("programs", null);
+      setHubStat("volunteering", null);
+      setHubStat("queries", null);
+      setHubStat("queries-resolved", null);
+      setNotifyDot(false);
       hubStatsNote("Could not load today's counts. Open a workspace to see the latest.");
     } finally {
       grid.classList.remove("is-loading");
@@ -305,7 +580,9 @@
   }
 
   function logout() {
+    stopQueryWatch();
     setToken("");
+    updateNotifyButton();
     document.documentElement.classList.remove("admin-authed");
     show($("adminApp"), false);
     show($("loginScreen"), true);
@@ -334,6 +611,7 @@
       return;
     }
     setButtonBusy(btn, true, "Signing in…");
+    if (isInstalledApp() && queryNotifyPref() !== "off") await requestQueryNotifications();
     try {
       const data = await apiPost({ formType: "adminLogin", password: password });
       if (data.error || !data.token) {
@@ -891,6 +1169,8 @@
   let inquiryFilter = "open";
   let inquiryType = "";
   let inquiryShowLimit = 12;
+  let queryWatchTimer = 0;
+  let queryWatchBusy = false;
 
   function setTab(resource) {
     if (resource === "inquiries") {
@@ -1728,6 +2008,27 @@
     return digits.slice(-10);
   }
 
+  function waMeUrl(digits, text) {
+    const d = String(digits || "").replace(/\D/g, "");
+    let phone = "";
+    if (d.length === 10) phone = "91" + d;
+    else if (d.length >= 11 && d.length <= 15) phone = d;
+    if (!phone) return "";
+    const url = "https://wa.me/" + phone;
+    if (text) return url + "?text=" + encodeURIComponent(text);
+    return url;
+  }
+
+  function inquiryPersonWaUrl(item) {
+    return waMeUrl(inquiryWhatsAppDigits(item));
+  }
+
+  function formatInquiryPhone(digits) {
+    const d = String(digits || "").replace(/\D/g, "").slice(-10);
+    if (d.length !== 10) return digits || "";
+    return "+91 " + d.slice(0, 5) + " " + d.slice(5);
+  }
+
   function inquiryShareMessage(item, groupTitle) {
     const lines = ["*New query – Isha Place, Vijayanagar*"];
     if (groupTitle) lines.push("Type: " + groupTitle);
@@ -1759,7 +2060,19 @@
       if (!value) return;
       rows.push("<p><strong>" + escapeHtml(label) + ":</strong> " + escapeHtml(value) + "</p>");
     }
-    add("WhatsApp", inquiryField(item, "whatsapp"));
+    const personUrl = inquiryPersonWaUrl(item);
+    const phoneLabel = formatInquiryPhone(inquiryWhatsAppDigits(item)) || inquiryField(item, "whatsapp");
+    if (phoneLabel) {
+      rows.push(
+        personUrl
+          ? "<p><strong>WhatsApp:</strong> <a class=\"inquiry-number-link\" href=\"" +
+            escapeHtml(personUrl) +
+            "\" target=\"_blank\" rel=\"noopener noreferrer\">" +
+            escapeHtml(phoneLabel) +
+            "</a></p>"
+          : "<p><strong>WhatsApp:</strong> " + escapeHtml(phoneLabel) + "</p>"
+      );
+    }
     add("Area", inquiryField(item, "area"));
     add("Query", inquiryField(item, "query"));
     add("Program", inquiryField(item, "program name"));
@@ -1846,12 +2159,24 @@
     const preview = inquiryPreview(item);
     const remarks = inquiryField(item, "remarks");
     const waUrl = inquiryWhatsAppUrl(item, group.title);
-    const waBtn =
-      '<a class="inquiry-action inquiry-action-wa" href="' +
-      escapeHtml(waUrl) +
-      '" target="_blank" rel="noopener noreferrer">' +
-      waIconSvg() +
-      "WhatsApp</a>";
+    const personUrl = inquiryPersonWaUrl(item);
+    const phoneLabel = formatInquiryPhone(inquiryWhatsAppDigits(item));
+    const phoneLink = personUrl
+      ? '<a class="inquiry-number-link" href="' +
+        escapeHtml(personUrl) +
+        '" target="_blank" rel="noopener noreferrer">' +
+        escapeHtml(phoneLabel) +
+        "</a>"
+      : "";
+    const waBtn = waUrl
+      ? '<a class="inquiry-action inquiry-action-wa" href="' +
+        escapeHtml(waUrl) +
+        '" target="_blank" rel="noopener noreferrer">' +
+        waIconSvg() +
+        "WhatsApp</a>"
+      : '<span class="inquiry-action inquiry-action-wa is-disabled">' +
+        waIconSvg() +
+        "WhatsApp</span>";
     const actions = resolved
       ? ""
       : '<div class="inquiry-seam" aria-hidden="true"><span class="inquiry-notch l"></span><span class="inquiry-notch r"></span></div>' +
@@ -1867,7 +2192,7 @@
       '" data-id="' +
       escapeHtml(item.id) +
       '">' +
-      '<button type="button" class="inquiry-ticket-main" data-inquiry-toggle aria-expanded="false">' +
+      '<div class="inquiry-ticket-main" data-inquiry-toggle role="button" tabindex="0" aria-expanded="false">' +
       '<span class="inquiry-avatar" aria-hidden="true">' +
       escapeHtml(inquiryInitial(item)) +
       "</span>" +
@@ -1877,7 +2202,9 @@
       escapeHtml(title) +
       '</strong><span class="inquiry-time">' +
       escapeHtml(formatInquiryTime(inquiryField(item, "timestamp"))) +
-      "</span></span>" +
+      "</span>" +
+      phoneLink +
+      "</span>" +
       '<span class="inquiry-badge">' +
       (resolved ? "Resolved" : "Open") +
       "</span></span>" +
@@ -1887,7 +2214,7 @@
       (remarks
         ? '<span class="inquiry-remarks-preview">' + escapeHtml(remarks) + "</span>"
         : "") +
-      "</span></button>" +
+      "</span></div>" +
       actions +
       '<div class="inquiry-body" hidden>' +
       inquiryDetailRows(item) +
@@ -2056,6 +2383,31 @@
     $("loginBtn").addEventListener("click", handleLogin);
     $("adminPassword").addEventListener("keydown", function (e) {
       if (e.key === "Enter") handleLogin();
+    });
+    const notifyBtn = $("queryNotifyBtn");
+    if (notifyBtn) {
+      notifyBtn.addEventListener("click", function () {
+        if (queryNotifyEnabled()) openNotifyOffConfirm();
+        else turnOnQueryAlerts();
+      });
+    }
+    $("cancelNotifyOffBtn").addEventListener("click", closeNotifyOffConfirm);
+    $("confirmNotifyOffBtn").addEventListener("click", turnOffQueryAlerts);
+    $("notifyOffOverlay").addEventListener("click", function (e) {
+      if (e.target === this) closeNotifyOffConfirm();
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible" && queryNotifyEnabled()) checkNewQueries();
+    });
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener("message", function (event) {
+        const data = event.data || {};
+        if (data.type !== "OPEN_QUERIES" || !token()) return;
+        openAdminPage("queries", true);
+      });
+    }
+    window.addEventListener("appinstalled", function () {
+      if (token()) startQueryWatch();
     });
     $("logoutBtn").addEventListener("click", openLogoutConfirm);
     $("cancelLogoutBtn").addEventListener("click", closeLogoutConfirm);
@@ -2245,8 +2597,17 @@
         });
     });
 
+    $("inquiryList").addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target.closest(".inquiry-number-link, a, button, textarea, input")) return;
+      const itemToggle = e.target.closest("[data-inquiry-toggle]");
+      if (!itemToggle) return;
+      e.preventDefault();
+      itemToggle.click();
+    });
+
     $("inquiryList").addEventListener("click", function (e) {
-      if (e.target.closest(".inquiry-action-wa, .inquiry-quick-actions a")) return;
+      if (e.target.closest(".inquiry-action-wa, .inquiry-quick-actions a, .inquiry-number-link")) return;
       const moreBtn = e.target.closest("[data-inquiry-more]");
       if (moreBtn) {
         inquiryShowLimit += 12;

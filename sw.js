@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v2";
+const CACHE_NAME = "isha-vjn-v3";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -41,6 +41,38 @@ self.addEventListener("activate", function (event) {
       );
     }).then(function () {
       return self.clients.claim();
+    })
+  );
+});
+
+self.addEventListener("message", function (event) {
+  var data = event.data || {};
+  if (data.type !== "NOTIFY_QUERY") return;
+  event.waitUntil(
+    self.registration.showNotification(data.title || "New query", {
+      body: data.body || "A new query was submitted.",
+      icon: "assets/icon-192.png",
+      badge: "assets/icon-192.png",
+      tag: data.tag || "vjn-new-query",
+      renotify: true,
+      data: { url: data.url || "admin.html#queries" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  var target = (event.notification.data && event.notification.data.url) || "admin.html#queries";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        var client = list[i];
+        if (client.url.indexOf("admin.html") !== -1 && "focus" in client) {
+          client.postMessage({ type: "OPEN_QUERIES" });
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
     })
   );
 });

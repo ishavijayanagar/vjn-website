@@ -978,6 +978,37 @@ function parseInquiryItems_(def, rows) {
   return items;
 }
 
+function inquiryPreviewFromRow_(headers, row) {
+  const map = {};
+  headers.forEach(function (h, idx) {
+    map[h] = row[idx] === undefined || row[idx] === null ? "" : String(row[idx]).trim();
+  });
+  return map.query || map["program name"] || map["opportunity name"] || map.area || "";
+}
+
+function latestInquiryFromSheet_(sheet, lastRow, lastCol, headers) {
+  const lookback = Math.min(8, lastRow - 1);
+  if (lookback < 1) return null;
+  const startRow = lastRow - lookback + 1;
+  const values = sheet.getRange(startRow, 1, lookback, lastCol).getValues();
+  const nameIx = headers.indexOf("name");
+  const tsIx = headers.indexOf("timestamp");
+  for (let i = values.length - 1; i >= 0; i--) {
+    const row = values[i];
+    const hasValue = row.some(function (cell) {
+      return String(cell || "").trim() !== "";
+    });
+    if (!hasValue) continue;
+    return {
+      id: String(startRow + i - 1),
+      name: nameIx >= 0 ? String(row[nameIx] || "").trim() : "",
+      preview: inquiryPreviewFromRow_(headers, row),
+      timestamp: tsIx >= 0 ? String(row[tsIx] || "").trim() : "",
+    };
+  }
+  return null;
+}
+
 /** Lightweight tab badges: open/total only (no full item payloads). */
 function getInquiryMeta_() {
   const groups = INQUIRY_DEFS.map(function (def) {
@@ -985,7 +1016,15 @@ function getInquiryMeta_() {
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn() || 1;
     if (lastRow < 2) {
-      return { key: def.key, title: def.title, openCount: 0, total: 0, items: [], loaded: false };
+      return {
+        key: def.key,
+        title: def.title,
+        openCount: 0,
+        total: 0,
+        latest: null,
+        items: [],
+        loaded: false,
+      };
     }
     const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
       return h.toString().trim().toLowerCase();
@@ -1010,11 +1049,20 @@ function getInquiryMeta_() {
       title: def.title,
       openCount: open,
       total: total,
+      latest: latestInquiryFromSheet_(sheet, lastRow, lastCol, headers),
       items: [],
       loaded: false,
     };
   });
-  return { groups: groups };
+  const stamp = groups
+    .map(function (g) {
+      return g.key + ":" + (g.total || 0);
+    })
+    .join("|");
+  const total = groups.reduce(function (sum, g) {
+    return sum + (g.total || 0);
+  }, 0);
+  return { groups: groups, stamp: stamp, total: total };
 }
 
 /** Full items for one inquiry type. */

@@ -6,8 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
   <title>Admin login – Isha Place, Vijayanagar</title>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=pwa-install"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css?v=hub-today"/>
   <script>
     (function () {
       try {
@@ -42,6 +44,10 @@
     <div id="adminApp" class="hidden">
       <header class="admin-bar">
         <div class="admin-bar-left">
+          <div class="admin-bar-hub" id="adminBarHub">
+            <p class="admin-eyebrow" id="hubDate"></p>
+            <h1 class="admin-greet" id="hubGreeting">Namaskaram</h1>
+          </div>
           <div class="admin-bar-title-row">
             <button type="button" class="admin-back-icon hidden" id="backToHubBtn" aria-label="Back to menu" title="Back to menu">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -53,81 +59,70 @@
           </div>
         </div>
         <span id="adminOpenBadge" class="admin-open-badge hidden"></span>
-        <button type="button" class="admin-icon-btn" id="logoutBtn" aria-label="Log out" title="Log out">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-        </button>
+        <div class="admin-bar-actions">
+          <button type="button" class="admin-icon-btn query-notify-btn" id="queryNotifyBtn" hidden aria-pressed="false" aria-label="Turn on alerts" title="Turn on alerts">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+              <line class="query-notify-slash" x1="4" y1="4" x2="20" y2="20"/>
+            </svg>
+            <span class="admin-notify-dot" id="queryNotifyDot" hidden></span>
+          </button>
+          <button type="button" class="admin-icon-btn" id="logoutBtn" aria-label="Log out" title="Log out">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
+        </div>
       </header>
 
       <section id="adminHub" class="admin-hub">
-        <div class="admin-hub-intro">
-          <p class="admin-hub-date" id="hubDate"></p>
-          <h2 class="admin-hub-heading" id="hubGreeting">Welcome back</h2>
-          <p class="admin-hub-lead">Here is what needs attention today.</p>
-        </div>
+        <p class="admin-lede" id="hubLead">Choose a path below.</p>
 
-        <div class="admin-stat-grid is-loading" id="hubStats" aria-live="polite">
-          <button type="button" class="admin-stat" data-admin-page="events" data-hub-resource="programs">
-            <span class="admin-stat-value" data-stat-value="programs">—</span>
-            <span class="admin-stat-label">Open programs</span>
-            <span class="admin-stat-sub" data-stat-sub="programs"></span>
+        <div class="admin-hub-cards is-loading" id="hubStats" aria-live="polite">
+          <button type="button" class="admin-card admin-card--dark" data-admin-page="queries">
+            <span class="admin-card-kicker">Inbox</span>
+            <span class="admin-card-title">Enquiries<em>unanswered</em></span>
+            <span class="admin-card-desc">Interest and enquiry forms sent from the website</span>
+            <span class="admin-card-stats">
+              <span class="admin-card-stat" data-stat-row="queries">
+                <strong data-stat-value="queries">—</strong>
+                <span>open now</span>
+              </span>
+              <span class="admin-card-stat" data-stat-row="queries-resolved">
+                <strong data-stat-value="queries-resolved">—</strong>
+                <span>resolved</span>
+              </span>
+            </span>
+            <span class="admin-card-go">
+              Open the inbox
+              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
           </button>
-          <button type="button" class="admin-stat" data-admin-page="events" data-hub-resource="volunteering">
-            <span class="admin-stat-value" data-stat-value="volunteering">—</span>
-            <span class="admin-stat-label">Open volunteering</span>
-            <span class="admin-stat-sub" data-stat-sub="volunteering"></span>
-          </button>
-          <button type="button" class="admin-stat" data-admin-page="queries">
-            <span class="admin-stat-value" data-stat-value="queries">—</span>
-            <span class="admin-stat-label">Open queries</span>
-            <span class="admin-stat-sub" data-stat-sub="queries"></span>
+
+          <button type="button" class="admin-card admin-card--light" data-admin-page="events">
+            <span class="admin-card-kicker">Offerings</span>
+            <span class="admin-card-title">Events<em>on the calendar</em></span>
+            <span class="admin-card-desc">Programs and volunteering dates</span>
+            <span class="admin-card-stats">
+              <span class="admin-card-stat" data-stat-row="programs">
+                <strong data-stat-value="programs">—</strong>
+                <span>programs running</span>
+              </span>
+              <span class="admin-card-stat" data-stat-row="volunteering">
+                <strong data-stat-value="volunteering">—</strong>
+                <span>volunteering dates open</span>
+              </span>
+            </span>
+            <span class="admin-card-go">
+              Manage events
+              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
           </button>
         </div>
         <p class="admin-stat-note" id="hubStatsNote" hidden></p>
-
-        <div class="admin-hub-paths" role="navigation" aria-label="Admin workspaces">
-          <button type="button" class="admin-hub-path" data-admin-page="events">
-            <span class="admin-hub-path-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/></svg>
-            </span>
-            <span class="admin-hub-path-copy">
-              <span class="admin-hub-path-title">Manage events</span>
-              <span class="admin-hub-path-desc">Add, edit and close programs and volunteering events</span>
-            </span>
-            <span class="admin-hub-path-go" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
-            </span>
-          </button>
-          <button type="button" class="admin-hub-path" data-admin-page="queries">
-            <span class="admin-hub-path-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-4.6A8.4 8.4 0 1 1 21 11.5Z"/><path d="M8.5 11h7"/><path d="M8.5 14.5h4.5"/></svg>
-            </span>
-            <span class="admin-hub-path-copy">
-              <span class="admin-hub-path-title">Queries</span>
-              <span class="admin-hub-path-desc">Follow up on interest and enquiry forms</span>
-            </span>
-            <span class="admin-hub-path-go" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
-            </span>
-          </button>
-        </div>
-
-        <div class="admin-hub-quick">
-          <p class="admin-hub-quick-label">Quick actions</p>
-          <div class="admin-hub-quick-row">
-            <button type="button" class="admin-quick-btn" data-hub-action="add-program">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              Add program
-            </button>
-            <button type="button" class="admin-quick-btn" data-hub-action="add-volunteering">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              Add volunteering
-            </button>
-          </div>
-        </div>
       </section>
 
       <section id="adminWorkspace" class="admin-workspace hidden">
@@ -353,6 +348,17 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="notifyOffOverlay">
+    <div class="query-modal admin-confirm" role="dialog" aria-modal="true" aria-labelledby="notifyOffTitle">
+      <h2 id="notifyOffTitle">Turn off alerts?</h2>
+      <p class="admin-confirm-lead">You will not get a phone alert when a new query arrives.</p>
+      <div class="admin-editor-actions">
+        <button type="button" class="btn btn-outline" id="cancelNotifyOffBtn">Cancel</button>
+        <button type="button" class="btn btn-gold" id="confirmNotifyOffBtn">Turn off</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="logoutOverlay">
     <div class="query-modal admin-confirm" role="dialog" aria-modal="true" aria-labelledby="logoutConfirmTitle">
       <h2 id="logoutConfirmTitle">Log out?</h2>
@@ -378,6 +384,6 @@
   <script src="config.js"></script>
   <script src="protect.js"></script>
   <script src="site.js?v=pwa-install"></script>
-  <script src="admin.js?v=volunteering-redesign"></script>
+  <script src="admin.js?v=hub-today"></script>
 </body>
 </html>
