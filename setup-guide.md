@@ -5,6 +5,7 @@
 - `programs.html` — Programs listing  
 - `volunteering.html` — Volunteering listing  
 - `detail.html` — Detail page + contact form  
+- `admin-promotions.html` — Standalone promotions day board
 - `admin.html` / `admin.js` — Admin login to edit content  
 - `site.js` — Loads home/footer text from the sheet  
 - `style.css` — All styling  

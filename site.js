@@ -351,29 +351,48 @@
     return h + ":" + min + " " + ap;
   }
 
-  function collectEventSlots(item) {
-    if (!item) return [];
-    if (item.slots && item.slots.length) {
-      return item.slots.filter(function (s) {
-        return s && (s.start || s.end);
-      });
-    }
-    const slots = [];
-    if (item.starttime || item.endtime) {
-      slots.push({ start: item.starttime || "", end: item.endtime || "" });
-    }
-    if (item.starttime2 || item.endtime2) {
-      slots.push({ start: item.starttime2 || "", end: item.endtime2 || "" });
-    }
-    return slots;
-  }
-
   function formatSlotRange(slot) {
     if (!slot) return "";
     const a = formatHmAmPm(slot.start);
     const b = formatHmAmPm(slot.end);
-    if (a && b) return a + " – " + b;
-    return a || b || "";
+    let range = "";
+    if (a && b) range = a + " – " + b;
+    else range = a || b || "";
+    const label = String(slot.label || "").trim();
+    if (label && range) return label + " " + range;
+    return label || range || "";
+  }
+
+  function collectEventSlots(item) {
+    if (!item) return [];
+    if (item.slots && item.slots.length) {
+      return item.slots.filter(function (s) {
+        return s && (s.start || s.end || s.label);
+      });
+    }
+    const slots = [];
+    if (item.starttime || item.endtime) {
+      slots.push({
+        label: item.slotlabel || "",
+        start: item.starttime || "",
+        end: item.endtime || "",
+      });
+    }
+    if (item.starttime2 || item.endtime2) {
+      slots.push({
+        label: item.slotlabel2 || "",
+        start: item.starttime2 || "",
+        end: item.endtime2 || "",
+      });
+    }
+    if (item.starttime3 || item.endtime3) {
+      slots.push({
+        label: item.slotlabel3 || "",
+        start: item.starttime3 || "",
+        end: item.endtime3 || "",
+      });
+    }
+    return slots;
   }
 
   /** Compact one-line (or joined) slots for cards. */
@@ -498,6 +517,7 @@
   }
 
   window.beginPageLoad = function () {
+    if (document.body && document.body.classList.contains("home-page")) return;
     document.documentElement.classList.add("is-page-loading");
     document.documentElement.setAttribute("aria-busy", "true");
   };
@@ -520,6 +540,30 @@
     initModalScrollLock();
     initMobileNav();
     initPwa();
+    initPullToRefresh();
+  }
+
+  /* Pages register their own loader; anything that doesn't just re-pulls the
+     shared site content. */
+  let pageRefresh = null;
+  window.registerRefresh = function (fn) {
+    if (typeof fn === "function") pageRefresh = fn;
+  };
+
+  function initPullToRefresh() {
+    if (!window.PullToRefresh) return;
+    // admin.js installs its own screen-aware handler; two would double-refresh.
+    if (document.body && document.body.classList.contains("admin-page")) return;
+    window.PullToRefresh.init({
+      scroller: window,
+      onRefresh: function () {
+        // Don't pull the whole page out from under an open modal.
+        if (anyOverlayOpen()) return Promise.resolve();
+        return Promise.resolve(
+          pageRefresh ? pageRefresh() : applySiteContent()
+        );
+      }
+    });
   }
 
   if (document.readyState === "loading") {

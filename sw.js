@@ -1,14 +1,17 @@
-const CACHE_NAME = "isha-vjn-v3";
+const CACHE_NAME = "isha-vjn-v24";
 const PRECACHE = [
   "./",
   "./index.html",
   "./programs.html",
   "./volunteering.html",
   "./detail.html",
-  "./style.css?v=pwa-install",
-  "./site.js?v=pwa-install",
+  "./admin-promotions.html",
+  "./admin-promotions.css?v=promo-save",
+  "./admin-promotions.js?v=promo-save",
+  "./style.css?v=promo-dayboard",
+  "./site.js?v=home-nav",
   "./config.js",
-  "./protect.js",
+  "./protect.js?v=home-nav",
   "./whatsapp-validate.js",
   "./assets/logo.png",
   "./assets/icon-192.png",
@@ -47,27 +50,36 @@ self.addEventListener("activate", function (event) {
 
 self.addEventListener("message", function (event) {
   var data = event.data || {};
-  if (data.type !== "NOTIFY_QUERY") return;
+  if (data.type !== "NOTIFY_QUERY" && data.type !== "NOTIFY_PROMO") return;
+  var isPromo = data.type === "NOTIFY_PROMO";
   event.waitUntil(
-    self.registration.showNotification(data.title || "New query", {
-      body: data.body || "A new query was submitted.",
+    self.registration.showNotification(data.title || (isPromo ? "Time to share" : "New query"), {
+      body: data.body || (isPromo ? "A promotion is due." : "A new query was submitted."),
       icon: "assets/icon-192.png",
       badge: "assets/icon-192.png",
-      tag: data.tag || "vjn-new-query",
+      tag: data.tag || (isPromo ? "vjn-promo-due" : "vjn-new-query"),
       renotify: true,
-      data: { url: data.url || "admin.html#queries" },
+      data: {
+        url: data.url || (isPromo ? "admin-promotions.html" : "admin.html#queries"),
+        type: isPromo ? "promo" : "query",
+      },
     })
   );
 });
 
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-  var target = (event.notification.data && event.notification.data.url) || "admin.html#queries";
+  var payload = event.notification.data || {};
+  var isPromo = payload.type === "promo" || (payload.url && payload.url.indexOf("promotions") !== -1);
+  var target = payload.url || (isPromo ? "admin-promotions.html" : "admin.html#queries");
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
       for (var i = 0; i < list.length; i++) {
         var client = list[i];
-        if (client.url.indexOf("admin.html") !== -1 && "focus" in client) {
+        if (isPromo && client.url.indexOf("admin-promotions.html") !== -1 && "focus" in client) {
+          return client.focus();
+        }
+        if (!isPromo && client.url.indexOf("admin.html") !== -1 && "focus" in client) {
           client.postMessage({ type: "OPEN_QUERIES" });
           return client.focus();
         }

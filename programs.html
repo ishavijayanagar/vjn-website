@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="referrer" content="no-referrer"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
   <title>Programs</title>
   <meta name="theme-color" content="#1c1c1e"/>
   <meta name="mobile-web-app-capable" content="yes"/>
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn"/>
-  <link rel="stylesheet" href="style.css?v=hide-scroll"/>
+  <link rel="stylesheet" href="style.css?v=promo-dayboard"/>
 </head>
 <body class="programs-page" data-wait-load="1">
 
@@ -55,7 +55,7 @@
     <div class="container programs-browse-inner">
       <div class="search-field-wrap">
         <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input type="text" class="search-input" id="searchInput" placeholder="Search programs, dates, timings…" oninput="filterPrograms()" autocomplete="off" aria-label="Search programs"/>
+        <input type="search" class="search-input" id="searchInput" placeholder="Search programs, dates, places…" oninput="scheduleFilterPrograms()" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Search programs"/>
         <button type="button" class="search-clear-btn" id="searchClearBtn" onclick="clearProgramSearch()" aria-label="Clear search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
@@ -75,14 +75,40 @@
   <section class="listings-section">
     <div class="container">
       <div class="programs-result-bar" id="programsResultBar" hidden>
-        <p class="programs-result-count" id="programsResultCount"></p>
+        <p class="programs-result-count" id="programsResultCount" role="status" aria-live="polite"></p>
         <button type="button" class="programs-result-reset" id="programsResultReset" onclick="resetProgramFilters()" hidden>Clear filters</button>
       </div>
       <div id="listingsContainer">
-        <div class="state-box">
-          <div class="spinner"></div>
-          <p>Loading programs...</p>
+        <div class="listings-grid programs-feed" aria-hidden="true">
+          <div class="program-skeleton">
+            <div class="program-skeleton-hero skeleton-block"></div>
+            <div class="program-skeleton-body">
+              <div class="skeleton-block skeleton-line title"></div>
+              <div class="skeleton-block skeleton-line mid"></div>
+              <div class="skeleton-block skeleton-line short"></div>
+              <div class="skeleton-block skeleton-btn"></div>
+            </div>
+          </div>
+          <div class="program-skeleton">
+            <div class="program-skeleton-hero skeleton-block"></div>
+            <div class="program-skeleton-body">
+              <div class="skeleton-block skeleton-line title"></div>
+              <div class="skeleton-block skeleton-line mid"></div>
+              <div class="skeleton-block skeleton-line short"></div>
+              <div class="skeleton-block skeleton-btn"></div>
+            </div>
+          </div>
+          <div class="program-skeleton">
+            <div class="program-skeleton-hero skeleton-block"></div>
+            <div class="program-skeleton-body">
+              <div class="skeleton-block skeleton-line title"></div>
+              <div class="skeleton-block skeleton-line mid"></div>
+              <div class="skeleton-block skeleton-line short"></div>
+              <div class="skeleton-block skeleton-btn"></div>
+            </div>
+          </div>
         </div>
+        <p class="sr-only" aria-live="polite">Loading programs…</p>
       </div>
     </div>
   </section>
@@ -147,8 +173,9 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
-  <script src="protect.js"></script>
-  <script src="site.js?v=pwa-install"></script>
+  <script src="protect.js?v=home-nav"></script>
+  <script src="site.js?v=home-nav"></script>
+  <script src="ptr.js?v=1"></script>
   <script>
     let allPrograms = [];
     let activeFrequencyPill = 'all';
@@ -193,9 +220,145 @@
       return 'other';
     }
 
-    function programsMatchingPill(programs) {
-      if (activeFrequencyPill === 'all') return programs.slice();
-      return programs.filter((p) => canonicalFrequency(p) === activeFrequencyPill);
+    const FREQUENCY_KEYS = ['all', 'daily', 'weekly', 'monthly', 'scheduled'];
+
+    function isoDateOf(value) {
+      const m = String(value == null ? '' : value).match(/(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : '';
+    }
+
+    function toIsoLocal(d) {
+      return (
+        d.getFullYear() +
+        '-' +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(d.getDate()).padStart(2, '0')
+      );
+    }
+
+    function todayIso() {
+      return toIsoLocal(new Date());
+    }
+
+    function shiftIso(iso, days) {
+      const p = iso.split('-');
+      const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+      d.setDate(d.getDate() + days);
+      return toIsoLocal(d);
+    }
+
+    function programDateRange(program) {
+      const start = isoDateOf(program.startdate || program['start date'] || program.date);
+      const end = isoDateOf(program.enddate || program['end date'] || '') || start;
+      return { start: start || end, end: end || start };
+    }
+
+    /** "Today" while a program is running, "Tomorrow" the day before it starts. */
+    function programWhenLabel(program) {
+      const range = programDateRange(program);
+      if (!range.start) return '';
+      const today = todayIso();
+      if (range.start <= today && today <= range.end) return 'Today';
+      if (range.start === shiftIso(today, 1)) return 'Tomorrow';
+      return '';
+    }
+
+    /**
+     * Ranks by the next date a program actually runs, so a recurring program
+     * that is on today outranks one that merely started earlier.
+     */
+    function programSortRank(program) {
+      const range = programDateRange(program);
+      const today = todayIso();
+      if (!range.start) return { bucket: 2, key: '' };
+      if (range.end < today) return { bucket: 1, key: range.end };
+      if (range.start > today) return { bucket: 0, key: range.start };
+      return { bucket: 0, key: today };
+    }
+
+    function sortProgramsBySoonest(list) {
+      return list
+        .map((item, index) => ({ item, index, rank: programSortRank(item) }))
+        .sort((a, b) => {
+          if (a.rank.bucket !== b.rank.bucket) return a.rank.bucket - b.rank.bucket;
+          if (a.rank.key !== b.rank.key) return a.rank.key < b.rank.key ? -1 : 1;
+          return a.index - b.index;
+        })
+        .map((entry) => entry.item);
+    }
+
+    function programHaystack(program) {
+      if (program._haystack) return program._haystack;
+      const slots = typeof formatEventSlots === 'function' ? formatEventSlots(program) : '';
+      const dateLabel = typeof listingDateLabel === 'function' ? listingDateLabel(program) : '';
+      program._haystack = [
+        program.title,
+        program.description,
+        program.location,
+        program.frequency,
+        program.timings,
+        slots,
+        dateLabel,
+        program.date,
+        program.startdate,
+        program.enddate,
+      ]
+        .map((v) => (v == null ? '' : String(v)))
+        .join(' ')
+        .toLowerCase();
+      return program._haystack;
+    }
+
+    function updatePillCounts(searched) {
+      document.querySelectorAll('#frequencyPills .filter-pill').forEach((btn) => {
+        const key = btn.getAttribute('data-frequency');
+        const count =
+          key === 'all'
+            ? searched.length
+            : searched.filter((p) => canonicalFrequency(p) === key).length;
+        let tag = btn.querySelector('.filter-pill-count');
+        if (!tag) {
+          tag = document.createElement('span');
+          tag.className = 'filter-pill-count';
+          btn.appendChild(tag);
+        }
+        tag.textContent = String(count);
+        const empty = count === 0 && key !== 'all';
+        btn.classList.toggle('is-empty', empty);
+        btn.disabled = empty && key !== activeFrequencyPill;
+      });
+    }
+
+    function readFiltersFromUrl() {
+      let params;
+      try {
+        params = new URLSearchParams(location.search);
+      } catch (err) {
+        return;
+      }
+      const q = params.get('q') || '';
+      const f = (params.get('f') || '').trim().toLowerCase();
+      const input = document.getElementById('searchInput');
+      if (input && q) input.value = q;
+      if (FREQUENCY_KEYS.indexOf(f) > 0) activeFrequencyPill = f;
+    }
+
+    function syncUrlToFilters() {
+      if (!window.history || !history.replaceState) return;
+      let params;
+      try {
+        params = new URLSearchParams(location.search);
+      } catch (err) {
+        return;
+      }
+      const q = (document.getElementById('searchInput')?.value || '').trim();
+      if (q) params.set('q', q);
+      else params.delete('q');
+      if (activeFrequencyPill && activeFrequencyPill !== 'all') params.set('f', activeFrequencyPill);
+      else params.delete('f');
+      const qs = params.toString();
+      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
     }
 
     function setFrequencyFilter(key) {
@@ -223,9 +386,10 @@
       try {
         const res = await fetch(`${APPS_SCRIPT_URL}?type=programs`);
         const data = await res.json();
-        allPrograms = (data.items || []).filter(programListingStatusIsOpen);
+        allPrograms = sortProgramsBySoonest((data.items || []).filter(programListingStatusIsOpen));
         populateProgramSelect();
-        setFrequencyFilter('all');
+        readFiltersFromUrl();
+        setFrequencyFilter(activeFrequencyPill);
       } catch (err) {
         allPrograms = [];
         populateProgramSelect();
@@ -284,7 +448,6 @@
           buildProgramMetaItem(SVG_CALENDAR, listingDateLabel(item)),
           buildProgramMetaItem(SVG_CLOCK, typeof formatEventSlots === 'function' ? formatEventSlots(item) : item.timings),
           buildProgramMetaItem(SVG_PIN, item.location),
-          buildProgramMetaItem(SVG_DURATION, item.duration),
         ].join('');
 
         card.innerHTML = `
@@ -339,8 +502,16 @@
           <div class="program-card-hero-scrim"></div>
           <div class="program-card-badge-row">
             <div class="program-card-badge">${SVG_BELL} Program</div>
+            ${buildProgramWhenBadge(item)}
           </div>
         </div>`;
+    }
+
+    function buildProgramWhenBadge(item) {
+      const when = programWhenLabel(item);
+      if (!when) return '';
+      const tone = when === 'Today' ? ' is-today' : '';
+      return `<div class="program-card-badge program-card-badge-when${tone}">${escapeHtml(when)}</div>`;
     }
 
     function buildProgramCardAction(item) {
@@ -406,38 +577,39 @@
       filterPrograms();
     }
 
-    function filterPrograms() {
-      const base = programsMatchingPill(allPrograms);
-      const input = document.getElementById('searchInput');
-      const raw = (input.value || '').trim();
-      const q = raw.toLowerCase();
-      const pill = activeFrequencyPill || 'all';
+    let programFilterTimer = null;
 
-      if (!q) {
-        renderPrograms(base, { activePill: pill });
-        syncModalProgramSearchContext();
-        updateSearchClearVisibility();
-        return;
+    /** Keystrokes are debounced; every other caller filters straight away. */
+    function scheduleFilterPrograms() {
+      updateSearchClearVisibility();
+      if (programFilterTimer) clearTimeout(programFilterTimer);
+      programFilterTimer = setTimeout(function () {
+        programFilterTimer = null;
+        filterPrograms();
+      }, 160);
+    }
+
+    function filterPrograms() {
+      if (programFilterTimer) {
+        clearTimeout(programFilterTimer);
+        programFilterTimer = null;
       }
-      const filtered = base.filter(
-        (p) =>
-          (p.title || '').toLowerCase().includes(q) ||
-          (p.description || '').toLowerCase().includes(q) ||
-          (p.date || '').toLowerCase().includes(q) ||
-          (p.startdate || '').toLowerCase().includes(q) ||
-          (p.enddate || '').toLowerCase().includes(q) ||
-          (p.frequency || '').toLowerCase().includes(q) ||
-          (p.timings || '').toLowerCase().includes(q)
-      );
-      if (!filtered || filtered.length === 0) {
-        renderNoPrograms(raw, pill);
-        syncModalProgramSearchContext();
-        updateSearchClearVisibility();
-        return;
-      }
-      renderPrograms(filtered);
+      const input = document.getElementById('searchInput');
+      const raw = ((input && input.value) || '').trim();
+      const q = raw.toLowerCase();
+      const searched = q ? allPrograms.filter((p) => programHaystack(p).includes(q)) : allPrograms.slice();
+
+      updatePillCounts(searched);
+
+      const pill = activeFrequencyPill || 'all';
+      const items = pill === 'all' ? searched : searched.filter((p) => canonicalFrequency(p) === pill);
+
+      if (items.length === 0) renderNoPrograms(raw, allPrograms.length ? pill : '');
+      else renderPrograms(items);
+
       syncModalProgramSearchContext();
       updateSearchClearVisibility();
+      syncUrlToFilters();
     }
 
     function syncModalProgramSearchContext() {
@@ -617,6 +789,7 @@
     }
 
     loadPrograms();
+    if (window.registerRefresh) registerRefresh(loadPrograms);
   </script>
 </body>
 </html>

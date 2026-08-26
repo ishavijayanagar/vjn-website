@@ -1,5 +1,8 @@
 (function () {
-  document.documentElement.classList.add("is-page-loading");
+  // Home is usable from first paint; don't lock nav/buttons while sheet content loads.
+  if (!(document.body && document.body.classList.contains("home-page"))) {
+    document.documentElement.classList.add("is-page-loading");
+  }
 
   function isProtectedTarget(el) {
     if (!el) return false;

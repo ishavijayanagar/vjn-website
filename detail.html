@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="referrer" content="no-referrer"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
   <title>Details – Isha Place, Vijayanagar</title>
   <meta name="theme-color" content="#1c1c1e"/>
   <meta name="mobile-web-app-capable" content="yes"/>
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn"/>
-  <link rel="stylesheet" href="style.css?v=hide-scroll"/>
+  <link rel="stylesheet" href="style.css?v=promo-dayboard"/>
 </head>
 <body class="detail-page" data-wait-load="1">
 
@@ -167,8 +167,9 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
-  <script src="protect.js"></script>
-  <script src="site.js?v=pwa-install"></script>
+  <script src="protect.js?v=home-nav"></script>
+  <script src="site.js?v=home-nav"></script>
+  <script src="ptr.js?v=1"></script>
   <script>
     function escapeHtmlAttr(s) {
       return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -239,10 +240,16 @@
           itemType === 'program' && registerUrl
             ? `<a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-register">Register for this program</a>`
             : '';
+        const volunteerAvailable = (function () {
+          const s = String(data.item.volunteering_available || data.item.volunteeringavailable || "")
+            .trim()
+            .toLowerCase();
+          return s === "yes" || s === "true" || s === "1" || s === "y";
+        })();
         const volunteerBtnHtml =
-          itemType === 'program'
+          itemType === "program" && volunteerAvailable
             ? `<button type="button" class="btn btn-outline btn-volunteer-program" onclick="openProgramVolunteerModal()">Volunteer for this program</button>`
-            : '';
+            : "";
         const registerSection =
           registerLinkHtml || volunteerBtnHtml
             ? `<div class="detail-register"><div class="detail-register-actions">${registerLinkHtml}${volunteerBtnHtml}</div></div>`
@@ -277,7 +284,6 @@
           <div class="detail-meta">
             ${datetimeBlock}
             ${data.item.location ? `<span data-icon="📍">${escapeHtml(data.item.location)}</span>` : ''}
-            ${data.item.duration ? `<span data-icon="⏱">${escapeHtml(data.item.duration)}</span>` : ''}
           </div>
           <h2>${data.item.title}</h2>
           <div class="description">${data.item.description || ''}</div>
@@ -449,6 +455,7 @@
     }
 
     loadDetail();
+    if (window.registerRefresh) registerRefresh(loadDetail);
   </script>
 </body>
 </html>

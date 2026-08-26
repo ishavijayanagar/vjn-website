@@ -3,7 +3,7 @@
 // after deploying (see setup-guide.md for how)
 // =============================================
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwaXz_3FQNWTbpnwYvG0FqdP-Jhvstytyvds-c860gm6aHLRxmGA-iFr-WHthhDJWHw/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzYypTOLbAl-5UlA6ZDElEezfevwI9w3pfjoJ_0dxUYCDmKnaYZwdqIMOr0xOtY1d81/exec";
 
 // Queries page: WhatsApp button opens the contact/group picker
 // with the query text. Clicking a person's number opens that chat.
