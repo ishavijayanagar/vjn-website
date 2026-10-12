@@ -5,7 +5,7 @@
   <meta name="referrer" content="no-referrer"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
   <title>Programs</title>
-  <meta name="theme-color" content="#1c1c1e"/>
+  <meta name="theme-color" content="#f8f8f8"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -13,14 +13,14 @@
   <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn2"/>
-  <link rel="stylesheet" href="style.css?v=free-offer"/>
+  <link rel="stylesheet" href="style.css?v=filters-1"/>
 </head>
 <body class="programs-page" data-wait-load="1">
 
   <nav class="navbar">
     <div class="nav-inner">
       <a href="index.html" class="logo">
-        <img src="assets/logo.png" alt="Isha Foundation"/>
+        <img src="assets/logo-dark.png" alt="Isha Foundation"/>
         <span class="sr-only">Home</span>
       </a>
       <ul class="nav-links">
@@ -55,7 +55,7 @@
     <div class="container programs-browse-inner">
       <div class="search-field-wrap">
         <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input type="search" class="search-input" id="searchInput" placeholder="Search programs, dates, places…" oninput="scheduleFilterPrograms()" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Search programs"/>
+        <input type="search" class="search-input" id="searchInput" placeholder="Search programs" oninput="scheduleFilterPrograms()" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Search programs"/>
         <button type="button" class="search-clear-btn" id="searchClearBtn" onclick="clearProgramSearch()" aria-label="Clear search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
@@ -145,23 +145,33 @@
 
   <footer class="footer">
     <div class="container">
+      <div class="footer-top">
+        <a href="index.html" class="footer-brand">
+          <span>Isha Place, Vijayanagar</span>
+        </a>
+      </div>
       <div class="footer-grid">
-        <div>
-          <h5>Address</h5>
-          <a class="footer-address" href="https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6" target="_blank" rel="noopener noreferrer">
-            <p>Isha Place, Vijayanagar</p>
+        <a class="footer-item footer-address" href="https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.4"/></svg>
+          <div>
+            <h5>Address</h5>
             <p data-site="footer_address" data-site-mode="html">195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
-          </a>
+          </div>
+        </a>
+        <div class="footer-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+          <div>
+            <h5>Contact</h5>
+            <p><a href="tel:+918095763111" data-tel><span data-site="footer_phone">+91 80957 63111</span></a></p>
+            <p><a href="mailto:ishaplacevjn@gmail.com">ishaplacevjn@gmail.com</a></p>
+          </div>
         </div>
-        <div>
-          <h5>Navigate</h5>
-          <ul><li><a href="programs.html">Programs</a></li><li><a href="volunteering.html">Volunteering</a></li></ul>
-        </div>
-        <div>
-          <h5>Contact</h5>
-          <p>📞 <span data-site="footer_phone">+91 80957 63111</span></p><br/>
-          <h5>Hours</h5>
-          <p data-site="footer_hours" data-site-mode="html">Mon – Sun<br/>10:00 AM – 8:00 PM</p>
+        <div class="footer-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div>
+            <h5>Hours</h5>
+            <p data-site="footer_hours" data-site-mode="html">Mon – Sun<br/>10:00 AM – 8:00 PM</p>
+          </div>
         </div>
       </div>
       <div class="footer-bottom">
@@ -174,7 +184,7 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=home-nav"></script>
+  <script src="site.js?v=share-1"></script>
   <script src="ptr.js?v=1"></script>
   <script>
     let allPrograms = [];
@@ -327,6 +337,7 @@
         const empty = count === 0 && key !== 'all';
         btn.classList.toggle('is-empty', empty);
         btn.disabled = empty && key !== activeFrequencyPill;
+        btn.hidden = empty && key !== activeFrequencyPill;
       });
     }
 
@@ -413,9 +424,11 @@
         bar.hidden = true;
         return;
       }
-      bar.hidden = false;
+      // The "All" chip already shows the total; only surface a count while filtering.
+      const filtering = hasActiveProgramFilters();
+      bar.hidden = !filtering;
       label.textContent = count === 1 ? '1 program' : count + ' programs';
-      reset.hidden = !hasActiveProgramFilters();
+      reset.hidden = !filtering;
     }
 
     function resetProgramFilters() {
@@ -436,6 +449,11 @@
 
       const grid = document.createElement('div');
       grid.className = 'listings-grid programs-feed';
+      // Stagger cards in once on first load; filtering/search re-renders stay instant.
+      if (!renderPrograms.didAnimate) {
+        grid.classList.add('is-entering');
+        renderPrograms.didAnimate = true;
+      }
 
       items.forEach((item, index) => {
         const detailHref = `detail.html?id=${item.id}&type=program`;
@@ -450,21 +468,27 @@
           buildProgramMetaItem(SVG_PIN, item.location),
         ].join('');
 
+        const showFrequency = frequency && canonicalFrequency(item) !== 'scheduled';
+        card.style.setProperty('--i', String(Math.min(index, 8)));
+
         card.innerHTML = `
           ${buildProgramCardHero(item)}
-          <div class="program-card-seam"><span class="program-card-notch l"></span><span class="program-card-notch r"></span></div>
           <div class="program-card-body">
-            <div class="program-card-title-row">
-              <h2 class="program-card-title"><a href="${escapeHtmlAttr(detailHref)}">${escapeHtml(item.title || 'Program')}</a></h2>
-              ${frequency ? `<span class="program-card-frequency">${escapeHtml(frequency)}</span>` : ''}
+            <div class="program-card-head">
+              ${buildProgramDateTile(item)}
+              <div class="program-card-heading">
+                ${showFrequency ? `<span class="program-card-frequency">${escapeHtml(frequency)}</span>` : ''}
+                <h2 class="program-card-title"><a class="program-card-link" href="${escapeHtmlAttr(detailHref)}">${escapeHtml(item.title || 'Program')}</a></h2>
+              </div>
+              <button type="button" class="share-btn program-card-share" data-share-url="${escapeHtmlAttr(detailHref)}" data-share-title="${escapeHtmlAttr(item.title || 'Program')}" data-share-text="${escapeHtmlAttr([item.title, listingDateLabel(item)].filter(Boolean).join(' · '))}" aria-label="Share ${escapeHtmlAttr(item.title || 'program')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.8 7.4-4.3M8.3 13.2l7.4 4.3"/></svg></button>
             </div>
             ${metaHtml ? `<div class="program-card-meta">${metaHtml}</div>` : ''}
             <div class="program-card-actions">
-              <a href="${escapeHtmlAttr(detailHref)}" class="program-card-more program-card-more-link">
-                <span class="program-card-more-label">More details</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
-              </a>
               ${buildProgramCardAction(item)}
+              <a href="${escapeHtmlAttr(detailHref)}" class="program-card-more program-card-more-link">
+                  <span class="program-card-more-label">Details</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+                </a>
             </div>
           </div>`;
         grid.appendChild(card);
@@ -480,6 +504,19 @@
     const SVG_DURATION = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
     const SVG_REGISTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
     const SVG_BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+
+    /** Isha-style date tile: weekday · day · month of the next run. */
+    function buildProgramDateTile(item) {
+      const range = programDateRange(item);
+      if (!range.start) return '';
+      const today = todayIso();
+      const iso = range.start <= today && today <= range.end ? today : range.start;
+      const d = new Date(iso + 'T00:00:00');
+      if (isNaN(d)) return '';
+      const wk = d.toLocaleDateString('en-IN', { weekday: 'short' });
+      const mo = d.toLocaleDateString('en-IN', { month: 'short' });
+      return `<div class="program-date-tile" aria-hidden="true"><span class="pdt-wk">${wk}</span><span class="pdt-day">${d.getDate()}</span><span class="pdt-mo">${mo}</span></div>`;
+    }
 
     function buildProgramMetaItem(icon, value) {
       const text = value ? String(value).trim() : '';
@@ -550,7 +587,7 @@
     function buildProgramCardAction(item) {
       const registerUrl = getRegisterUrl(item);
       if (registerUrl) {
-        return `<a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="program-card-register-btn">${SVG_REGISTER} Register now</a>`;
+        return `<a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="program-card-register-btn">${SVG_REGISTER} Register</a>`;
       }
       return `<button type="button" class="program-card-register-btn program-card-interest-btn" data-program-id="${escapeHtml(item.id)}" data-program-title="${escapeHtmlAttr(item.title || '')}">${SVG_BELL} Show interest</button>`;
     }
@@ -743,6 +780,14 @@
       }
     }
 
+    document.addEventListener('click', function (e) {
+      const share = e.target.closest('.share-btn[data-share-url]');
+      if (share && window.shareLink) {
+        e.preventDefault();
+        shareLink({ url: share.dataset.shareUrl, title: share.dataset.shareTitle, text: share.dataset.shareText });
+        return;
+      }
+    });
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('.program-card-interest-btn');
       if (!btn || !btn.closest('#listingsContainer')) return;

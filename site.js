@@ -65,6 +65,12 @@
         }
       });
 
+      // Keep tap-to-call links in step with an edited phone number.
+      document.querySelectorAll("a[data-tel]").forEach(function (a) {
+        const digits = a.textContent.replace(/[^\d+]/g, "");
+        if (digits) a.href = "tel:" + digits;
+      });
+
       document.querySelectorAll("[data-site-src]").forEach(function (el) {
         const key = el.getAttribute("data-site-src");
         if (!key || !content[key]) return;
@@ -525,6 +531,54 @@
       showPwaHelp(isIosDevice());
     });
   }
+
+  /* ---- Share (native share sheet, else copy link + toast) ---- */
+  function showToast(msg) {
+    var el = document.getElementById("siteToast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "siteToast";
+      el.className = "site-toast";
+      el.setAttribute("role", "status");
+      el.setAttribute("aria-live", "polite");
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(showToast.t);
+    showToast.t = setTimeout(function () { el.classList.remove("show"); }, 2200);
+  }
+  window.showToast = showToast;
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy") ? resolve() : reject(); } catch (e) { reject(e); }
+      ta.remove();
+    });
+  }
+
+  window.shareLink = function (opts) {
+    var url = new URL(opts.url, window.location.href).href;
+    var data = { title: opts.title || document.title, text: opts.text || "", url: url };
+    if (navigator.share) {
+      return navigator.share(data).catch(function (err) {
+        if (err && err.name === "AbortError") return; // user closed the sheet
+        return copyText(url).then(function () { showToast("Link copied"); });
+      });
+    }
+    return copyText(url).then(
+      function () { showToast("Link copied"); },
+      function () { window.prompt("Copy this link", url); }
+    );
+  };
 
   window.beginPageLoad = function () {
     if (document.body && document.body.classList.contains("home-page")) return;

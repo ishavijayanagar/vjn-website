@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=vol-gform-v36"/>
+  <link rel="stylesheet" href="style.css?v=login-isha-3"/>
   <link rel="stylesheet" href="sandesha/css/embedded.css?v=6"/>
   <script>
     (function () {
@@ -28,7 +28,10 @@
   <div class="admin-wrap">
     <section class="admin-login" id="loginScreen">
       <header class="login-head">
-        <p class="login-brand">Isha Place, Vijayanagar</p>
+        <div class="login-head-brand">
+          <img class="login-logo" src="assets/logo-dark.png" alt="Isha"/>
+          <p class="login-brand">Isha Place, Vijayanagar</p>
+        </div>
         <h1>Namaskaram</h1>
         <p class="admin-lead" id="loginLead">Choose your team to continue.</p>
       </header>
@@ -39,24 +42,28 @@
         <ul class="login-teams">
           <li>
             <button type="button" class="login-team-btn" data-login-role="programs">
+              <span class="login-team-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>
               <span class="login-team-name">Programs</span>
               <svg class="login-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
             </button>
           </li>
           <li>
             <button type="button" class="login-team-btn" data-login-role="promotions">
+              <span class="login-team-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a2 2 0 0 0 2 2h1l4 4V5L6 9H5a2 2 0 0 0-2 2Z"/><path d="M16 8a5 5 0 0 1 0 8"/><path d="M19 5a9 9 0 0 1 0 14"/></svg></span>
               <span class="login-team-name">Promotions</span>
               <svg class="login-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
             </button>
           </li>
           <li>
             <button type="button" class="login-team-btn" data-login-role="nurturing">
+              <span class="login-team-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span>
               <span class="login-team-name">Nurturing</span>
               <svg class="login-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
             </button>
           </li>
           <li>
             <button type="button" class="login-team-btn" data-login-role="admin">
+              <span class="login-team-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 10 4-1.7 7-5.6 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
               <span class="login-team-name">Admin</span>
               <svg class="login-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
             </button>
@@ -689,6 +696,7 @@
         </div>
       </section>
     </div>
+    <p class="admin-report-issue"><a href="mailto:ishaplacevjn@gmail.com?subject=Dashboard%20issue">Report an issue</a></p>
   </div>
 
   <div class="modal-overlay" id="editorOverlay">
@@ -1472,24 +1480,9 @@
   <div id="sandeshaToastContainer" aria-live="polite"></div>
 
   <script src="liquid-glass.js?v=2"></script>
-  <script>
-    (function () {
-      var card = document.getElementById("loginScreen");
-      if (!card || typeof liquidGlass !== "function") return;
-      window.__loginGlass = liquidGlass(card, {
-        scale: -200,
-        chroma: 8,
-        blur: 1,
-        saturate: 1.7,
-        border: 0.045,
-        mapBlur: 16,
-        fallbackBlur: 18
-      });
-    })();
-  </script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=home-nav"></script>
+  <script src="site.js?v=footer-1"></script>
   <script src="ptr.js?v=2"></script>
   <script src="admin.js?v=vol-gform-v32"></script>
   <script type="module" src="sandesha/js/boot-admin-hub.js?v=2"></script>

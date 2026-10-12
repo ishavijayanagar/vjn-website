@@ -13,14 +13,14 @@
   <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn2"/>
-  <link rel="stylesheet" href="style.css?v=nav-hit"/>
+  <link rel="stylesheet" href="style.css?v=share-1"/>
 </head>
 <body class="detail-page" data-wait-load="1">
 
   <nav class="navbar">
     <div class="nav-inner">
       <a href="index.html" class="logo">
-        <img src="assets/logo.png" alt="Isha Foundation"/>
+        <img src="assets/logo-dark.png" alt="Isha Foundation"/>
         <span class="sr-only">Home</span>
       </a>
       <ul class="nav-links">
@@ -46,7 +46,7 @@
 
   <section class="detail-section">
     <div class="container">
-      <a href="#" class="back-link" id="backLink">← Back to list</a>
+      <a href="#" class="back-link pd-back" id="backLink">Back</a>
 
       <div id="detail-loading" class="loading-state">
         <div class="loading-spinner"></div>
@@ -65,7 +65,7 @@
           <!-- Contact Form -->
           <div class="contact-form-card">
             <h3>Express Interest</h3>
-            <p class="form-subtitle">Leave your contact and we'll get in touch with you.</p>
+            <p class="form-subtitle">Leave your details and we'll reach out on WhatsApp.</p>
 
             <div class="form-error" id="formError">Something went wrong. Please try again.</div>
 
@@ -104,60 +104,77 @@
     id="programVolunteerOverlay"
     role="dialog"
     aria-modal="true"
-    aria-labelledby="pvModalTitle"
+    aria-label="Volunteer for this program"
     aria-hidden="true"
     onclick="if (event.target === this) closeProgramVolunteerModal()"
   >
-    <div class="program-volunteer-modal">
-      <button type="button" class="program-volunteer-close" onclick="closeProgramVolunteerModal()" aria-label="Close">✕</button>
-      <h3 id="pvModalTitle">Volunteer for this program</h3>
-      <p class="program-volunteer-sub">Share your details and we will get in touch with you.</p>
-      <div class="form-error program-volunteer-err" id="pvFormErr">Something went wrong. Please try again.</div>
-      <div id="pvFormBody">
-        <div class="form-group">
-          <label for="pvProgramName">Program name</label>
-          <input type="text" id="pvProgramName" readonly autocomplete="off" aria-readonly="true"/>
+    <div class="program-volunteer-modal pv-sheet">
+      <div class="pv-grab-zone" id="pvGrab" aria-hidden="true"><span class="pv-grab"></span></div>
+      <div class="pv-body">
+        <div class="pv-program">
+          <span class="pv-program-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>
+          <div>
+            <strong id="pvProgramTitle"></strong>
+            <span id="pvProgramWhen"></span>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="pvName">Full Name *</label>
-          <input type="text" id="pvName" placeholder="Your name" autocomplete="name"/>
+        <input type="hidden" id="pvProgramName"/>
+        <div class="form-error program-volunteer-err" id="pvFormErr">Something went wrong. Please try again.</div>
+        <div id="pvFormBody">
+          <div class="form-group">
+            <label for="pvName">Full name *</label>
+            <input type="text" id="pvName" placeholder="Your name" autocomplete="name"/>
+          </div>
+          <div class="form-group">
+            <label for="pvPhone">WhatsApp number *</label>
+            <input type="text" id="pvPhone" inputmode="numeric" data-ten-digit-phone placeholder="9876543210" title="10 digits only" autocomplete="tel-national"/>
+          </div>
+          <div class="form-group">
+            <label for="pvArea">Area of stay *</label>
+            <input type="text" id="pvArea" placeholder="e.g. Jayanagar, Koramangala"/>
+          </div>
+          <div id="pvIeGate"></div>
+          <button type="button" class="submit-btn pv-submit" id="pvSubmitBtn" onclick="submitProgramVolunteer()">Submit</button>
         </div>
-        <div class="form-group">
-          <label for="pvPhone">WhatsApp Number *</label>
-          <input type="text" id="pvPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only" autocomplete="tel"/>
+        <div class="form-success program-volunteer-success" id="pvFormSuccess" style="display:none">
+          <div class="success-icon">🙏</div>
+          <h4>Thank you!</h4>
+          <p>We&rsquo;ll reach out to you on WhatsApp soon.</p>
+          <button type="button" class="submit-btn pv-submit" onclick="closeProgramVolunteerModal()">Done</button>
         </div>
-        <div class="form-group">
-          <label for="pvArea">Area of Stay *</label>
-          <input type="text" id="pvArea" placeholder="e.g. Jayanagar, Koramangala"/>
-        </div>
-        <div id="pvIeGate"></div>
-        <button type="button" class="submit-btn" id="pvSubmitBtn" onclick="submitProgramVolunteer()">Submit</button>
-      </div>
-      <div class="form-success program-volunteer-success" id="pvFormSuccess" style="display:none">
-        <div class="success-icon">🙏</div>
-        <h4>Thank you!</h4>
-        <p>We have received your volunteer interest for this program and will contact you shortly.</p>
       </div>
     </div>
   </div>
 
   <footer class="footer">
     <div class="container">
+      <div class="footer-top">
+        <a href="index.html" class="footer-brand">
+          <span>Isha Place, Vijayanagar</span>
+        </a>
+      </div>
       <div class="footer-grid">
-        <div>
-          <h4 class="footer-logo"><a class="footer-address" href="https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6" target="_blank" rel="noopener noreferrer">Isha Place, Vijayanagar</a></h4>
+        <a class="footer-item footer-address" href="https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.4"/></svg>
+          <div>
+            <h5>Address</h5>
+            <p data-site="footer_address" data-site-mode="html">195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
+          </div>
+        </a>
+        <div class="footer-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+          <div>
+            <h5>Contact</h5>
+            <p><a href="tel:+918095763111" data-tel><span data-site="footer_phone">+91 80957 63111</span></a></p>
+            <p><a href="mailto:ishaplacevjn@gmail.com">ishaplacevjn@gmail.com</a></p>
+          </div>
         </div>
-        <div>
-          <h5>Quick Links</h5>
-          <ul>
-            <li><a href="programs.html">Programs</a></li>
-            <li><a href="volunteering.html">Volunteering</a></li>
-          </ul>
-        </div>
-        <div>
-          <h5>Contact</h5>
-          <p>ishaplacevjn@gmail.com</p>
-          <p>Bangalore, India</p>
+        <div class="footer-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div>
+            <h5>Hours</h5>
+            <p data-site="footer_hours" data-site-mode="html">Mon – Sun<br/>10:00 AM – 8:00 PM</p>
+          </div>
         </div>
       </div>
       <div class="footer-bottom">
@@ -170,7 +187,7 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=home-nav"></script>
+  <script src="site.js?v=share-1"></script>
   <script src="ptr.js?v=1"></script>
   <script src="ie-gate.js?v=1"></script>
   <script>
@@ -204,19 +221,29 @@
       return url;
     }
 
+    const PD_ICON = {
+      calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+      clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+      pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.4"/></svg>',
+      phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>',
+      chevron: '<svg class="pd-call-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>'
+    };
+
     // Parse URL params
     const params = new URLSearchParams(window.location.search);
     const itemId = params.get('id');
     const itemType = params.get('type'); // "program" or "volunteering"
 
+    document.body.classList.add('programs-page', 'pd-page');
+
     // Set back link
     const backLink = document.getElementById('backLink');
     if (itemType === 'program') {
       backLink.href = 'programs.html';
-      backLink.textContent = '← Back to Programs';
+      backLink.textContent = 'Programs';
     } else {
       backLink.href = 'volunteering.html';
-      backLink.textContent = '← Back to Volunteering';
+      backLink.textContent = 'Volunteering';
     }
 
     // Volunteering needs Inner Engineering; program interest does not.
@@ -247,7 +274,7 @@
         const registerUrl = data.item.registerlink || data.item.registerLink;
         const registerLinkHtml =
           itemType === 'program' && registerUrl
-            ? `<a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-register">Register for this program</a>`
+            ? `<a href="${escapeHtmlAttr(registerUrl)}" target="_blank" rel="noopener noreferrer" class="pd-btn pd-btn-primary">Register for this program</a>`
             : '';
         const volunteerAvailable = (function () {
           const s = String(data.item.volunteering_available || data.item.volunteeringavailable || "")
@@ -257,46 +284,64 @@
         })();
         const volunteerBtnHtml =
           itemType === "program" && volunteerAvailable
-            ? `<button type="button" class="btn btn-outline btn-volunteer-program" onclick="openProgramVolunteerModal()">Volunteer for this program</button>`
+            ? `<button type="button" class="pd-btn pd-btn-secondary" onclick="openProgramVolunteerModal()">Volunteer for this program</button>`
             : "";
-        const registerSection =
-          registerLinkHtml || volunteerBtnHtml
-            ? `<div class="detail-register"><div class="detail-register-actions">${registerLinkHtml}${volunteerBtnHtml}</div></div>`
-            : '';
 
         const slotLines =
           typeof formatEventSlotLines === 'function'
             ? formatEventSlotLines(data.item)
             : (data.item.timings ? String(data.item.timings).split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean) : []);
-        const timingsHtml = slotLines.length
-          ? `<div class="detail-meta-slots">${slotLines
-              .map(function (line) {
-                return `<span class="detail-meta-timings" data-icon="🕐">${escapeHtml(line)}</span>`;
-              })
-              .join('')}</div>`
-          : '';
         const dateLabel = typeof listingDateLabel === 'function' ? listingDateLabel(data.item) : (data.item.date || '');
-        const dateHtml = dateLabel
-          ? `<span data-icon="📅">${escapeHtml(dateLabel)}</span>`
-          : '';
-        const datetimeBlock =
-          dateHtml || timingsHtml
-            ? `<div class="detail-meta-datetime">${dateHtml}${timingsHtml}</div>`
+        const location = data.item.location ? String(data.item.location).trim() : '';
+        const mapsHref = /isha place/i.test(location)
+          ? 'https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6'
+          : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location + ', Bengaluru');
+        const fact = (icon, label, valueHtml) =>
+          `<li class="pd-fact">${icon}<div><span class="pd-fact-k">${label}</span>${valueHtml}</div></li>`;
+        const factsHtml = [
+          dateLabel ? fact(PD_ICON.calendar, 'Date', `<span class="pd-fact-v">${escapeHtml(dateLabel)}</span>`) : '',
+          slotLines.length ? fact(PD_ICON.clock, 'Timings', slotLines.map((l) => `<span class="pd-fact-v">${escapeHtml(l)}</span>`).join('')) : '',
+          location ? fact(PD_ICON.pin, 'Venue', `<a class="pd-fact-v pd-fact-link" href="${escapeHtmlAttr(mapsHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(location)}</a>`) : '',
+        ].join('');
+
+        const eyebrowParts = [];
+        const freq = data.item.frequency ? String(data.item.frequency).trim() : '';
+        if (freq && freq.toLowerCase() !== 'scheduled') eyebrowParts.push(freq);
+        if (/^(yes|y|true|1)$/i.test(String(data.item.free_offering || '').trim())) eyebrowParts.push('Free offering');
+        if (!eyebrowParts.length) eyebrowParts.push(itemType === 'program' ? 'Program' : 'Volunteering');
+
+        // Centre phone: same admin-editable value as the footer.
+        const footerPhone = document.querySelector('.footer [data-site="footer_phone"]');
+        const phoneText = (footerPhone && footerPhone.textContent.trim()) || '+91 80957 63111';
+        const callHtml = `
+          <a class="pd-call" href="tel:${escapeHtmlAttr(phoneText.replace(/[^\d+]/g, ''))}" data-tel>
+            <span class="pd-call-icon">${PD_ICON.phone}</span>
+            <span class="pd-call-text"><small>Questions? Call us</small><strong data-site="footer_phone">${escapeHtml(phoneText)}</strong></span>
+            ${PD_ICON.chevron}
+          </a>`;
+
+        const actionsHtml =
+          registerLinkHtml || volunteerBtnHtml
+            ? `<div class="pd-actions">${registerLinkHtml}${volunteerBtnHtml}</div>`
             : '';
 
         // Build detail content
         const content = document.getElementById('detail-content');
         content.innerHTML = `
           ${data.item.image
-            ? `<div class="detail-image"><img src="${fixDriveUrl(data.item.image)}" alt="${escapeHtmlAttr(data.item.title || '')}" loading="eager" decoding="async" referrerpolicy="no-referrer"/></div>`
+            ? `<div class="pd-media"><img src="${fixDriveUrl(data.item.image)}" alt="${escapeHtmlAttr(data.item.title || '')}" loading="eager" decoding="async" referrerpolicy="no-referrer"/></div>`
             : ''}
-          <div class="detail-meta">
-            ${datetimeBlock}
-            ${data.item.location ? `<span data-icon="📍">${escapeHtml(data.item.location)}</span>` : ''}
+          <div class="pd-info">
+            <div class="pd-info-top">
+              <span class="pd-eyebrow">${escapeHtml(eyebrowParts.join(' · '))}</span>
+              <button type="button" class="share-btn pd-share" onclick="shareThis()" aria-label="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.8 7.4-4.3M8.3 13.2l7.4 4.3"/></svg><span>Share</span></button>
+            </div>
+            <h1 class="pd-title">${escapeHtml(data.item.title || '')}</h1>
+            ${factsHtml ? `<ul class="pd-facts">${factsHtml}</ul>` : ''}
+            ${actionsHtml}
+            ${callHtml}
           </div>
-          <h2>${data.item.title}</h2>
-          <div class="description">${data.item.description || ''}</div>
-          ${registerSection}
+          ${data.item.description ? `<div class="pd-about"><h2>About</h2><div class="description">${data.item.description}</div></div>` : ''}
         `;
 
         loading.style.display = 'none';
@@ -308,6 +353,16 @@
       } finally {
         if (window.endPageLoad) endPageLoad();
       }
+    }
+
+    function shareThis() {
+      if (!currentItem || !window.shareLink) return;
+      const when = typeof listingDateLabel === 'function' ? listingDateLabel(currentItem) : '';
+      shareLink({
+        url: window.location.href,
+        title: currentItem.title || document.title,
+        text: [currentItem.title, when].filter(Boolean).join(' · '),
+      });
     }
 
     let programVolunteerEscapeHandler = null;
@@ -326,6 +381,9 @@
       document.getElementById('pvPhone').value = '';
       document.getElementById('pvArea').value = '';
       document.getElementById('pvProgramName').value = currentItem.title || '';
+      document.getElementById('pvProgramTitle').textContent = currentItem.title || '';
+      document.getElementById('pvProgramWhen').textContent =
+        typeof listingDateLabel === 'function' ? listingDateLabel(currentItem) || '' : (currentItem.date || '');
       IEGate.reset(document.getElementById('pvIeGate'));
       errEl.style.display = 'none';
       const btn = document.getElementById('pvSubmitBtn');
@@ -337,8 +395,42 @@
         if (e.key === 'Escape') closeProgramVolunteerModal();
       };
       document.addEventListener('keydown', programVolunteerEscapeHandler);
-      document.getElementById('pvName').focus();
+      if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) document.getElementById('pvName').focus();
     }
+
+    /* Drag the handle down to dismiss (tap the backdrop or press Esc also closes). */
+    (function initPvSwipe() {
+      const grab = document.getElementById('pvGrab');
+      const sheet = grab && grab.closest('.pv-sheet');
+      if (!grab || !sheet) return;
+      let startY = 0, startT = 0, dy = 0, dragging = false;
+      grab.addEventListener('pointerdown', function (e) {
+        dragging = true; startY = e.clientY; startT = Date.now(); dy = 0;
+        grab.setPointerCapture(e.pointerId);
+        sheet.style.transition = 'none';
+      });
+      grab.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        dy = e.clientY - startY;
+        // Resist upward drag, follow downward drag.
+        const y = dy < 0 ? dy / 6 : dy;
+        sheet.style.transform = 'translateY(' + y + 'px)';
+      });
+      function end() {
+        if (!dragging) return;
+        dragging = false;
+        const velocity = dy / Math.max(1, Date.now() - startT);
+        sheet.style.transition = 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)';
+        if (dy > 120 || velocity > 0.5) {
+          sheet.style.transform = 'translateY(100%)';
+          setTimeout(function () { closeProgramVolunteerModal(); sheet.style.transform = ''; sheet.style.transition = ''; }, 240);
+        } else {
+          sheet.style.transform = '';
+        }
+      }
+      grab.addEventListener('pointerup', end);
+      grab.addEventListener('pointercancel', end);
+    })();
 
     function closeProgramVolunteerModal() {
       const overlay = document.getElementById('programVolunteerOverlay');

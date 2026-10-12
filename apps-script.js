@@ -2449,6 +2449,7 @@ const INQUIRY_DEFS = [
       "Remarks",
       "In Group",
       "IE Completion",
+      "Volunteer Remarks",
     ],
   },
   {
@@ -2798,6 +2799,7 @@ function saveVolunteeringInterest(data) {
     status: "Open",
     remarks: "",
     "ie completion": String(data.ieCompletion || "").trim(),
+    "volunteer remarks": String(data.remarks || "").trim().slice(0, 1000),
   });
 }
 
