@@ -33,7 +33,11 @@
   document.addEventListener(
     "selectstart",
     function (e) {
-      if (e.target && e.target.closest && e.target.closest("input, textarea, select, [contenteditable='true']")) {
+      if (
+        e.target &&
+        e.target.closest &&
+        e.target.closest("input, textarea, select, [contenteditable='true'], [data-selectable]")
+      ) {
         return;
       }
       e.preventDefault();

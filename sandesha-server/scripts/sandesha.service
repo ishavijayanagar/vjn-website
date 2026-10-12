@@ -1,0 +1,48 @@
+# Sandesha WhatsApp backend — systemd unit for Raspberry Pi (or any Linux host).
+#
+# Install:
+#   sudo cp scripts/sandesha.service /etc/systemd/system/sandesha.service
+#   sudo nano /etc/systemd/system/sandesha.service     # adjust User + paths if needed
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sandesha
+#
+# This runs listen.js only. It does NOT start the public tunnel — with Tailscale
+# Funnel you enable that once and it persists across reboots on its own:
+#   sudo tailscale funnel --bg 42620
+#
+# Assumes the repo is cloned to /home/pi/apps/vjn-website.
+
+[Unit]
+Description=Sandesha WhatsApp backend
+Documentation=https://github.com/ishavijayanagar/vjn-website
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/apps/vjn-website/sandesha-server
+
+# listen.js reads .env itself; this is here so Chromium's path is set even if
+# that changes. The leading '-' keeps systemd from failing when .env is absent.
+EnvironmentFile=-/home/pi/apps/vjn-website/sandesha-server/.env
+Environment=NODE_ENV=production
+Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# A hard power cut leaves a stale lock behind and the bot refuses to start.
+ExecStartPre=-/bin/rm -f /home/pi/apps/vjn-website/sandesha-server/.lock
+ExecStart=/usr/bin/node /home/pi/apps/vjn-website/sandesha-server/listen.js
+
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=30
+
+# Chromium opens a lot of file descriptors
+LimitNOFILE=65536
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sandesha
+
+[Install]
+WantedBy=multi-user.target

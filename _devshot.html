@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+  <meta name="theme-color" content="#f7f4ee"/>
+  <meta name="referrer" content="no-referrer"/>
+  <script>
+    /* Runs before the stylesheet paints, so a dark-theme reload never flashes
+       paper white. A stored choice wins; otherwise the device decides. */
+    (function () {
+      var saved = "";
+      try { saved = localStorage.getItem("vjn_promo_theme") || ""; } catch (e) {}
+      var dark = saved
+        ? saved === "dark"
+        : !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", dark ? "#131110" : "#f7f4ee");
+    })();
+  </script>
+  <title>Promotions – Isha Place, Vijayanagar</title>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Instrument+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="admin-promotions.css?v=promo-search"/>
+  <link rel="stylesheet" href="sandesha/css/embedded.css?v=5"/>
+  <script src="config.js"></script>
+  <script src="_devstub.js"></script>
+</head>
+<body>
+  <main class="stage">
+    <div class="phone" id="app">
+      <div class="hdr">
+        <div class="hdr-row">
+          <div>
+            <h1>Promotions</h1>
+            <div class="kicker" id="dayTitle">Today</div>
+          </div>
+          <div class="icons">
+            <button type="button" class="ic" id="serverUrlBtn" aria-label="Profile" title="Profile">
+              <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,120a44,44,0,1,1-44-44A44.05,44.05,0,0,1,172,120Zm60,8A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88.09,88.09,0,0,0-91.47-87.93C77.43,41.89,39.87,81.12,40,128.25a87.65,87.65,0,0,0,22.24,58.16A79.71,79.71,0,0,1,84,165.1a4,4,0,0,1,4.83.32,59.83,59.83,0,0,0,78.28,0,4,4,0,0,1,4.83-.32,79.71,79.71,0,0,1,21.79,21.31A87.62,87.62,0,0,0,216,128Z"/></svg>
+              <span class="bdg live" id="sandeshaDot"></span>
+            </button>
+            <button type="button" class="ic" id="notifyBtn" aria-label="Notifications" aria-pressed="false">
+              <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216Z"/></svg>
+              <span class="bdg" id="notifyDot" hidden></span>
+            </button>
+          </div>
+        </div>
+
+        <div id="sandesha-pairing-banner" class="pairing-banner embedded hidden" role="status" aria-live="polite">
+          <div class="pairing-banner-title">Link WhatsApp</div>
+          <p data-pairing-help></p>
+          <div class="pairing-code" data-pairing-code hidden>—</div>
+          <img class="pairing-qr hidden" data-pairing-qr alt="WhatsApp QR code" width="180" height="180"/>
+        </div>
+
+        <div class="bar" id="bar">
+          <div class="bar-line"><div class="bar-fill" id="fill"></div></div>
+          <div class="bar-txt"><span id="btL"></span><span id="btR"></span></div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Day">
+          <div class="tabs-thumb" id="tabsThumb" aria-hidden="true"></div>
+          <div class="tabrow base" id="tabsBase"></div>
+          <div class="tabrow active" id="tabsActive" hidden></div>
+        </div>
+      </div>
+
+      <div class="scroll" id="scroll"></div>
+
+      <div class="promo-panel" id="sandeshaSchedule" aria-label="WhatsApp schedule"></div>
+      <div class="promo-panel" id="sandeshaSend" aria-label="Compose a WhatsApp message"></div>
+      <div class="promo-panel" id="sandeshaServer" aria-label="Profile">
+        <section class="ios-block">
+          <h2 class="ios-caption">Account</h2>
+          <div class="ios-group promo-account">
+            <div class="field">
+              <label id="themeLbl">Appearance</label>
+              <div class="toggle" role="group" aria-labelledby="themeLbl">
+                <button type="button" id="themeLight" aria-pressed="true">Light</button>
+                <button type="button" id="themeDark" aria-pressed="false">Dark</button>
+              </div>
+            </div>
+          </div>
+          <div class="ios-group">
+            <button type="button" class="ios-row-btn danger" id="logoutBtn">Sign Out</button>
+          </div>
+        </section>
+        <div id="sandeshaApiHost"></div>
+      </div>
+
+      <button type="button" class="fab" id="fab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+        New post
+      </button>
+
+      <div class="toast" id="toast"><span id="tmsg"></span><button type="button" id="undo">Undo</button></div>
+
+      <nav class="tabbar" aria-label="Promotions sections">
+        <button type="button" class="on" data-promo-mode="board">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M160,56v96a8,8,0,0,1-8,8H112a8,8,0,0,1-8-8V56a8,8,0,0,1,8-8h40A8,8,0,0,1,160,56Zm64-8H184a8,8,0,0,0-8,8v52a4,4,0,0,0,4,4h48a4,4,0,0,0,4-4V56A8,8,0,0,0,224,48Zm4,80H180a4,4,0,0,0-4,4v44a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V132A4,4,0,0,0,228,128ZM80,48H40a8,8,0,0,0-8,8v52a4,4,0,0,0,4,4H84a4,4,0,0,0,4-4V56A8,8,0,0,0,80,48Zm4,80H36a4,4,0,0,0-4,4v76a16,16,0,0,0,16,16H72a16,16,0,0,0,16-16V132A4,4,0,0,0,84,128Z"/></svg>
+          <span>Board</span>
+        </button>
+        <button type="button" data-promo-mode="schedule">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,48H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"/></svg>
+          <span>Schedule</span>
+        </button>
+        <button type="button" data-promo-mode="send">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM192,108.68,147.31,64l24-24L216,84.68Z"/></svg>
+          <span>Compose</span>
+        </button>
+      </nav>
+
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet" id="sheet" role="dialog" aria-modal="true" inert></div>
+    </div>
+  </main>
+
+  <div class="compose-scrim gone" id="composeScrim" aria-hidden="true"></div>
+  <div class="compose gone" id="compose" role="dialog" aria-modal="true" aria-hidden="true"
+       aria-labelledby="composeTitle" inert>
+
+    <div class="grab" aria-hidden="true"></div>
+    <header class="compose-head">
+      <div class="compose-head-row">
+        <span class="compose-chip" id="composeEyebrow">Compose</span>
+        <button type="button" class="ic" id="composeClose" aria-label="Close">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <h2 id="composeTitle">New post</h2>
+      <p class="compose-meta" id="composeMeta"></p>
+    </header>
+
+    <div class="compose-body">
+      <p class="compose-err" id="composeErr" role="alert" hidden></p>
+
+      <section class="compose-card">
+        <div class="compose-card-head">
+          <label class="compose-card-title" for="composeMessage">Message</label>
+          <span class="compose-count" id="composeCount" aria-hidden="true"></span>
+        </div>
+        <textarea id="composeMessage" rows="6" placeholder="Write the message to post."></textarea>
+      </section>
+
+      <section class="compose-card">
+        <div class="compose-card-head">
+          <h3 class="compose-card-title">Flyer</h3>
+          <span class="compose-flag" id="composeFlyerReq" hidden>Needed to schedule</span>
+        </div>
+        <input type="file" id="composeFlyerFile" accept="image/*" class="compose-file"/>
+        <label for="composeFlyerFile" class="compose-drop" id="composeDrop">
+          <img id="composeFlyerPreview" class="compose-preview" alt="" referrerpolicy="no-referrer" hidden/>
+          <span class="compose-drop-ph">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.4"/><path d="M21 15l-5-5L5 21"/></svg>
+            <span>Choose flyer</span>
+          </span>
+          <span class="compose-drop-cta" aria-hidden="true">Replace</span>
+        </label>
+        <div class="compose-drop-foot">
+          <span class="compose-flyer-name" id="composeFlyerName">No flyer yet</span>
+          <button type="button" class="compose-reset" id="composeFlyerReset" hidden>Use Programs photo</button>
+        </div>
+      </section>
+
+      <section class="compose-card">
+        <h3 class="compose-card-title">When</h3>
+        <div class="compose-seg" id="composeSeg">
+          <span class="compose-seg-ind" aria-hidden="true"></span>
+          <label class="compose-seg-opt">
+            <input type="radio" name="composeWhen" value="save" checked/>
+            <span>Save to Events</span>
+          </label>
+          <label class="compose-seg-opt">
+            <input type="radio" name="composeWhen" value="schedule" id="composeWhenSchedule"/>
+            <span>Schedule</span>
+          </label>
+        </div>
+        <div class="compose-schedule" id="composeSchedule" inert>
+          <div class="compose-schedule-in">
+            <div class="compose-days">
+              <button type="button" class="compose-day on" data-day="today">
+                Today<small data-slots="today"></small>
+              </button>
+              <button type="button" class="compose-day" data-day="tomorrow">
+                Tomorrow<small data-slots="tomorrow"></small>
+              </button>
+            </div>
+            <label class="compose-label" for="composeTime">Time</label>
+            <select id="composeTime"></select>
+
+            <span class="compose-label">Audience</span>
+            <button type="button" class="compose-aud" id="composeAud">
+              <span class="compose-aud-body">
+                <span class="compose-aud-name" id="composeAudName">Loading lists…</span>
+                <span class="compose-aud-sub" id="composeAudSub">Sandesha sends this on the day</span>
+              </span>
+              <span class="compose-aud-n"><b id="composeAudCount">0</b><small>Reach</small></span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="compose-foot">
+      <button type="button" class="b" id="composeCancel">Cancel</button>
+      <button type="button" class="b pri" id="composeSave">Save</button>
+    </footer>
+  </div>
+
+  <div id="sandeshaToastContainer" aria-live="polite"></div>
+
+  <script src="ptr.js?v=1"></script>
+  <script src="admin-promotions.js?v=promo-search"></script>
+  <script type="module" src="sandesha/js/promo-shell.js?v=16"></script>
+</body>
+</html>

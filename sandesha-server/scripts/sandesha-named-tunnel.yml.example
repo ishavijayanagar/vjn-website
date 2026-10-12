@@ -1,0 +1,25 @@
+# Named Cloudflare Tunnel (stable URL) — copy to sandesha-named-tunnel.yml and fill in.
+#
+# Setup once:
+#   cloudflared tunnel login
+#   cloudflared tunnel create sandesha
+#   cloudflared tunnel route dns sandesha sandesha.YOURDOMAIN.com
+#
+# Then set in this file:
+#   tunnel: <UUID from create>
+#   credentials-file: /home/YOU/.cloudflared/<UUID>.json
+#   hostname under ingress
+#
+# And in .env:
+#   SANDESHA_TUNNEL_MODE=named
+#   SANDESHA_PUBLIC_URL=https://sandesha.YOURDOMAIN.com
+#
+# Run: ./start.sh
+
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: /home/REPLACE_USER/.cloudflared/REPLACE_WITH_TUNNEL_UUID.json
+
+ingress:
+  - hostname: sandesha.YOURDOMAIN.com
+    service: http://127.0.0.1:42620
+  - service: http_status:404

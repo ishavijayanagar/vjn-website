@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="referrer" content="no-referrer"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
+  <title>Volunteer Attendance</title>
+  <meta name="theme-color" content="#1c1c1e"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Isha VJN"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn2"/>
+  <link rel="stylesheet" href="style.css?v=nav-hit"/>
+  <style>
+    .attendance-hero-sub {
+      margin-top: var(--space-2);
+      font-size: 0.92rem;
+      color: rgba(247,242,234,0.72);
+      line-height: var(--leading-body);
+    }
+
+    .attendance-section {
+      position: relative;
+      padding: var(--space-8) 0;
+      min-height: 66vh;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+    }
+    .attendance-section .container { width: 100%; }
+
+    /* A quiet warmth behind the panel — Isha's pages favour a soft glow
+       over hard blocks of colour, even where there's no photography. */
+    .attendance-section::before {
+      content: "";
+      position: absolute;
+      top: -10%;
+      left: 50%;
+      width: 900px;
+      height: 900px;
+      transform: translateX(-50%);
+      background: radial-gradient(closest-side, rgba(200,169,110,0.16), transparent 70%);
+      pointer-events: none;
+    }
+
+    .attendance-container {
+      position: relative;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    .attendance-panel {
+      position: relative;
+      background: var(--white);
+      border: 1px solid var(--cream-2);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: var(--space-7) var(--space-6);
+      overflow: hidden;
+    }
+    .attendance-panel::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--gold-dark), var(--gold), var(--gold-light));
+    }
+
+    .attendance-step-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-mid);
+      margin-bottom: var(--space-3);
+    }
+
+    .attendance-program-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .attendance-program-card {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      padding: var(--space-4) var(--space-4);
+      border: 1px solid var(--cream-2);
+      border-radius: 10px;
+      background: var(--white);
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(28,28,30,0.04);
+      animation: attendance-card-in 420ms var(--ease-out) both;
+      transition: transform var(--dur-hover) var(--ease-out),
+                  border-color var(--dur-hover) ease,
+                  background var(--dur-hover) ease,
+                  box-shadow var(--dur-hover) ease;
+    }
+    @keyframes attendance-card-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .attendance-program-card:hover {
+      border-color: var(--gold-light);
+      box-shadow: 0 8px 20px rgba(28,28,30,0.08);
+      transform: translateY(-2px);
+    }
+    .attendance-program-card:active { transform: scale(0.985) translateY(0); }
+    .attendance-program-card.is-selected {
+      border-color: var(--gold);
+      background: var(--cream);
+      box-shadow: 0 0 0 3px rgba(200,169,110,0.16), 0 4px 18px rgba(200,169,110,0.28);
+    }
+
+    .attendance-program-card input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .attendance-program-card:focus-within {
+      outline: 2px solid var(--gold);
+      outline-offset: 2px;
+    }
+
+    .attendance-program-radio {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      margin-top: 2px;
+      border-radius: 50%;
+      border: 1.5px solid var(--text-light);
+      position: relative;
+      transition: border-color var(--dur-hover) ease;
+    }
+    .attendance-program-card.is-selected .attendance-program-radio {
+      border-color: var(--gold);
+    }
+    .attendance-program-radio::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 50%;
+      background: var(--gold);
+      transform: scale(0);
+      transition: transform var(--dur-press) var(--ease-out);
+    }
+    .attendance-program-card.is-selected .attendance-program-radio::after {
+      transform: scale(1);
+    }
+
+    .attendance-program-body { min-width: 0; flex: 1; }
+    .attendance-program-title {
+      font-family: var(--font-serif);
+      font-size: 1.1rem;
+      color: var(--text-dark);
+      line-height: var(--leading-tight);
+      letter-spacing: -0.01em;
+      margin-bottom: 9px;
+    }
+    .attendance-program-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .attendance-program-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px 4px 8px;
+      border-radius: 999px;
+      background: var(--cream);
+      border: 1px solid var(--cream-2);
+      font-size: 0.74rem;
+      color: var(--text-mid);
+      line-height: 1.3;
+    }
+    .attendance-program-card.is-selected .attendance-program-meta-item {
+      background: var(--white);
+      border-color: rgba(200,169,110,0.35);
+    }
+    .attendance-program-meta-item svg {
+      width: 13px;
+      height: 13px;
+      flex: 0 0 auto;
+      color: var(--gold-dark);
+    }
+
+    .attendance-fields {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transform: translateY(-6px);
+      transition: max-height var(--dur-drawer) var(--ease-drawer),
+                  opacity 220ms ease,
+                  transform 220ms ease;
+    }
+    .attendance-fields.is-open {
+      max-height: 900px;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .attendance-consent {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: var(--space-3) 0 var(--space-4);
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-mid);
+      line-height: var(--leading-body);
+    }
+    .attendance-consent input[type="checkbox"] {
+      flex-shrink: 0;
+      width: 19px;
+      height: 19px;
+      margin-top: 1px;
+      accent-color: var(--gold);
+      cursor: pointer;
+    }
+
+    .attendance-again-btn { margin-top: var(--space-3); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .attendance-fields {
+        transition: opacity 160ms ease;
+        transform: none;
+      }
+      .attendance-fields.is-open { max-height: none; }
+      .attendance-program-card,
+      .attendance-program-radio,
+      .attendance-program-radio::after {
+        transition: none;
+        animation: none;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .attendance-section { padding: var(--space-6) 0; min-height: 58vh; }
+      .attendance-panel { padding: var(--space-6) var(--space-4); border-radius: 14px; }
+    }
+  </style>
+</head>
+<body class="attendance-page" data-wait-load="1">
+
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <img src="assets/logo.png" alt="Isha Foundation"/>
+        <span class="sr-only">Home</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="programs.html">Programs</a></li>
+        <li><a href="volunteering.html">Volunteering</a></li>
+      </ul>
+      <button type="button" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mob">
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </button>
+    </div>
+    <div class="nav-backdrop" data-nav-backdrop aria-hidden="true"></div>
+    <div class="mobile-menu" id="mob" aria-hidden="true">
+      <ul class="mobile-menu-list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="programs.html">Programs</a></li>
+        <li><a href="volunteering.html">Volunteering</a></li>
+      </ul>
+      <p class="mobile-menu-footer" data-admin-longpress>Isha Place, Vijayanagar</p>
+    </div>
+  </nav>
+
+  <header class="volunteering-hero">
+    <div class="container volunteering-hero-inner">
+      <span class="section-label">Isha Place, Vijayanagar</span>
+      <h1>Volunteer Attendance</h1>
+      <p class="attendance-hero-sub">Takes less than a minute.</p>
+    </div>
+  </header>
+
+  <section class="attendance-section">
+    <div class="container">
+      <div class="attendance-container">
+        <div class="attendance-panel">
+
+          <div id="attendanceState">
+            <div class="state-box">
+              <div class="spinner"></div>
+              <p>Loading programs...</p>
+            </div>
+          </div>
+
+          <form id="attendanceForm" hidden>
+            <p class="attendance-step-label">Select a program *</p>
+            <div class="attendance-program-list" id="attendanceProgramList"></div>
+
+            <div class="attendance-fields" id="attendanceFields">
+              <div class="form-group">
+                <label for="attName">Full Name *</label>
+                <input type="text" id="attName" placeholder="Your name"/>
+              </div>
+              <div class="form-group">
+                <label for="attPhone">Contact Number *</label>
+                <input type="text" id="attPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only"/>
+              </div>
+              <div class="form-group">
+                <label for="attArea">Area of Stay *</label>
+                <input type="text" id="attArea" placeholder="e.g. Vijayanagar, Rajajinagar"/>
+              </div>
+
+              <label class="attendance-consent" for="attConsent">
+                <input type="checkbox" id="attConsent"/>
+                <span>I consent to my data being used for further communications from Isha Place, Vijayanagar.</span>
+              </label>
+
+              <div class="form-err" id="attFormErr">Please fill in all required fields.</div>
+              <button type="button" class="submit-btn" id="attSubmitBtn" onclick="submitAttendance()">Mark Attendance</button>
+            </div>
+          </form>
+
+          <div class="form-success-msg" id="attFormSuccess" style="display:none">
+            <div class="big">🙏</div>
+            <h4>Attendance recorded</h4>
+            <p>Thank you for volunteering today!</p>
+            <button type="button" class="btn btn-outline submit-btn attendance-again-btn" id="attAgainBtn" onclick="resetAttendanceForm()">Mark another</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h5>Address</h5>
+          <a class="footer-address" href="https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6" target="_blank" rel="noopener noreferrer">
+            <p>Isha Place, Vijayanagar</p>
+            <p data-site="footer_address" data-site-mode="html">195, 1st Floor, 17th Cross Rd,<br/>CHBS Layout, MC Layout,<br/>Vijayanagar, Bengaluru – 560040</p>
+          </a>
+        </div>
+        <div>
+          <h5>Navigate</h5>
+          <ul><li><a href="programs.html">Programs</a></li><li><a href="volunteering.html">Volunteering</a></li></ul>
+        </div>
+        <div>
+          <h5>Contact</h5>
+          <p>📞 <span data-site="footer_phone">+91 80957 63111</span></p><br/>
+          <h5>Hours</h5>
+          <p data-site="footer_hours" data-site-mode="html">Mon – Sun<br/>10:00 AM – 8:00 PM</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>Managed and run by volunteers</p>
+        <p>© 2026 Isha Vijayanagar. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="whatsapp-validate.js"></script>
+  <script src="config.js"></script>
+  <script src="protect.js?v=selectable-v1"></script>
+  <script src="site.js?v=home-nav"></script>
+  <script src="ptr.js?v=1"></script>
+  <script>
+    let openPrograms = [];
+    let selectedProgram = null;
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+    function escapeHtmlAttr(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function validateContactNumber(raw) {
+      if (raw == null || String(raw).trim() === '') {
+        return { ok: false, message: 'Enter your contact number.' };
+      }
+      const n = String(raw).replace(/\D/g, '');
+      if (n.length !== 10) {
+        return { ok: false, message: 'Enter exactly 10 digits (without country code).' };
+      }
+      if (!/^[6-9]\d{9}$/.test(n)) {
+        return { ok: false, message: 'Enter a valid Indian mobile number (starts with 6–9).' };
+      }
+      return { ok: true, normalized: '+91' + n };
+    }
+
+    const SVG_CALENDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
+    const SVG_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+    const SVG_PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/></svg>';
+
+    function programMeta(item) {
+      const bits = [];
+      const dateLabel = (typeof listingDateLabel === 'function' && listingDateLabel(item)) ||
+        (item.date ? String(item.date).trim() : '') || 'Ongoing';
+      if (dateLabel) bits.push({ icon: SVG_CALENDAR, text: dateLabel });
+      const timeLabel = typeof formatEventSlots === 'function' ? formatEventSlots(item) : item.timings;
+      if (timeLabel) bits.push({ icon: SVG_CLOCK, text: timeLabel });
+      if (item.location) bits.push({ icon: SVG_PIN, text: item.location });
+      return bits;
+    }
+
+    function renderProgramList() {
+      const list = document.getElementById('attendanceProgramList');
+      list.innerHTML = '';
+      openPrograms.forEach((item, index) => {
+        const meta = programMeta(item);
+        const card = document.createElement('label');
+        card.className = 'attendance-program-card';
+        card.style.animationDelay = Math.min(index * 60, 300) + 'ms';
+        card.innerHTML = `
+          <input type="radio" name="attendanceProgram" value="${escapeHtmlAttr(item.id || '')}"/>
+          <span class="attendance-program-radio" aria-hidden="true"></span>
+          <span class="attendance-program-body">
+            <span class="attendance-program-title">${escapeHtml(item.title || 'Program')}</span>
+            <span class="attendance-program-meta">${meta.map(m => `<span class="attendance-program-meta-item">${m.icon}<span>${escapeHtml(m.text)}</span></span>`).join('')}</span>
+          </span>`;
+        const radio = card.querySelector('input[type="radio"]');
+        radio.addEventListener('change', () => selectProgram(item, card));
+        list.appendChild(card);
+      });
+    }
+
+    function selectProgram(item, cardEl) {
+      selectedProgram = item;
+      document.querySelectorAll('.attendance-program-card').forEach(c => c.classList.remove('is-selected'));
+      cardEl.classList.add('is-selected');
+      const fields = document.getElementById('attendanceFields');
+      const wasOpen = fields.classList.contains('is-open');
+      fields.classList.add('is-open');
+      if (!wasOpen) {
+        setTimeout(() => {
+          fields.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 180);
+      }
+      document.getElementById('attFormErr').style.display = 'none';
+    }
+
+    async function submitAttendance() {
+      const err = document.getElementById('attFormErr');
+      const btn = document.getElementById('attSubmitBtn');
+      err.style.display = 'none';
+
+      if (!selectedProgram) {
+        err.textContent = 'Please select a program.';
+        err.style.display = 'block';
+        return;
+      }
+      const name = document.getElementById('attName').value.trim();
+      const area = document.getElementById('attArea').value.trim();
+      const consent = document.getElementById('attConsent').checked;
+
+      if (!name || !area) {
+        err.textContent = 'Please fill in all required fields.';
+        err.style.display = 'block';
+        return;
+      }
+      const phoneCheck = validateContactNumber(document.getElementById('attPhone').value);
+      if (!phoneCheck.ok) {
+        err.textContent = phoneCheck.message;
+        err.style.display = 'block';
+        return;
+      }
+      if (!consent) {
+        err.textContent = 'Please provide consent to continue.';
+        err.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            formType: 'volunteerAttendance',
+            name,
+            phone: phoneCheck.normalized,
+            area,
+            consent,
+            programName: selectedProgram.title || '',
+            programId: selectedProgram.id || '',
+            timestamp: new Date().toISOString()
+          })
+        });
+        document.getElementById('attendanceForm').hidden = true;
+        document.getElementById('attFormSuccess').style.display = 'block';
+      } catch (e) {
+        err.textContent = 'Something went wrong. Please try again.';
+        err.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Mark Attendance';
+      }
+    }
+
+    function resetAttendanceForm() {
+      selectedProgram = null;
+      document.getElementById('attName').value = '';
+      document.getElementById('attPhone').value = '';
+      document.getElementById('attArea').value = '';
+      document.getElementById('attConsent').checked = false;
+      document.getElementById('attendanceFields').classList.remove('is-open');
+      document.querySelectorAll('.attendance-program-card').forEach(c => c.classList.remove('is-selected'));
+      document.querySelectorAll('.attendance-program-card input[type="radio"]').forEach(r => { r.checked = false; });
+      document.getElementById('attFormErr').style.display = 'none';
+      document.getElementById('attFormSuccess').style.display = 'none';
+      document.getElementById('attendanceForm').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function loadOpenPrograms() {
+      const state = document.getElementById('attendanceState');
+      const form = document.getElementById('attendanceForm');
+      try {
+        const res = await fetch(`${APPS_SCRIPT_URL}?type=programs`);
+        const data = await res.json();
+        openPrograms = data.items || [];
+
+        if (!openPrograms.length) {
+          form.hidden = true;
+          state.innerHTML = `<div class="state-box"><div class="icon">🙏</div><h3>No Open Programs</h3><p>There are no open programs to mark attendance for right now. Please check back later.</p></div>`;
+          return;
+        }
+
+        state.innerHTML = '';
+        renderProgramList();
+        form.hidden = false;
+      } catch (err) {
+        form.hidden = true;
+        state.innerHTML = `<div class="state-box"><div class="icon">🙏</div><h3>Could not load</h3><p>Please try again later.</p></div>`;
+      } finally {
+        if (window.endPageLoad) endPageLoad();
+      }
+    }
+
+    loadOpenPrograms();
+    if (window.registerRefresh) registerRefresh(loadOpenPrograms);
+  </script>
+</body>
+</html>

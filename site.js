@@ -485,6 +485,16 @@
   function initPwa() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(function () {});
+      // When a new service worker takes over (a fresh deploy activated), the
+      // page already loaded is still running on old, possibly-stale logic.
+      // Reload once so it picks up the new one immediately instead of a
+      // visitor seeing outdated behaviour until their next visit.
+      var swRefreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (swRefreshing) return;
+        swRefreshing = true;
+        window.location.reload();
+      });
     }
     if (isStandaloneApp()) return;
 

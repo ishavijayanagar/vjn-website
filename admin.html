@@ -9,12 +9,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=promo-dayboard"/>
+  <link rel="stylesheet" href="style.css?v=vol-gform-v36"/>
+  <link rel="stylesheet" href="sandesha/css/embedded.css?v=6"/>
   <script>
     (function () {
       try {
         if (sessionStorage.getItem("vjn_admin_token") || localStorage.getItem("vjn_admin_token")) {
           document.documentElement.classList.add("admin-authed");
+          /* Reloading a sub-page: keep the hub hidden until that page is ready,
+             so the previous screen doesn't flash first. */
+          if (location.hash.length > 1) document.documentElement.classList.add("admin-deeplink");
         }
       } catch (e) {}
     })();
@@ -87,7 +91,6 @@
       <header class="admin-bar">
         <div class="admin-bar-left">
           <div class="admin-bar-hub" id="adminBarHub">
-            <p class="admin-eyebrow" id="hubDate"></p>
             <h1 class="admin-greet" id="hubGreeting">Namaskaram</h1>
           </div>
           <div class="admin-bar-title-row">
@@ -97,11 +100,21 @@
                 <path d="m12 19-7-7 7-7"/>
               </svg>
             </button>
-            <h1 id="adminPageTitle">Admin</h1>
+            <div class="admin-bar-titles">
+              <p class="admin-bar-eyebrow hidden" id="adminPageEyebrow"></p>
+              <h1 id="adminPageTitle">Admin</h1>
+              <p class="admin-bar-sub hidden" id="adminPageSub"></p>
+            </div>
           </div>
         </div>
         <span id="adminOpenBadge" class="admin-open-badge hidden"></span>
         <div class="admin-bar-actions">
+          <button type="button" class="admin-icon-btn" id="sandeshaServerBtn" hidden aria-pressed="false" aria-label="Sandesha server URL" title="Sandesha server URL">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/>
+            </svg>
+          </button>
           <button type="button" class="admin-icon-btn query-notify-btn" id="queryNotifyBtn" hidden aria-pressed="false" aria-label="Turn on alerts" title="Turn on alerts">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
@@ -123,63 +136,171 @@
       <section id="adminHub" class="admin-hub">
         <p class="admin-lede" id="hubLead"></p>
 
+        <button type="button" class="hub-needs hidden" id="hubNeeds">
+          <span class="hub-needs-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </span>
+          <span class="hub-needs-text">
+            <span class="hub-needs-eyebrow">Volunteers needed</span>
+            <span class="hub-needs-line" id="hubNeedsLine"></span>
+          </span>
+          <svg class="hub-needs-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+        </button>
+
+        <div class="hub-alert-stack" id="hubAlertStack" hidden>
+          <button type="button" class="hub-alert-stack-toggle" id="hubAlertStackToggle" aria-expanded="true">
+            <span class="hub-alert-stack-toggle-label" id="hubAlertStackToggleLabel"></span>
+            <span class="hub-alert-stack-pill" aria-hidden="true"><span class="when-open">Show less</span><span class="when-closed">Show all</span></span>
+          </button>
+          <div class="hub-alert-stack-cards" id="hubAlertStackCards"></div>
+        </div>
+
+        <div class="admin-hub-loading admin-hub-cards" id="hubLoading" aria-hidden="true">
+          <div class="admin-hub-skel-card"></div>
+          <div class="admin-hub-skel-card"></div>
+          <div class="admin-hub-skel-card"></div>
+        </div>
+
         <div class="admin-hub-cards is-loading" id="hubStats" aria-live="polite">
-          <button type="button" class="admin-card admin-card--dark" data-admin-page="queries">
-            <span class="admin-card-kicker">Inbox</span>
-            <span class="admin-card-title">Enquiries<em>unanswered</em></span>
-            <span class="admin-card-desc">Interest and enquiry forms sent from the website</span>
+          <button type="button" class="admin-card admin-card--dark" data-admin-page="queries" data-hide-for-role="nurturing">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Enquiries</span>
+              <svg class="admin-card-arrow" viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
             <span class="admin-card-stats">
               <span class="admin-card-stat" data-stat-row="queries">
                 <strong data-stat-value="queries">—</strong>
-                <span>open now</span>
+                <span>open</span>
               </span>
               <span class="admin-card-stat" data-stat-row="queries-resolved">
                 <strong data-stat-value="queries-resolved">—</strong>
                 <span>resolved</span>
               </span>
             </span>
-            <span class="admin-card-go">
-              Open the inbox
-              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
-            </span>
           </button>
 
-          <button type="button" class="admin-card admin-card--light" data-admin-page="events">
-            <span class="admin-card-kicker">Offerings</span>
-            <span class="admin-card-title">Programs<em>on the calendar</em></span>
-            <span class="admin-card-desc">Schedule and update centre programs</span>
+          <button type="button" class="admin-card admin-card--light pg-card pg-card--programs" data-admin-page="events">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Programs</span>
+            </span>
+            <span class="admin-card-sub">Scheduled at the centre right now.</span>
             <span class="admin-card-stats">
-              <span class="admin-card-stat" data-stat-row="programs">
+              <span class="admin-card-stat pg-fig pg-fig--lead" data-stat-row="programs">
                 <strong data-stat-value="programs">—</strong>
-                <span>programs running</span>
+                <span>Scheduled</span>
               </span>
             </span>
-            <span class="admin-card-go">
-              Manage programs
+            <span class="pg-cta">
+              Open schedule
               <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
             </span>
           </button>
 
-          <button type="button" class="admin-card admin-card--light" data-admin-page="volunteering" data-hub-resource="volunteering">
-            <span class="admin-card-kicker">Serve</span>
-            <span class="admin-card-title">Volunteering<em>dates</em></span>
-            <span class="admin-card-desc">Open volunteering opportunities for the centre</span>
+          <button type="button" class="admin-card admin-card--light pg-card pg-card--vol" data-admin-page="programVolunteers">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Program volunteers</span>
+            </span>
+            <span class="admin-card-sub">Who’s assigned to each program.</span>
+            <span class="admin-card-stats">
+              <span class="admin-card-stat pg-fig pg-fig--lead" data-stat-row="pv-unmet">
+                <strong data-stat-value="pv-unmet">—</strong>
+                <span>programs need volunteers</span>
+              </span>
+            </span>
+            <span class="pg-cta">
+              Open roster
+              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+          </button>
+
+          <button type="button" class="admin-card admin-card--light pg-card" data-admin-page="flyerTemplates" data-hide-for-role="programs,promotions,nurturing">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Flyer templates</span>
+            </span>
+            <span class="admin-card-sub">Upload a Canva PPTX into the square master deck.</span>
+            <span class="pg-cta">
+              Import flyer
+              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+          </button>
+
+          <div class="admin-card admin-card--light pg-card pg-card--attendance" id="volAttendanceCard" data-hub-role-only="programs">
+            <a class="admin-card-stretched-link" href="volunteer-attendance.html" target="_blank" rel="noopener" aria-label="Open the volunteers attendance page"></a>
+            <span class="admin-card-head">
+              <span class="admin-card-title">Volunteers attendance</span>
+            </span>
+            <span class="admin-card-sub">Send this link so volunteers can mark themselves present.</span>
+            <button type="button" class="pg-copy-link" id="volAttendanceCopyBtn" data-hub-copy-link="volunteer-attendance.html" aria-label="Copy the volunteers attendance link">
+              <svg class="pg-copy-link-icon" data-attendance-cta-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span data-attendance-cta-label>Copy link</span>
+            </button>
+            <span class="pg-cta">
+              Open page
+              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+          </div>
+
+          <button type="button" class="admin-card admin-card--light" data-admin-page="volunteering" data-hub-resource="volunteering" data-hide-for-role="nurturing">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Volunteering</span>
+              <svg class="admin-card-arrow" viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
             <span class="admin-card-stats">
               <span class="admin-card-stat" data-stat-row="volunteering">
                 <strong data-stat-value="volunteering">—</strong>
-                <span>dates open</span>
+                <span>open</span>
+              </span>
+              <span class="admin-card-stat" data-stat-row="volunteer-needs">
+                <strong data-stat-value="volunteer-needs">—</strong>
+                <span>need help</span>
               </span>
             </span>
-            <span class="admin-card-go">
-              Manage volunteering
+          </button>
+
+          <!-- Nurturing-role large stacked hub cards (hidden for other roles) -->
+          <button type="button" class="admin-card nr-hub-card nr-hub-card--enquiries hidden" data-admin-page="queries" data-nr-card>
+            <span class="admin-card-head">
+              <span class="admin-card-title">Enquiries</span>
+            </span>
+            <span class="admin-card-sub">Incoming queries from visitors.</span>
+            <span class="admin-card-stats">
+              <span class="admin-card-stat nr-fig" data-stat-row="queries">
+                <strong data-stat-value="queries">—</strong>
+                <span>open</span>
+              </span>
+              <span class="admin-card-stat nr-fig" data-stat-row="queries-resolved">
+                <strong data-stat-value="queries-resolved">—</strong>
+                <span>resolved</span>
+              </span>
+            </span>
+            <span class="nr-cta">
+              Open enquiries
+              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+          </button>
+
+          <button type="button" class="admin-card nr-hub-card nr-hub-card--vol hidden" data-admin-page="volunteering" data-hub-resource="volunteering" data-nr-card>
+            <span class="admin-card-head">
+              <span class="admin-card-title">Volunteering</span>
+            </span>
+            <span class="admin-card-sub">Manage volunteering for the center.</span>
+            <span class="admin-card-stats">
+              <span class="admin-card-stat nr-fig" data-stat-row="volunteer-needs">
+                <strong data-stat-value="volunteer-needs">—</strong>
+                <span data-stat-label="volunteer-needs" data-one="program needs volunteers" data-many="programs need volunteers">programs need volunteers</span>
+              </span>
+            </span>
+            <span class="nr-cta">
+              Open volunteering
               <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
             </span>
           </button>
 
           <button type="button" class="admin-card admin-card--dark" data-admin-page="promotions">
-            <span class="admin-card-kicker">Share</span>
-            <span class="admin-card-title">Promotions<em>to post</em></span>
-            <span class="admin-card-desc">Schedule WhatsApp and social posts with flyers</span>
+            <span class="admin-card-head">
+              <span class="admin-card-title">Promotions</span>
+              <svg class="admin-card-arrow" viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
             <span class="admin-card-stats">
               <span class="admin-card-stat" data-stat-row="promo-due">
                 <strong data-stat-value="promo-due">—</strong>
@@ -190,16 +311,30 @@
                 <span>pending</span>
               </span>
             </span>
-            <span class="admin-card-go">
-              Open promotions
-              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+          </button>
+
+          <button type="button" class="admin-card admin-card--light" data-admin-page="messaging">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Tools</span>
+              <svg class="admin-card-arrow" viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+            <span class="admin-card-stats">
+              <span class="admin-card-stat" data-stat-row="messaging">
+                <strong data-stat-value="messaging">—</strong>
+                <span>server</span>
+              </span>
+              <span class="admin-card-stat" data-stat-row="messaging-wa">
+                <strong data-stat-value="messaging-wa">—</strong>
+                <span>WhatsApp</span>
+              </span>
             </span>
           </button>
 
           <button type="button" class="admin-card admin-card--light" data-admin-page="team">
-            <span class="admin-card-kicker">People</span>
-            <span class="admin-card-title">Team<em>logins</em></span>
-            <span class="admin-card-desc">Add or disable Programs, Promotions, and Nurturing accounts</span>
+            <span class="admin-card-head">
+              <span class="admin-card-title">Team</span>
+              <svg class="admin-card-arrow" viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
             <span class="admin-card-stats">
               <span class="admin-card-stat" data-stat-row="team">
                 <strong data-stat-value="team">—</strong>
@@ -210,18 +345,19 @@
                 <span>active</span>
               </span>
             </span>
-            <span class="admin-card-go">
-              Manage people
-              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
-            </span>
           </button>
         </div>
         <p class="admin-stat-note" id="hubStatsNote" hidden></p>
+        <div class="sandesha-panel admin-sandesha-panel" id="adminSandeshaPanel" aria-label="Sandesha server URL"></div>
         <p class="admin-back admin-hub-back"><a href="index.html">← Back to site</a></p>
       </section>
 
       <section id="adminWorkspace" class="admin-workspace hidden">
         <div id="listingsPanel">
+          <div class="inquiry-filters" id="volunteerViewNav" role="tablist" aria-label="Volunteering view" hidden>
+            <button type="button" class="inquiry-status-tab active" data-volunteer-view="opportunities">Opportunities</button>
+            <button type="button" class="inquiry-status-tab" data-volunteer-view="needs">Programs need volunteers</button>
+          </div>
           <div class="inquiry-filters" id="eventsStatusFilters" role="tablist" aria-label="Listing status">
             <button type="button" class="inquiry-status-tab" data-listing-filter="all">All</button>
             <button type="button" class="inquiry-status-tab active" data-listing-filter="open">Open</button>
@@ -229,17 +365,42 @@
           </div>
           <div class="admin-toolbar" id="adminToolbar">
             <p class="admin-status" id="adminStatus"></p>
-            <button type="button" class="btn btn-gold" id="addItemBtn">Add program</button>
+            <button type="button" class="btn btn-gold" id="addItemBtn" disabled>Add program</button>
+            <button type="button" class="btn btn-outline hidden" id="volunteerPushBtn">Notify me</button>
           </div>
           <div id="itemList" class="inquiry-list admin-list"></div>
+          <div id="volunteerNeedsList" class="inquiry-list admin-list hidden"></div>
         </div>
 
         <div id="inquiriesPanel" class="hidden">
-          <nav class="inquiry-type-tabs" id="inquiryTypeTabs" role="tablist" aria-label="Query type"></nav>
-          <div class="inquiry-filters" role="tablist" aria-label="Inquiry status">
-            <button type="button" class="inquiry-status-tab" data-inquiry-filter="all">All</button>
-            <button type="button" class="inquiry-status-tab active" data-inquiry-filter="open">Open</button>
-            <button type="button" class="inquiry-status-tab" data-inquiry-filter="resolved">Resolved</button>
+          <div class="inquiry-search-row">
+          <div class="inquiry-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="search" id="inquirySearchInput" placeholder="Search name, phone or area" aria-label="Search queries" autocomplete="off"/>
+            <button type="button" id="inquirySearchClear" class="inquiry-search-clear hidden" aria-label="Clear search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+          <div class="inquiry-typefilter" id="inquiryTypeFilter">
+            <button type="button" class="inquiry-typefilter-btn" id="inquiryTypeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Filter by request type" title="Filter by request type">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
+              <span class="inquiry-typefilter-dot" id="inquiryTypeDot" hidden></span>
+            </button>
+            <div class="inquiry-typefilter-menu hidden" id="inquiryTypeMenu" role="menu"></div>
+          </div>
+          </div>
+          <div class="inquiry-type-pill-row hidden" id="inquiryTypePillRow">
+            <span class="inquiry-filter-pill">
+              <span id="inquiryTypePillLabel"></span>
+              <button type="button" id="inquiryTypePillClear" class="inquiry-filter-pill-x" aria-label="Clear type filter">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </span>
+          </div>
+          <div class="inquiry-seg-tabs" role="tablist" aria-label="Inquiry status">
+            <button type="button" class="inquiry-seg-tab" data-inquiry-filter="all">All <span class="inquiry-tab-count" data-inquiry-count="all"></span></button>
+            <button type="button" class="inquiry-seg-tab active" data-inquiry-filter="open">Open <span class="inquiry-tab-count" data-inquiry-count="open"></span></button>
+            <button type="button" class="inquiry-seg-tab" data-inquiry-filter="resolved">Resolved <span class="inquiry-tab-count" data-inquiry-count="resolved"></span></button>
           </div>
           <div id="inquiryList" class="inquiry-list"></div>
         </div>
@@ -287,6 +448,46 @@
           </div>
         </div>
 
+        <div id="flyerTemplatesPanel" class="hidden">
+          <form class="team-add-form" id="flyerImportForm">
+            <h2 class="admin-form-section-title">Import flyer from Canva</h2>
+            <p class="admin-field-hint admin-field-hint-block" id="flyerImportMasterHint">
+              Square flyers are appended as new slides in one shared Google Slides file.
+            </p>
+            <div class="admin-grid">
+              <div class="form-group">
+                <label for="flyerImportTemplateId">Template id *</label>
+                <input type="text" id="flyerImportTemplateId" autocomplete="off" placeholder="e.g. ie-centre-v2"/>
+              </div>
+              <div class="form-group">
+                <label for="flyerImportLabel">Picker label *</label>
+                <input type="text" id="flyerImportLabel" autocomplete="off" placeholder="e.g. IE – centre editable"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <p class="admin-field-label" id="flyerImportProgramsLabel">Programs *</p>
+              <input type="search" id="flyerImportProgramSearch" class="admin-input" placeholder="Search programs…" autocomplete="off" aria-label="Search programs"/>
+              <div class="flyer-import-programs" id="flyerImportPrograms" role="group" aria-labelledby="flyerImportProgramsLabel"></div>
+              <p class="admin-field-hint" id="flyerImportProgramsHint">Select every program this flyer should appear for.</p>
+            </div>
+            <div class="form-group admin-image-field">
+              <p class="admin-field-label">Flyer file *</p>
+              <input type="file" id="flyerImportPptx" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" class="admin-upload-input" aria-label="Flyer file"/>
+              <label for="flyerImportPptx" class="admin-upload">
+                <span id="flyerImportPptxName">Choose file</span>
+              </label>
+              <p class="admin-field-hint">PPTX from Canva: use {{placeholders}} or &lt;placeholders&gt; as editable text to auto-detect fields. PNG/JPG/WEBP images are imported as static flyers with no editable fields.</p>
+            </div>
+            <div class="form-group hidden" id="flyerImportFieldsWrap">
+              <p class="admin-field-label">Placeholders</p>
+              <div id="flyerImportFieldsList" class="flyer-import-fields"></div>
+            </div>
+            <p class="form-err" id="flyerImportError"></p>
+            <p class="admin-status" id="flyerImportSuccess"></p>
+            <button type="submit" class="btn btn-gold" id="flyerImportSubmitBtn">Import into master deck</button>
+          </form>
+        </div>
+
         <div id="teamPanel" class="hidden">
           <form class="team-add-form" id="teamAddForm">
             <h2 class="admin-form-section-title">Add a person</h2>
@@ -307,7 +508,13 @@
             </div>
             <div class="form-group">
               <label for="teamPassword">Password *</label>
-              <input type="password" id="teamPassword" autocomplete="new-password"/>
+              <div class="admin-password-wrap">
+                <input type="password" id="teamPassword" autocomplete="new-password"/>
+                <button type="button" class="admin-password-toggle" data-pw-toggle="teamPassword" aria-label="Show password" aria-pressed="false">
+                  <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-5.94"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.8 21.8 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 0 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
             </div>
             <p class="form-err" id="teamAddError"></p>
             <button type="submit" class="btn btn-gold" id="teamAddBtn">Add person</button>
@@ -316,6 +523,169 @@
             <p class="admin-status" id="teamStatus"></p>
           </div>
           <div id="teamList" class="inquiry-list admin-list"></div>
+        </div>
+
+        <div id="programVolunteersPanel" class="hidden">
+          <div class="inquiry-filters pv-view-filters" id="pvViewFilters" role="tablist" aria-label="Program volunteers view">
+            <button type="button" class="inquiry-status-tab active" data-pv-view="open">Open</button>
+            <button type="button" class="inquiry-status-tab" data-pv-view="closed">Past programs</button>
+          </div>
+          <p class="admin-status" id="pvStatus"></p>
+          <div id="pvList" class="inquiry-list admin-list"></div>
+        </div>
+
+        <!-- Nurturing: Volunteering chooser (three actions; the roster one leads) -->
+        <div id="volChooserPanel" class="hidden">
+          <div class="vch-cards" id="volChooserCards">
+            <button type="button" class="vch-card vch-card--lead" id="volChooserNeeds">
+              <span class="vch-eyebrow">Volunteer requirements</span>
+              <span class="vch-lead-main">
+                <span class="vch-big" data-stat-value="volunteer-needs">—</span>
+                <span class="vch-lead-copy">
+                  <span class="vch-title">Programs need volunteers</span>
+                  <span class="vch-sub">Add in Volunteers details.</span>
+                </span>
+                <svg class="vch-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+              </span>
+            </button>
+
+            <button type="button" class="vch-card" id="volChooserAttendance">
+              <span class="vch-icon vch-icon--green" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </span>
+              <span class="vch-copy">
+                <span class="vch-title">Attendance marking</span>
+                <span class="vch-sub">Mark who showed up for each program.</span>
+              </span>
+              <span class="vch-stat is-none" data-stat-row="vol-awaiting"><b data-stat-value="vol-awaiting">—</b><span>to mark</span></span>
+              <svg class="vch-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+
+            <button type="button" class="vch-card" id="volChooserOpportunities">
+              <span class="vch-icon vch-icon--gold" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+              </span>
+              <span class="vch-copy">
+                <span class="vch-title">Opportunities</span>
+                <span class="vch-sub">Open volunteering listings to explore.</span>
+              </span>
+              <span class="vch-stat is-none" data-stat-row="volunteering"><b data-stat-value="volunteering">—</b><span>open</span></span>
+              <svg class="vch-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Nurturing: Attendance marking (program list → per-volunteer marking) -->
+        <div id="volAttendancePanel" class="hidden">
+          <div class="vat-wrap">
+            <div id="vatList">
+              <p class="vat-lede">Pick a program and mark who showed up.</p>
+              <div class="vat-confirm-all hidden" id="vatConfirmAll">
+                <span class="vat-confirm-txt" id="vatConfirmTxt"></span>
+                <button type="button" class="btn btn-gold" id="vatConfirmAllBtn">Confirm all as present</button>
+              </div>
+              <div class="inquiry-seg-tabs" role="tablist" aria-label="Attendance status">
+                <button type="button" class="inquiry-seg-tab active" data-vat-tab="todo">To mark <span class="inquiry-tab-count" id="vatCountTodo"></span></button>
+                <button type="button" class="inquiry-seg-tab" data-vat-tab="done">Done <span class="inquiry-tab-count" id="vatCountDone"></span></button>
+              </div>
+              <div id="vatCards" class="vat-cards"></div>
+            </div>
+            <div id="vatMark" class="hidden">
+              <div class="vat-mark-head" id="vatMarkHead"></div>
+              <div class="vat-bulk" id="vatBulk"></div>
+              <div class="vat-roster" id="vatRoster"></div>
+              <div class="vat-group-slot" id="vatGroupBar"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nurturing: Opportunities (volunteering listings) -->
+        <div id="volOppsPanel" class="hidden">
+          <div class="vat-wrap">
+            <div class="vop-top">
+              <div class="inquiry-search vop-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <input type="search" id="oppSearchInput" placeholder="Search opportunities" aria-label="Search opportunities" autocomplete="off"/>
+              </div>
+              <button type="button" class="btn btn-gold vop-add" id="oppAddBtn">+ Add</button>
+            </div>
+            <div class="inquiry-seg-tabs" role="tablist" aria-label="Opportunity status">
+              <button type="button" class="inquiry-seg-tab active" data-opp-tab="open">Open <span class="inquiry-tab-count" id="oppCountOpen"></span></button>
+              <button type="button" class="inquiry-seg-tab" data-opp-tab="closed">Closed <span class="inquiry-tab-count" id="oppCountClosed"></span></button>
+              <button type="button" class="inquiry-seg-tab" data-opp-tab="all">All <span class="inquiry-tab-count" id="oppCountAll"></span></button>
+            </div>
+            <p class="admin-status" id="oppStatus"></p>
+            <div id="oppCards" class="vat-cards"></div>
+            <button type="button" class="vop-push hidden" id="oppPushBtn">Notify me</button>
+          </div>
+        </div>
+
+        <!-- Nurturing: Volunteer requirements list -->
+        <div id="volNeedsPanel" class="hidden">
+          <div class="vat-wrap">
+            <div class="inquiry-search vnl-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input type="search" id="vnlSearchInput" placeholder="Search programs" aria-label="Search programs" autocomplete="off"/>
+            </div>
+            
+            <div class="inquiry-seg-tabs" role="tablist" aria-label="Requirement status">
+              <button type="button" class="inquiry-seg-tab active" data-vnl-tab="open">Open <span class="inquiry-tab-count" id="vnlCountOpen"></span></button>
+              <button type="button" class="inquiry-seg-tab" data-vnl-tab="closed">Closed <span class="inquiry-tab-count" id="vnlCountClosed"></span></button>
+            </div>
+            <div id="vnlCards" class="vat-cards"></div>
+          </div>
+        </div>
+
+        <!-- Volunteer program detail page (Nurturing + Programs) -->
+        <div id="volProgramDetailPanel" class="hidden">
+          <div class="vpd-wrap">
+
+            <!-- Hero: title / badges / progress / actions -->
+            <div class="vpd-hero">
+              <div class="vpd-top">
+                <div class="vpd-badges" id="vpdBadges"></div>
+                <div class="vpd-section--nurturing hidden" id="vpdHandledSection">
+                  <div id="vpdHandledContent"></div>
+                </div>
+              </div>
+              <div class="vpd-stats" id="vpdStats"></div>
+              <div class="vpd-meter" id="vpdMeter">
+                <span class="vat-bar" aria-hidden="true"><span id="vpdMeterFill" style="width:0"></span></span>
+                <p class="vpd-req" id="vpdReq"></p>
+              </div>
+              <p class="vpd-handled-note hidden" id="vpdHandledNote"></p>
+              <p class="vpd-req-notes hidden" id="vpdRequirementsNote"></p>
+              <div class="vpd-actions">
+                <button type="button" class="vpd-cta vpd-cta--primary" id="vpdAddVolBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                  Add volunteer
+                </button>
+                <button type="button" class="vpd-cta vpd-cta--form" id="vpdFormBtn">
+                  <span class="vpd-cta-ico" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+                  </span>
+                  <span class="vpd-cta-text">
+                    <b id="vpdFormBtnTitle">Create Google form</b>
+                  </span>
+                  <svg class="vpd-cta-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+                </button>
+                <div class="vpd-actions-row">
+                  <button type="button" class="btn btn-outline hidden" id="vpdAttendBtn">Mark attendance</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Roster -->
+            <section class="vpd-card" id="vpdRosterSection">
+              <h3 class="vpd-section-title">Volunteers <span class="vpd-roster-count" id="vpdRosterCount"></span></h3>
+              <div class="inquiry-search vpr-search hidden" id="vpdRosterSearchWrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <input type="search" id="vpdRosterSearch" placeholder="Search name, phone or area" aria-label="Search volunteers" autocomplete="off"/>
+              </div>
+              <div class="vn-roster vpr-list" id="vpdRosterList"></div>
+            </section>
+
+          </div>
         </div>
       </section>
     </div>
@@ -335,12 +705,11 @@
 
       <div class="admin-editor-body" id="editorBody">
         <div class="admin-editor-modes hidden" id="editorModeTabs" role="tablist" aria-label="Add mode">
-          <button type="button" class="inquiry-status-tab active" data-editor-mode="single">One event</button>
+          <button type="button" class="inquiry-status-tab active" data-editor-mode="single">Quick fill</button>
           <button type="button" class="inquiry-status-tab" data-editor-mode="bulk">Bulk paste</button>
         </div>
         <div class="admin-templates hidden" id="listingTemplates">
           <div class="admin-templates-head">
-            <p class="admin-templates-label">Quick fill</p>
             <button type="button" class="admin-templates-clear" id="clearTemplateBtn" hidden>Clear form</button>
           </div>
           <div class="admin-template-grid">
@@ -365,8 +734,9 @@
           <section class="admin-form-section">
             <h3 class="admin-form-section-title">Details</h3>
             <div class="form-group">
-              <label for="fTitle">Title</label>
-              <input type="text" id="fTitle" placeholder="e.g. Sannidhi Pooja" required/>
+              <label for="fTitle" id="fTitleLabel">Program name</label>
+              <input type="text" id="fTitle" placeholder="e.g. Sannidhi Pooja" required data-volunteer-only/>
+              <select id="fTitleProgram" required data-program-only></select>
             </div>
             <div class="form-group">
               <label for="fDescription">Description <span class="admin-optional">Optional</span></label>
@@ -461,17 +831,6 @@
                 Add another slot
               </button>
             </div>
-
-            <div class="form-group" data-program-only>
-              <label for="fFrequency">Frequency</label>
-              <select id="fFrequency">
-                <option value="">Select frequency</option>
-                <option value="Daily">Daily</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Monthly">Monthly</option>
-                <option value="Scheduled">Scheduled</option>
-              </select>
-            </div>
           </section>
 
           <section class="admin-form-section">
@@ -486,6 +845,10 @@
               <label class="admin-check admin-check-inline" for="fNoRegister">
                 <input type="checkbox" id="fNoRegister"/>
                 <span>Registration not required</span>
+              </label>
+              <label class="admin-check admin-check-inline" for="fFreeOffering">
+                <input type="checkbox" id="fFreeOffering"/>
+                <span>Free offering</span>
               </label>
             </div>
           </section>
@@ -512,8 +875,18 @@
             <label for="fStatus">Status</label>
             <select id="fStatus"></select>
           </div>
-          <div class="form-group admin-image-field">
-            <p class="admin-field-label">Photo</p>
+          <div class="form-group" data-program-only>
+            <label for="fFrequency">Frequency</label>
+            <select id="fFrequency">
+              <option value="">Select frequency</option>
+              <option value="Daily">Daily</option>
+              <option value="Weekly">Weekly</option>
+              <option value="Monthly">Monthly</option>
+              <option value="Scheduled">Scheduled</option>
+            </select>
+          </div>
+          <div class="form-group admin-image-field" data-volunteer-only>
+            <p class="admin-field-label" id="fPhotoLabel">Photo <span class="admin-optional">Optional</span></p>
             <input type="file" id="fImageFile" accept="image/*" class="admin-upload-input" aria-label="Photo"/>
             <label for="fImageFile" class="admin-upload">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
@@ -536,8 +909,35 @@
           <div class="form-group hidden" id="volunteerNeededWrap">
             <label for="fVolunteersNeeded">How many volunteers?</label>
             <input type="number" id="fVolunteersNeeded" min="1" step="1" inputmode="numeric" placeholder="e.g. 4"/>
+            <p class="admin-field-hint admin-field-hint-block hidden" id="volunteerProgressNote"></p>
+          </div>
+          <div class="form-group hidden" id="volunteerRequirementsWrap">
+            <label for="fVolunteerRequirements">Requirements for volunteers <span class="admin-optional">Optional</span></label>
+            <textarea id="fVolunteerRequirements" placeholder="e.g. comfortable driving, fluent in Telugu"></textarea>
+            <p class="admin-field-hint admin-field-hint-block">Sent to the Nurturing team along with this request.</p>
           </div>
           <p class="admin-field-hint admin-field-hint-block">Requests for volunteering go to the Nurturing inbox.</p>
+        </section>
+
+        <section class="admin-form-section" data-program-only id="flyerSection">
+          <h3 class="admin-form-section-title">Flyer</h3>
+          <div class="form-group">
+            <p class="admin-field-hint" id="flyerPickHint">Choose a program above to see its flyers.</p>
+            <button type="button" class="admin-select-flyer-btn hidden" id="selectFlyerBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
+              <span id="selectFlyerBtnLabel">Select a flyer</span>
+            </button>
+          </div>
+
+          <div class="form-group admin-image-field hidden" id="flyerResultWrap">
+            <p class="admin-field-label">Selected flyer</p>
+            <img id="flyerResultPreview" class="admin-preview" alt="Selected flyer" referrerpolicy="no-referrer"/>
+            <div class="admin-bulk-actions">
+              <a id="downloadFlyerBtn" class="btn btn-outline hidden" download>Download</a>
+              <button type="button" class="admin-link-toggle" id="changeFlyerBtn">Choose a different flyer</button>
+            </div>
+            <p class="admin-field-hint" id="flyerResultHint">This flyer will be attached to the event when you save.</p>
+          </div>
         </section>
       </div>
 
@@ -545,6 +945,54 @@
         <button type="button" class="btn btn-outline" id="cancelEditorBtn">Cancel</button>
         <button type="button" class="btn btn-gold" id="saveItemBtn">Save</button>
       </footer>
+    </div>
+  </div>
+
+  <div class="modal-overlay sheet-overlay" id="flyerPickerOverlay">
+    <div class="query-modal admin-editor sheet" role="dialog" aria-modal="true" aria-labelledby="flyerPickerTitle">
+      <div class="sheet-handle" id="flyerPickerHandle" aria-hidden="true"></div>
+      <header class="admin-editor-head">
+        <div class="admin-editor-head-copy">
+          <h2 id="flyerPickerTitle">Choose a flyer</h2>
+        </div>
+        <button type="button" class="admin-editor-close" id="closeFlyerPickerBtn" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
+      <div class="admin-editor-body">
+        <div class="admin-flyer-grid hidden" id="flyerGrid"></div>
+
+        <div class="admin-flyer-fields hidden" id="flyerFieldsWrap">
+          <div id="flyerFieldsList"></div>
+          <p class="form-err hidden" id="flyerFieldsError"></p>
+          <button type="button" class="btn btn-gold admin-flyer-generate-btn" id="generateFlyerBtn">
+            <span>Generate flyer</span>
+          </button>
+          <div class="admin-progress-track hidden" id="flyerGenerateProgress" role="progressbar" aria-label="Generating flyer" aria-hidden="true">
+            <div class="admin-progress-fill"></div>
+          </div>
+        </div>
+
+        <p class="admin-flyer-picker-divider">or</p>
+
+        <div class="form-group admin-image-field">
+          <input type="file" id="fFlyerManualFile" accept="image/*" class="admin-upload-input" aria-label="Flyer"/>
+          <label for="fFlyerManualFile" class="admin-upload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+            <span id="fFlyerManualFileName">Choose a flyer</span>
+          </label>
+          <img id="flyerManualPreview" class="admin-preview" alt="Flyer preview" referrerpolicy="no-referrer"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay admin-lightbox-overlay" id="avatarPreviewOverlay">
+    <div class="admin-lightbox" role="dialog" aria-modal="true" aria-label="Flyer preview">
+      <button type="button" class="admin-lightbox-close" id="closeAvatarPreviewBtn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+      <img id="avatarPreviewImg" class="admin-lightbox-img" alt="" referrerpolicy="no-referrer"/>
     </div>
   </div>
 
@@ -556,6 +1004,231 @@
         <button type="button" class="btn btn-outline" id="cancelNotifyOffBtn">Cancel</button>
         <button type="button" class="btn btn-gold" id="confirmNotifyOffBtn">Turn off</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Blocks the hub until unresolved attendance is addressed or dismissed.
+       No backdrop-click-to-close — only the X or the CTA dismiss it, and
+       with several programs pending it queues them one at a time. -->
+  <div class="modal-overlay hub-alert-overlay" id="hubAlertOverlay">
+    <div class="query-modal admin-confirm hub-alert" role="dialog" aria-modal="true" aria-labelledby="hubAlertTitle">
+      <div class="hub-alert-top">
+        <p class="hub-alert-eyebrow" id="hubAlertEyebrow">
+          <span class="admin-spinner hub-alert-spinner hidden" id="hubAlertSpinner" aria-hidden="true"></span>
+          <span id="hubAlertEyebrowText">Needs attendance</span>
+        </p>
+        <span class="hub-alert-steps" id="hubAlertSteps" aria-hidden="true"></span>
+        <button type="button" class="hub-alert-close" id="hubAlertCloseBtn" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="hub-alert-main">
+        <span class="hub-alert-ring" id="hubAlertRing" aria-hidden="true">
+          <svg viewBox="0 0 36 36"><circle class="trk" cx="18" cy="18" r="15.5"/><circle class="val" id="hubAlertRingVal" cx="18" cy="18" r="15.5" pathLength="100" stroke-dasharray="0 100"/></svg>
+          <b id="hubAlertRingText"></b>
+        </span>
+        <div class="hub-alert-text">
+          <h2 id="hubAlertTitle"></h2>
+          <p class="admin-confirm-lead" id="hubAlertSub"></p>
+        </div>
+      </div>
+      <div class="admin-editor-actions" id="hubAlertActions">
+        <button type="button" class="btn btn-gold" id="hubAlertActionBtn">Mark attendance</button>
+        <button type="button" class="hub-alert-later" id="hubAlertLaterBtn">Later</button>
+      </div>
+      <p class="hub-alert-progress hidden" id="hubAlertProgress"></p>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="vnHandleOverlay">
+    <div class="query-modal" role="dialog" aria-modal="true" aria-labelledby="vnHandleTitle">
+      <h2 id="vnHandleTitle">Handle volunteer need</h2>
+      <p class="admin-confirm-lead" id="vnHandleSub"></p>
+      <div class="form-group">
+        <label for="vnHandleRemarks">Remarks</label>
+        <textarea id="vnHandleRemarks" rows="3" placeholder="How you're covering this…"></textarea>
+      </div>
+      <p class="form-err" id="vnHandleError"></p>
+      <div class="admin-editor-actions">
+        <button type="button" class="btn btn-outline" id="vnHandleCancel">Cancel</button>
+        <button type="button" class="btn btn-gold" id="vnHandleSave">Mark handled</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enquiries: add one or many volunteer enquiries to a WhatsApp group (Sandesha) -->
+  <div class="modal-overlay inq-group-overlay" id="inqGroupOverlay">
+    <div class="query-modal inq-group-sheet" role="dialog" aria-modal="true" aria-labelledby="inqGroupTitle">
+      <span class="inq-group-grab" aria-hidden="true"></span>
+      <div class="inq-group-head">
+        <div class="inq-group-head-text">
+          <h2 id="inqGroupTitle">Add to a WhatsApp group</h2>
+          <div class="inq-group-who" id="inqGroupWho"></div>
+        </div>
+        <button type="button" class="inq-group-x" id="inqGroupClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div id="inqGroupPickStep">
+        <div class="inq-gsearch" id="inqGroupSearchBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="search" id="inqGroupSearch" class="inq-gsearch-input" placeholder="Search groups" aria-label="Search groups" autocomplete="off" enterkeyhint="search"/>
+        </div>
+        <div class="inq-group-list" id="inqGroupList"></div>
+      </div>
+      <div id="inqGroupReviewStep" class="hidden">
+        <button type="button" class="inq-group-chosen" id="inqGroupChosen" aria-label="Change group"></button>
+        <div class="inq-group-people-head">
+          <span id="inqGroupCount"></span>
+          <button type="button" class="inq-group-toggle" id="inqGroupToggleAll"></button>
+        </div>
+        <div class="inq-group-people" id="inqGroupPeople"></div>
+        <p class="inq-group-note" id="inqGroupNote"></p>
+        <p class="form-err" id="inqGroupError"></p>
+        <button type="button" class="inq-group-start" id="inqGroupStart"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="inviteOverlay">
+    <div class="query-modal" role="dialog" aria-modal="true" aria-labelledby="inviteTitle">
+      <h2 id="inviteTitle">Send invite</h2>
+      <p class="admin-confirm-lead" id="inviteSub"></p>
+      <div class="form-group" id="inviteMsgGroup">
+        <label for="inviteMsg">Message from Promotions</label>
+        <textarea id="inviteMsg" rows="8"></textarea>
+      </div>
+      <p class="admin-confirm-lead hidden" id="inviteAsk">Did you send the message in WhatsApp?</p>
+      <p class="form-err" id="inviteError"></p>
+      <div class="admin-editor-actions" id="inviteStepSend">
+        <button type="button" class="btn btn-outline" id="inviteCancel">Cancel</button>
+        <button type="button" class="btn btn-gold" id="inviteOpenWa">Open WhatsApp</button>
+      </div>
+      <div class="admin-editor-actions hidden" id="inviteStepConfirm">
+        <button type="button" class="btn btn-outline" id="inviteNotYet">Not yet</button>
+        <button type="button" class="btn btn-gold" id="inviteMarkSent">Yes, mark sent</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="vatConfirmOverlay">
+    <div class="query-modal" role="dialog" aria-modal="true" aria-labelledby="vatConfirmTitle">
+      <h2 id="vatConfirmTitle">Confirm attendance</h2>
+      <p class="admin-confirm-lead" id="vatConfirmSub"></p>
+      <div class="vat-confirm-list" id="vatConfirmList"></div>
+      <div class="admin-editor-actions">
+        <button type="button" class="btn btn-outline" id="vatConfirmCancel">Cancel</button>
+        <button type="button" class="btn btn-gold" id="vatConfirmYes">Mark present</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom drawer: add a volunteer to the open program -->
+  <div class="bsheet-overlay" id="volAddSheet" aria-hidden="true">
+    <div class="bsheet" role="dialog" aria-modal="true" aria-labelledby="volAddSheetTitle">
+      <span class="bsheet-grip" aria-hidden="true"></span>
+      <header class="bsheet-head">
+        <div class="bsheet-titles">
+          <p class="bsheet-eyebrow">Add volunteer</p>
+          <h2 id="volAddSheetTitle">Program</h2>
+        </div>
+        <button type="button" class="admin-editor-close" data-bsheet-close aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
+      <div class="bsheet-body">
+        <div class="form-group">
+          <label for="vpdAddName">Name <span class="admin-req">*</span></label>
+          <input type="text" class="admin-input" id="vpdAddName" autocomplete="off" placeholder="Full name"/>
+        </div>
+        <div class="form-group">
+          <label for="vpdAddPhone">WhatsApp number <span class="admin-req">*</span></label>
+          <input type="tel" class="admin-input" id="vpdAddPhone" inputmode="tel" autocomplete="off" placeholder="10-digit number"/>
+        </div>
+        <div class="form-group">
+          <label for="vpdAddArea">Area of stay <span class="admin-req">*</span></label>
+          <input type="text" class="admin-input" id="vpdAddArea" autocomplete="off" placeholder="e.g. Vijayanagar"/>
+        </div>
+        <div class="form-group">
+          <label for="vpdAddIe">IE completion date <span class="admin-optional">Optional</span></label>
+          <input type="text" class="admin-input" id="vpdAddIe" autocomplete="off" placeholder="e.g. May-2024"/>
+        </div>
+        <div class="form-group">
+          <label for="vpdAddRemarks">Remarks <span class="admin-optional">Optional</span></label>
+          <input type="text" class="admin-input" id="vpdAddRemarks" autocomplete="off" placeholder="Anything worth noting"/>
+        </div>
+        <p class="form-err hidden" id="vpdAddError"></p>
+      </div>
+      <footer class="bsheet-foot">
+        <button type="button" class="btn btn-outline" id="vpdAddNextBtn">Add &amp; next</button>
+        <button type="button" class="btn btn-gold" id="vpdAddSaveBtn">Add volunteer</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Bottom drawer: Google form to share in WhatsApp groups -->
+  <!-- Attendance: add a program's volunteers to a WhatsApp group (Sandesha) -->
+  <div class="bsheet-overlay" id="vatGroupSheet" aria-hidden="true">
+    <div class="bsheet vg-sheet" role="dialog" aria-modal="true" aria-labelledby="vgTitle">
+      <span class="bsheet-grip" aria-hidden="true"></span>
+      <header class="bsheet-head">
+        <button type="button" class="vg-back hidden" id="vgBack" aria-label="Back to volunteers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"/></svg>
+        </button>
+        <div class="bsheet-titles">
+          <p class="bsheet-eyebrow" id="vgEyebrow">Add to a WhatsApp group</p>
+          <h2 id="vgTitle">Program</h2>
+        </div>
+        <button type="button" class="admin-editor-close" data-bsheet-close aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
+      <div class="bsheet-body" id="vgPeopleStep">
+        <div class="vg-people-head">
+          <span id="vgCount"></span>
+          <button type="button" class="vg-toggle" id="vgToggleAll"></button>
+        </div>
+        <div class="vg-people" id="vgPeople"></div>
+      </div>
+      <div class="bsheet-body hidden" id="vgPickStep">
+        <label class="vg-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="search" id="vgSearch" placeholder="Search groups" aria-label="Search groups" autocomplete="off" enterkeyhint="search"/>
+        </label>
+        <div class="vg-group-list" id="vgGroupList"></div>
+      </div>
+      <footer class="bsheet-foot vg-foot">
+        <p class="vg-note hidden" id="vgNote"></p>
+        <p class="form-err" id="vgError"></p>
+        <button type="button" class="vg-next" id="vgNext"></button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="bsheet-overlay" id="volFormSheet" aria-hidden="true">
+    <div class="bsheet" role="dialog" aria-modal="true" aria-labelledby="volFormSheetTitle">
+      <span class="bsheet-grip" aria-hidden="true"></span>
+      <header class="bsheet-head">
+        <div class="bsheet-titles">
+          <p class="bsheet-eyebrow">Google form</p>
+          <h2 id="volFormSheetTitle">Volunteer sign-up form</h2>
+        </div>
+        <button type="button" class="admin-editor-close" data-bsheet-close aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
+      <div class="bsheet-body">
+        
+        <div id="vpdFormBuilder">
+          <!-- Rendered by openVolFormSheet → renderVpdFormBuilder() -->
+        </div>
+        <p class="form-err hidden" id="vpdFormError"></p>
+      </div>
+      <footer class="bsheet-foot">
+        <button type="button" class="btn btn-outline" id="vpdGfBack">Close</button>
+        <button type="button" class="btn btn-gold" id="vpdGfNext">Next</button>
+        <button type="button" class="btn btn-gold hidden" id="vpdGenerateFormBtn">Generate Google Form</button>
+      </footer>
     </div>
   </div>
 
@@ -573,10 +1246,7 @@
   <div class="modal-overlay" id="promoOverlay">
     <div class="query-modal admin-editor promo-composer" role="dialog" aria-modal="true" aria-labelledby="promoEditorTitle">
       <header class="admin-editor-head">
-        <div class="admin-editor-head-copy">
-          <p class="admin-editor-eyebrow" id="promoEditorEyebrow">Compose</p>
-          <h2 id="promoEditorTitle">New post</h2>
-        </div>
+        <h2 id="promoEditorTitle">New post</h2>
         <button type="button" class="admin-editor-close" id="closePromoEditorBtn" aria-label="Close">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
@@ -585,9 +1255,12 @@
         <p class="admin-field-hint admin-field-hint-block" id="promoEventMeta"></p>
         <div class="form-err" id="promoEditorError"></div>
         <section class="admin-form-section">
-          <h3 class="admin-form-section-title">Message</h3>
+          <div class="admin-form-section-head">
+            <h3 class="admin-form-section-title">Message</h3>
+            <button type="button" class="admin-link-toggle promo-paste-btn" id="promoPasteBtn">Paste</button>
+          </div>
           <div class="form-group">
-            <label for="promoMessage">WhatsApp and social copy</label>
+            <label for="promoMessage" class="sr-only">WhatsApp and social copy</label>
             <textarea id="promoMessage" rows="7" placeholder="Write the message to post."></textarea>
           </div>
         </section>
@@ -618,9 +1291,10 @@
             </label>
           </div>
           <div class="promo-when-fields hidden" id="promoWhenFields">
-            <div class="promo-when-days" role="group" aria-label="Schedule day">
-              <button type="button" class="filter-pill active" data-promo-compose-day="today" id="promoComposeDayToday">Today</button>
-              <button type="button" class="filter-pill" data-promo-compose-day="tomorrow" id="promoComposeDayTomorrow">Tomorrow</button>
+            <div class="form-group">
+              <label for="promoComposeDate">Date</label>
+              <input type="date" id="promoComposeDate" class="admin-time-select"/>
+              <p class="admin-field-hint admin-field-hint-block" id="promoComposeDateHint" aria-live="polite"></p>
             </div>
             <div class="form-group">
               <label for="promoComposeTime">Time</label>
@@ -686,13 +1360,101 @@
         </div>
         <div class="form-group">
           <label for="teamEditPassword">New password</label>
-          <input type="password" id="teamEditPassword" autocomplete="new-password" placeholder="Leave blank to keep the current password"/>
+          <div class="admin-password-wrap">
+            <input type="password" id="teamEditPassword" autocomplete="new-password" placeholder="Leave blank to keep the current password"/>
+            <button type="button" class="admin-password-toggle" data-pw-toggle="teamEditPassword" aria-label="Show password" aria-pressed="false">
+              <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-5.94"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.8 21.8 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 0 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
         </div>
       </div>
       <footer class="admin-editor-actions">
         <button type="button" class="btn btn-outline" id="cancelTeamUserBtn">Cancel</button>
         <button type="button" class="btn btn-gold" id="saveTeamUserBtn">Save</button>
       </footer>
+    </div>
+  </div>
+
+  <div class="modal-overlay sheet-overlay" id="pvAddOverlay">
+    <div class="query-modal admin-editor sheet" role="dialog" aria-modal="true" aria-labelledby="pvAddTitle">
+      <div class="sheet-handle" id="pvAddHandle" aria-hidden="true"></div>
+      <header class="admin-editor-head">
+        <div class="admin-editor-head-copy">
+          <p class="admin-editor-eyebrow">Program volunteers</p>
+          <h2 id="pvAddTitle">Add a volunteer</h2>
+        </div>
+        <button type="button" class="admin-editor-close" id="closePvAddBtn" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
+      <div class="admin-editor-body">
+        <div class="form-err" id="pvAddError"></div>
+        <input type="hidden" id="pvAddEventId"/>
+        <div class="form-group">
+          <label for="pvAddName">Name</label>
+          <input type="text" id="pvAddName" autocomplete="off" required/>
+        </div>
+        <div class="form-group">
+          <label for="pvAddPhone">Mobile number</label>
+          <input type="tel" id="pvAddPhone" inputmode="numeric" maxlength="10" placeholder="10-digit number" autocomplete="off" required/>
+        </div>
+        <div class="form-group">
+          <label for="pvAddArea">Area of stay</label>
+          <input type="text" id="pvAddArea" placeholder="e.g. Vijayanagar" autocomplete="off" required/>
+        </div>
+        <div class="form-group">
+          <label for="pvAddRemarks">Remarks <span class="admin-optional">Optional</span></label>
+          <textarea id="pvAddRemarks" rows="2" placeholder="Any notes about this volunteer"></textarea>
+        </div>
+      </div>
+      <footer class="admin-editor-actions">
+        <button type="button" class="btn btn-outline" id="cancelPvAddBtn">Cancel</button>
+        <button type="button" class="btn btn-gold" id="savePvAddBtn">Add volunteer</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="pvVolunteerOverlay">
+    <div class="query-modal admin-confirm pv-detail" role="dialog" aria-modal="true" aria-labelledby="pvDetailName">
+      <h2 id="pvDetailName">Volunteer</h2>
+      <div class="pv-detail-rows">
+        <div class="pv-detail-row">
+          <span class="pv-detail-label">Mobile number</span>
+          <span class="pv-detail-value-group">
+            <a class="pv-detail-value pv-detail-phone" id="pvDetailPhone" href="#" target="_blank" rel="noopener" data-selectable>—</a>
+            <button type="button" class="pv-copy-btn" id="pvCopyPhoneBtn" aria-label="Copy mobile number" title="Copy mobile number">
+              <svg class="pv-copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="12" height="12" rx="2"/>
+                <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
+              </svg>
+              <svg class="pv-copy-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+          </span>
+        </div>
+        <div class="pv-detail-row">
+          <span class="pv-detail-label">Area of stay</span>
+          <span class="pv-detail-value" id="pvDetailArea" data-selectable>—</span>
+        </div>
+      </div>
+      <div class="form-group pv-detail-remarks-group">
+        <label for="pvDetailRemarks">Remarks <span class="admin-optional">Optional</span></label>
+        <textarea id="pvDetailRemarks" rows="2" placeholder="Any notes about this volunteer"></textarea>
+      </div>
+      <div class="pv-attend-wrap hidden" id="pvDetailAttendWrap">
+        <p class="pv-detail-label">Attendance</p>
+        <div class="pv-attend-toggle">
+          <button type="button" class="pv-attend-seg" data-pv-detail-attend="yes">Attended</button>
+          <button type="button" class="pv-attend-seg pv-attend-seg--no" data-pv-detail-attend="no">No-show</button>
+        </div>
+      </div>
+      <p class="form-err" id="pvDetailError"></p>
+      <div class="admin-editor-actions">
+        <button type="button" class="btn btn-outline" id="closePvDetailBtn">Close</button>
+        <button type="button" class="btn btn-gold" id="savePvDetailBtn">Save</button>
+      </div>
     </div>
   </div>
 
@@ -707,10 +1469,30 @@
     </div>
   </div>
 
+  <div id="sandeshaToastContainer" aria-live="polite"></div>
+
+  <script src="liquid-glass.js?v=2"></script>
+  <script>
+    (function () {
+      var card = document.getElementById("loginScreen");
+      if (!card || typeof liquidGlass !== "function") return;
+      window.__loginGlass = liquidGlass(card, {
+        scale: -200,
+        chroma: 8,
+        blur: 1,
+        saturate: 1.7,
+        border: 0.045,
+        mapBlur: 16,
+        fallbackBlur: 18
+      });
+    })();
+  </script>
   <script src="config.js"></script>
-  <script src="protect.js?v=home-nav"></script>
+  <script src="protect.js?v=selectable-v1"></script>
   <script src="site.js?v=home-nav"></script>
-  <script src="ptr.js?v=1"></script>
-  <script src="admin.js?v=promo-dayboard"></script>
+  <script src="ptr.js?v=2"></script>
+  <script src="admin.js?v=vol-gform-v32"></script>
+  <script type="module" src="sandesha/js/boot-admin-hub.js?v=2"></script>
+  <script type="module" src="sandesha/js/boot-nurturing-bridge.js?v=2"></script>
 </body>
 </html>

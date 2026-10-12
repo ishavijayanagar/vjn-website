@@ -31,6 +31,71 @@ const HOME_QUERIES_SHEET = "HomeQueries";
 const PROGRAM_INTEREST_SHEET = "ProgramInterest";
 const PROGRAM_VOLUNTEER_SHEET = "ProgramVolunteer";
 const VOLUNTEERING_INTEREST_SHEET = "VolunteeringInterest";
+const VOLUNTEER_ATTENDANCE_SHEET = "VolunteerAttendance";
+
+// Nurturing's event-volunteer pipeline. One sheet, "kind" column:
+//   kind="need"      one per program that asked for volunteers (handling state)
+//   kind="volunteer" one per recruited person (attendance + WhatsApp-group flags)
+const EVENT_VOLUNTEERS_SHEET = "EventVolunteers";
+
+// ── Form templates ────────────────────────────────────────────────────────────
+// Each entry is a "master" Google Form that gets copied per program run.
+// Only the `slotQuestion` checkbox question is updated with the current slots.
+// masterFormId: the form ID from the edit URL .../forms/d/{ID}/edit
+// slotQuestion: exact title of the checkbox question whose choices get replaced.
+// Add more templates here as your program types grow.
+const FORM_TEMPLATES = [
+  {
+    id: "ie-kannada",
+    name: "Inner Engineering",
+    type: "single-program",   // 1 form = 1 program; textarea = time slots
+    masterFormId: "1t9ZIDZtlRqsrTupaLaB5asQJAbyfMjlW93pjx3mYGQQ",
+    slotQuestion: "How would you like to volunteer?",
+    slotPlaceholder: "Hall setup - Tuesday, 4th Jan 2026 (7 AM - 8 AM)\nClass Volunteering Morning - Wed-Sat (5:00 AM to 9:30 AM)\nClass Volunteering Evening - Wed-Sat (5:00 PM to 9:30 PM)",
+  },
+  {
+    id: "hatha-yoga",
+    name: "Hatha Yoga",
+    type: "multi-program",    // 1 form = N programs; checkboxes = individual programs
+    masterFormId: "1Lr5VRKAHY3aUOnNVfRLfavbjO3vNZeWg5epJwbCMBko",
+    slotQuestion: "I would like to volunteer for",
+    slotPlaceholder: "",      // not used; program list comes from the app
+    // Drive file ID of the header image to insert at the top of each generated form.
+    // Get it from the Drive URL: drive.google.com/file/d/FILE_ID/view
+    // Leave empty to skip (image can be added manually via Customize Theme in Forms editor).
+    headerImageDriveId: "",
+  },
+  // Add more templates here as needed
+];
+const EV_HEADERS = [
+  "row_id",
+  "kind",
+  "event_id",
+  "event_title",
+  "event_date",
+  "needed",
+  "handled",
+  "handled_remarks",
+  "handled_by",
+  "handled_at",
+  "reminded_at",
+  "volunteer_name",
+  "phone",
+  "volunteer_remarks",
+  "area_of_stay",
+  "ie_completion",
+  "added_by",
+  "attended",
+  "in_wa_group",
+  "invite_sent",
+  "attendance_at",
+  // need-row form fields (blank for volunteer rows)
+  "volunteer_form_id",
+  "volunteer_form_short_url",
+  "volunteer_form_fields",
+  "volunteer_form_template",
+  "updated_at",
+];
 
 const USER_HEADERS = [
   "id",
@@ -56,9 +121,38 @@ const PROMO_HEADERS = [
   "updated_at",
   "sent_at",
   "sent_by",
+  "target",
+  "wa_schedule_ids",
 ];
 
 const VALID_ROLES_ = ["admin", "programs", "promotions", "nurturing"];
+
+// Fixed list of program names the Programs team can pick from — keeps flyer
+// matching reliable (a flyer is tied to one or more program_title values in FlyerTemplates).
+const PROGRAM_TITLES_SHEET = "ProgramTitles";
+const PROGRAM_TITLE_HEADERS = ["title", "active"];
+
+// One row per flyer design. Each flyer is its own single-slide Google Slides
+// file (slide_id), sized to match that shape — Slides applies one page size
+// to a whole file, so flyers with a different aspect ratio need their own
+// file. Same-shaped flyers can share one file: put each on its own slide and
+// set slide_index (1 = first slide, 2 = second, ...). Leave slide_index blank
+// for a single-slide file.
+// program_title: one program name, or a JSON array of names when the flyer
+// applies to several programs, e.g. ["Inner Engineering","Inner Engineering - 4 Days"].
+// fields_json lists the {{placeholder}} fields that flyer needs, e.g.
+// [{"key":"date","label":"Event date"},{"key":"time","label":"Event time"},{"key":"link","label":"Registration link"}]
+const FLYER_TEMPLATES_SHEET = "FlyerTemplates";
+const FLYER_TEMPLATE_HEADERS = [
+  "template_id",
+  "program_title",
+  "label",
+  "thumbnail_url",
+  "slide_id",
+  "slide_index",
+  "fields_json",
+  "active",
+];
 
 const PROGRAM_HEADERS = [
   "title",
@@ -79,9 +173,12 @@ const PROGRAM_HEADERS = [
   "duration",
   "frequency",
   "image",
+  "flyer_image",
   "registerlink",
+  "free_offering",
   "volunteering_available",
   "volunteers_needed",
+  "volunteer_requirements",
   "status",
 ];
 
@@ -207,10 +304,72 @@ function setupAdmin() {
   upsertAdminUser_(password);
   ensureSheet_(USERS_SHEET, USER_HEADERS);
   ensureSheet_(PROMOTIONS_SHEET, PROMO_HEADERS);
+  ensureSheet_(EVENT_VOLUNTEERS_SHEET, EV_HEADERS);
   ensureDuePromoTrigger_();
+  ensureAttendanceTrigger_();
+  ensureProgramReminderTrigger_();
   const folder = getCentreImagesFolder_();
   Logger.log("Setup complete. Sign in at /admin.html: choose Admin, then the existing admin password.");
   Logger.log("Drive folder: " + folder.getName() + " (" + folder.getUrl() + ")");
+}
+
+/**
+ * Run this once (function dropdown → authorizeFlyerFeature → Run) after
+ * adding the flyer feature, so Google prompts for the extra Slides
+ * permission it needs. Deploying a new version does not trigger that
+ * prompt by itself — only an interactive Run in the editor does. Safe to
+ * delete this function afterward; it cleans up its own test file.
+ */
+function authorizeFlyerFeature() {
+  const test = SlidesApp.create("VJN flyer auth test - delete me");
+  Logger.log("Slides access works. Deleting the test file: " + test.getUrl());
+  DriveApp.getFileById(test.getId()).setTrashed(true);
+}
+
+/**
+ * Debug helper: runs the same steps generateFlyerThumbnail_ does for one
+ * FlyerTemplates row, but WITHOUT swallowing errors, so the real failure
+ * shows up in the Execution log. Edit the template_id below if needed. Safe
+ * to delete once the flyer feature is working.
+ */
+/**
+ * Clears cached flyer thumbnails so the next gallery load re-renders each
+ * slide_index correctly. Run once from the Apps Script editor after fixing
+ * export, or after redesigning slides. Safe to keep.
+ */
+function refreshAllFlyerThumbnails() {
+  ensureSheet_(FLYER_TEMPLATES_SHEET, FLYER_TEMPLATE_HEADERS);
+  const sheet = ss_().getSheetByName(FLYER_TEMPLATES_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) {
+    Logger.log("No flyer templates.");
+    return;
+  }
+  const headers = rows[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  const thumbCol = headers.indexOf("thumbnail_url");
+  if (thumbCol < 0) throw new Error("thumbnail_url column missing.");
+  let refreshed = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue;
+    const item = rowToItem_(headers, rows[i], i);
+    if (/^no$/i.test(String(item.active || "yes"))) continue;
+    sheet.getRange(i + 1, thumbCol + 1).setValue("");
+    const url = generateFlyerThumbnail_({
+      slide_id: item.slide_id,
+      slide_index: item.slide_index,
+      label: item.label,
+    });
+    if (url) {
+      sheet.getRange(i + 1, thumbCol + 1).setValue(url);
+      refreshed++;
+      Logger.log(item.template_id + " → slide " + normalizeFlyerSlideIndex_(item.slide_index) + " → " + url);
+    } else {
+      Logger.log("FAILED " + item.template_id + " slide_index=" + item.slide_index);
+    }
+  }
+  Logger.log("Refreshed " + refreshed + " thumbnail(s).");
 }
 
 function promptSetAdminPassword() {
@@ -275,6 +434,10 @@ function doPost(e) {
       saveVolunteeringInterest(data);
       return json_({ success: true });
     }
+    if (formType === "volunteerAttendance") {
+      saveVolunteerAttendance(data);
+      return json_({ success: true });
+    }
 
     if (formType === "adminLogin") {
       return json_(adminLogin(data));
@@ -304,11 +467,23 @@ function doPost(e) {
     if (formType === "adminGetImage") {
       return json_(adminGetImage(data));
     }
+    if (formType === "adminGenerateFlyer") {
+      return json_(adminGenerateFlyer(data));
+    }
+    if (formType === "adminPreviewFlyerPptx") {
+      return json_(adminPreviewFlyerPptx(data));
+    }
+    if (formType === "adminImportFlyerTemplate") {
+      return json_(adminImportFlyerTemplate(data));
+    }
     if (formType === "adminSaveSite") {
       return json_(adminSaveSite(data));
     }
     if (formType === "adminUpdateInquiry") {
       return json_(adminUpdateInquiry(data));
+    }
+    if (formType === "adminInquiriesAddedToGroup") {
+      return json_(adminInquiriesAddedToGroup(data));
     }
     if (formType === "adminSaveUser") {
       return json_(adminSaveUser(data));
@@ -328,10 +503,28 @@ function doPost(e) {
     if (formType === "adminUnmarkPromotionSent") {
       return json_(adminUnmarkPromotionSent(data));
     }
+    if (formType === "adminSaveVolunteerNeed") {
+      return json_(adminSaveVolunteerNeed(data));
+    }
+    if (formType === "adminAddEventVolunteer") {
+      return json_(adminAddEventVolunteer(data));
+    }
+    if (formType === "adminUpdateEventVolunteer") {
+      return json_(adminUpdateEventVolunteer(data));
+    }
+    if (formType === "adminDeleteEventVolunteer") {
+      return json_(adminDeleteEventVolunteer(data));
+    }
+    if (formType === "adminMarkVolunteersInGroup") {
+      return json_(adminMarkVolunteersInGroup(data));
+    }
+    if (formType === "adminCreateProgramVolunteerForm") {
+      return json_(adminCreateProgramVolunteerForm(data));
+    }
 
     return json_({
       error:
-        "Unknown formType. Use homeQuery, programInterest, programVolunteer, volunteeringInterest, or admin actions.",
+        "Unknown formType. Use homeQuery, programInterest, programVolunteer, volunteeringInterest, volunteerAttendance, or admin actions.",
     });
   } catch (err) {
     return json_({ error: err.message });
@@ -668,6 +861,10 @@ function adminRead_(data) {
     if (groupKey) return getInquiryGroup_(groupKey);
     return getInquiryMeta_();
   }
+  if (type === "inviteMessages") {
+    requireRole_(token, ["admin", "nurturing"]);
+    return { messages: programInviteMessages_() };
+  }
   if (type === "promotions") {
     requireRole_(token, ["admin", "promotions"]);
     const dueOnly = String((data && data.due) || "") === "1";
@@ -676,6 +873,35 @@ function adminRead_(data) {
   if (type === "users") {
     requireRole_(token, ["admin"]);
     return { users: listUsersPublic_() };
+  }
+  if (type === "volunteerNeeds") {
+    requireRole_(token, ["admin", "nurturing", "programs"]);
+    return getVolunteerNeeds_();
+  }
+  if (type === "formTemplates") {
+    requireRole_(token, ["admin", "nurturing"]);
+    return {
+      templates: FORM_TEMPLATES.map(function (t) {
+        return { id: t.id, name: t.name, type: t.type || "single-program", slotPlaceholder: t.slotPlaceholder || "", slotQuestion: t.slotQuestion || "" };
+      }),
+    };
+  }
+  if (type === "formTemplateQuestions") {
+    requireRole_(token, ["admin", "nurturing"]);
+    return { questions: formTemplateQuestions_(String((data && data.templateId) || "")) };
+  }
+  if (type === "programTitles") {
+    requireRole_(token, ["admin", "programs"]);
+    return { titles: listProgramTitles_() };
+  }
+  if (type === "flyerTemplates") {
+    requireRole_(token, ["admin", "programs"]);
+    const title = String((data && data.title) || "").trim();
+    return { templates: listFlyerTemplates_(title) };
+  }
+  if (type === "flyerImportConfig") {
+    requireRole_(token, ["admin"]);
+    return getFlyerImportConfig_();
   }
   throw new Error("Unknown type");
 }
@@ -696,6 +922,10 @@ function valueForHeader_(item, header) {
   if (item[header] !== undefined && item[header] !== null) return String(item[header]).trim();
   if (header === "register link" || header === "registerlink") {
     const v = item.registerlink || item["register link"] || item.registerLink;
+    if (v !== undefined && v !== null) return String(v).trim();
+  }
+  if (header === "free offering" || header === "free_offering" || header === "freeoffering") {
+    const v = item.free_offering || item["free offering"] || item.freeoffering;
     if (v !== undefined && v !== null) return String(v).trim();
   }
   if (header === "start date" || header === "startdate") {
@@ -736,12 +966,19 @@ function valueForHeader_(item, header) {
   return undefined;
 }
 
+/** Strips zero-width/invisible Unicode characters that sneak in from copy-paste
+ * (word joiner, zero-width space/joiners, BOM) \u2014 invisible in the sheet, but
+ * enough to make an otherwise-identical title fail an exact-match comparison. */
+function stripInvisibleChars_(s) {
+  return s.replace(/[\u200b-\u200d\u2060\ufeff]/g, "");
+}
+
 function cellToDisplay_(value) {
   if (value instanceof Date && !isNaN(value.getTime())) {
     return Utilities.formatDate(value, PROGRAM_TZ_, "yyyy-MM-dd");
   }
   if (value === undefined || value === null) return "";
-  return String(value).replace(/\u00a0/g, " ").trim();
+  return stripInvisibleChars_(String(value).replace(/\u00a0/g, " ")).trim();
 }
 
 function cellToHm_(value) {
@@ -1140,6 +1377,802 @@ function adminGetImage(data) {
   };
 }
 
+function listProgramTitles_() {
+  ensureSheet_(PROGRAM_TITLES_SHEET, PROGRAM_TITLE_HEADERS);
+  const sheet = ss_().getSheetByName(PROGRAM_TITLES_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  const titleIdx = headers.indexOf("title");
+  const activeIdx = headers.indexOf("active");
+  const titles = [];
+  for (let i = 1; i < rows.length; i++) {
+    const title = cellToDisplay_(rows[i][titleIdx]);
+    if (!title) continue;
+    if (activeIdx >= 0 && /^no$/i.test(cellToDisplay_(rows[i][activeIdx]))) continue;
+    titles.push(title);
+  }
+  return titles;
+}
+
+function parseFlyerProgramTitles_(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return [];
+  if (s.charAt(0) === "[") {
+    try {
+      const arr = JSON.parse(s);
+      if (Array.isArray(arr)) {
+        return arr
+          .map(function (t) {
+            return String(t || "").trim();
+          })
+          .filter(Boolean);
+      }
+    } catch (e) {
+      // fall through
+    }
+  }
+  if (s.indexOf("\n") >= 0 || s.indexOf("|") >= 0) {
+    return s
+      .split(/\n|\|/)
+      .map(function (t) {
+        return t.trim();
+      })
+      .filter(Boolean);
+  }
+  return [s];
+}
+
+function serializeFlyerProgramTitles_(titles) {
+  const list = (titles || [])
+    .map(function (t) {
+      return String(t || "").trim();
+    })
+    .filter(Boolean);
+  if (!list.length) return "";
+  if (list.length === 1) return list[0];
+  return JSON.stringify(list);
+}
+
+function flyerMatchesProgramTitle_(raw, wantedTitle) {
+  const wanted = stripInvisibleChars_(String(wantedTitle || "")).trim().toLowerCase();
+  if (!wanted) return true;
+  const titles = parseFlyerProgramTitles_(raw);
+  for (let i = 0; i < titles.length; i++) {
+    if (titles[i].toLowerCase() === wanted) return true;
+  }
+  return false;
+}
+
+function listFlyerTemplates_(title) {
+  ensureSheet_(FLYER_TEMPLATES_SHEET, FLYER_TEMPLATE_HEADERS);
+  const sheet = ss_().getSheetByName(FLYER_TEMPLATES_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  const thumbCol = headers.indexOf("thumbnail_url");
+  const wanted = String(title || "").trim();
+  const templates = [];
+  const thumbOwner = {}; // thumbnail_url → "slide_id|slide_index"
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0]) continue;
+    const item = rowToItem_(headers, row, i);
+    if (wanted && !flyerMatchesProgramTitle_(item.program_title, wanted)) continue;
+    if (/^no$/i.test(String(item.active || "yes"))) continue;
+    let fields = [];
+    try {
+      fields = JSON.parse(item.fields_json || "[]");
+    } catch (e) {
+      fields = [];
+    }
+
+    const slideIndex = normalizeFlyerSlideIndex_(item.slide_index);
+    const slideKey = String(item.slide_id || "").trim() + "|" + slideIndex;
+    let thumbnailUrl = String(item.thumbnail_url || "").trim();
+
+    // Same cached PNG claimed by two different slides → force a fresh render.
+    if (thumbnailUrl && thumbOwner[thumbnailUrl] && thumbOwner[thumbnailUrl] !== slideKey) {
+      thumbnailUrl = "";
+    }
+
+    if (!thumbnailUrl) {
+      thumbnailUrl = generateFlyerThumbnail_({
+        slide_id: item.slide_id,
+        slide_index: slideIndex,
+        label: item.label,
+      });
+      if (thumbnailUrl && thumbCol >= 0) {
+        sheet.getRange(i + 1, thumbCol + 1).setValue(thumbnailUrl);
+      }
+    }
+    if (thumbnailUrl) thumbOwner[thumbnailUrl] = slideKey;
+
+    templates.push({
+      template_id: item.template_id,
+      label: item.label,
+      thumbnail_url: thumbnailUrl,
+      slide_index: slideIndex,
+      program_titles: parseFlyerProgramTitles_(item.program_title),
+      fields: fields,
+    });
+  }
+  return templates;
+}
+
+/**
+ * Renders a flyer's slide as-is (placeholders unfilled) straight from its
+ * source Slides file, and saves it to Drive as that flyer's thumbnail. Runs
+ * automatically the first time a flyer with no thumbnail_url is listed, and
+ * the result is cached back into the sheet — clear that cell to force a
+ * fresh thumbnail after redesigning the slide.
+ */
+function generateFlyerThumbnail_(template) {
+  if (!template.slide_id) return "";
+  try {
+    const pageId = resolveFlyerSlidePageId_(template.slide_id, template.slide_index);
+    const blob = exportSlidePng_(template.slide_id, pageId);
+    const safeName = String(template.label || "flyer").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    blob.setName(safeName + "-thumb-" + new Date().getTime() + ".png");
+    const folder = getCentreImagesFolder_();
+    const outFile = folder.createFile(blob);
+    outFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return "https://drive.google.com/uc?id=" + outFile.getId();
+  } catch (e) {
+    return "";
+  }
+}
+
+/** 1-based slide number; blank/invalid → 1 (first slide). */
+function normalizeFlyerSlideIndex_(slideIndexRaw) {
+  const requestedIndex = parseInt(slideIndexRaw, 10);
+  return !isNaN(requestedIndex) && requestedIndex > 0 ? requestedIndex : 1;
+}
+
+/** Finds the slide_index'th slide (1-based; blank/1 = first) in a presentation and returns its object id. */
+function resolveFlyerSlidePageId_(presentationId, slideIndexRaw) {
+  const presentation = SlidesApp.openById(presentationId);
+  const slides = presentation.getSlides();
+  const slideIndex = normalizeFlyerSlideIndex_(slideIndexRaw) - 1;
+  if (slideIndex >= slides.length) {
+    throw new Error("slide_index (" + slideIndexRaw + ") doesn't exist in this Slides file.");
+  }
+  return slides[slideIndex].getObjectId();
+}
+
+/**
+ * Exports one slide as a PNG blob.
+ * Prefer the Slides API thumbnail endpoint (reliable per pageObjectId).
+ * Fall back to the docs export URL if needed.
+ */
+function exportSlidePng_(presentationId, pageId) {
+  const token = ScriptApp.getOAuthToken();
+  const thumbMetaUrl =
+    "https://slides.googleapis.com/v1/presentations/" +
+    encodeURIComponent(presentationId) +
+    "/pages/" +
+    encodeURIComponent(pageId) +
+    "/thumbnail?thumbnailProperties.mimeType=PNG&thumbnailProperties.thumbnailSize=LARGE";
+  const metaRes = UrlFetchApp.fetch(thumbMetaUrl, {
+    headers: { Authorization: "Bearer " + token },
+    muteHttpExceptions: true,
+  });
+  if (metaRes.getResponseCode() === 200) {
+    try {
+      const meta = JSON.parse(metaRes.getContentText());
+      if (meta && meta.contentUrl) {
+        const imgRes = UrlFetchApp.fetch(meta.contentUrl, { muteHttpExceptions: true });
+        if (imgRes.getResponseCode() === 200) {
+          return imgRes.getBlob().setContentType("image/png");
+        }
+      }
+    } catch (e) {
+      // fall through to docs export
+    }
+  }
+
+  const exportUrl =
+    "https://docs.google.com/presentation/d/" +
+    presentationId +
+    "/export/png?pageid=" +
+    encodeURIComponent(pageId);
+  const response = UrlFetchApp.fetch(exportUrl, {
+    headers: { Authorization: "Bearer " + token },
+    muteHttpExceptions: true,
+  });
+  if (response.getResponseCode() !== 200) {
+    throw new Error("Could not render the slide image.");
+  }
+  return response.getBlob();
+}
+
+function findFlyerTemplateRow_(templateId) {
+  ensureSheet_(FLYER_TEMPLATES_SHEET, FLYER_TEMPLATE_HEADERS);
+  const sheet = ss_().getSheetByName(FLYER_TEMPLATES_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return null;
+  const headers = rows[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  const wanted = String(templateId || "").trim();
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0]) continue;
+    const item = rowToItem_(headers, row, i);
+    if (String(item.template_id || "").trim() === wanted) return item;
+  }
+  return null;
+}
+
+/**
+ * Fills a flyer's Google Slides template with the submitted field values and
+ * returns a PNG. Each template is its own single-slide file so its custom
+ * page size (square, A4, etc.) carries straight through to the exported PNG.
+ */
+function adminGenerateFlyer(data) {
+  requireRole_(data.token, ["admin", "programs"]);
+  const templateId = String(data.templateId || "").trim();
+  if (!templateId) throw new Error("Choose a flyer.");
+  const template = findFlyerTemplateRow_(templateId);
+  if (!template) throw new Error("Flyer template not found.");
+  if (!template.slide_id) throw new Error("This flyer has no Slides template linked.");
+
+  let fields = [];
+  try {
+    fields = JSON.parse(template.fields_json || "[]");
+  } catch (e) {
+    fields = [];
+  }
+  const fieldValues = data.fields || {};
+  for (let i = 0; i < fields.length; i++) {
+    const key = fields[i].key;
+    if (fields[i].required && !String(fieldValues[key] || "").trim()) {
+      throw new Error("Fill in " + (fields[i].label || key) + ".");
+    }
+  }
+
+  const sourceFile = DriveApp.getFileById(template.slide_id);
+  const copy = sourceFile.makeCopy("Flyer render - " + template.label + " - " + new Date().getTime());
+  try {
+    const presentation = SlidesApp.openById(copy.getId());
+    const pageId = resolveFlyerSlidePageId_(copy.getId(), template.slide_index);
+    // replaceAllText touches every slide in this throwaway copy, not just the
+    // target one — harmless since only the target slide gets exported below.
+    fields.forEach(function (f) {
+      const value = String(fieldValues[f.key] !== undefined ? fieldValues[f.key] : "");
+      presentation.replaceAllText("{{" + f.key + "}}", value);
+    });
+    presentation.saveAndClose();
+
+    const safeName = String(template.label || "flyer").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const blob = exportSlidePng_(copy.getId(), pageId).setName(safeName + "-" + new Date().getTime() + ".png");
+    const folder = getCentreImagesFolder_();
+    const outFile = folder.createFile(blob);
+    outFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return { success: true, url: "https://drive.google.com/uc?id=" + outFile.getId(), fileId: outFile.getId() };
+  } finally {
+    copy.setTrashed(true);
+  }
+}
+
+// --- Flyer template import (PPTX upload from admin) ---
+// Requires Advanced Google service: Drive API (v3 default; v2 also works).
+const FLYER_PPTX_MAX_BYTES = 8 * 1024 * 1024;
+const FLYER_SQUARE_MASTER_PROP = "FLYER_SQUARE_MASTER_ID";
+// Existing square-flyer deck — all square PPTX imports append slides here.
+const FLYER_SQUARE_MASTER_DEFAULT = "1Dy1DGOYKfh3NwuGSAmelbraQ4pF4uCp_mLun_SteZNQ";
+
+function ensureDriveApi_() {
+  if (typeof Drive === "undefined" || !Drive.Files) {
+    throw new Error(
+      "Enable the Drive API advanced service in Apps Script (Services → Drive API), then redeploy."
+    );
+  }
+  if (typeof Drive.Files.create !== "function" && typeof Drive.Files.insert !== "function") {
+    throw new Error(
+      "Drive API is enabled but Files.create/insert is missing. In Services, set Drive API to v3 (or v2), save, then redeploy."
+    );
+  }
+}
+
+function flyerImportScratchFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const key = "FLYER_IMPORT_SCRATCH_FOLDER_ID";
+  const saved = props.getProperty(key);
+  if (saved) {
+    try {
+      return DriveApp.getFolderById(saved);
+    } catch (e) {
+      // fall through
+    }
+  }
+  const folder = DriveApp.createFolder("VJN flyer imports (scratch)");
+  folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
+  props.setProperty(key, folder.getId());
+  return folder;
+}
+
+/** Resolves the square master Slides file. Prefers script property, else the known deck. */
+function resolveSquareFlyerMasterId_() {
+  const props = PropertiesService.getScriptProperties();
+  const candidates = [
+    props.getProperty(FLYER_SQUARE_MASTER_PROP),
+    FLYER_SQUARE_MASTER_DEFAULT,
+  ];
+  for (let i = 0; i < candidates.length; i++) {
+    const id = String(candidates[i] || "").trim();
+    if (!id) continue;
+    try {
+      DriveApp.getFileById(id);
+      if (props.getProperty(FLYER_SQUARE_MASTER_PROP) !== id) {
+        props.setProperty(FLYER_SQUARE_MASTER_PROP, id);
+      }
+      return id;
+    } catch (e) {
+      // try next
+    }
+  }
+  throw new Error(
+    "Square flyer master Slides file not found. Check FLYER_SQUARE_MASTER_DEFAULT / script property FLYER_SQUARE_MASTER_ID."
+  );
+}
+
+function getOrCreateSquareFlyerMasterId_() {
+  return resolveSquareFlyerMasterId_();
+}
+
+function getFlyerImportConfig_() {
+  let masterId = "";
+  let slideCount = 0;
+  let masterUrl = "";
+  try {
+    masterId = resolveSquareFlyerMasterId_();
+    const pres = SlidesApp.openById(masterId);
+    slideCount = pres.getSlides().length;
+    masterUrl = pres.getUrl();
+  } catch (e) {
+    masterId = FLYER_SQUARE_MASTER_DEFAULT;
+  }
+  const driveOk =
+    typeof Drive !== "undefined" &&
+    Drive.Files &&
+    (typeof Drive.Files.create === "function" || typeof Drive.Files.insert === "function");
+  return {
+    masterConfigured: !!masterUrl,
+    masterSlideId: masterId,
+    masterUrl: masterUrl,
+    slideCount: slideCount,
+    driveApiRequired: !driveOk,
+  };
+}
+
+function decodeFlyerPptxUpload_(data) {
+  const raw = String((data && data.base64) || "").replace(/\s/g, "");
+  if (!raw) throw new Error("Choose a PPTX file to upload.");
+  const bytes = Utilities.base64Decode(raw);
+  if (bytes.length > FLYER_PPTX_MAX_BYTES) {
+    throw new Error("File is too large (max " + Math.round(FLYER_PPTX_MAX_BYTES / (1024 * 1024)) + " MB).");
+  }
+  const name = String((data && data.filename) || "flyer-template.pptx").trim() || "flyer-template.pptx";
+  if (!/\.pptx$/i.test(name)) throw new Error("Upload a .pptx file exported from Canva.");
+  const blob = Utilities.newBlob(bytes, "application/vnd.openxmlformats-officedocument.presentationml.presentation", name);
+  return { blob: blob, title: name.replace(/\.pptx$/i, "") };
+}
+
+const FLYER_IMAGE_MIME_BY_EXT_ = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+
+function isFlyerImageFilename_(name) {
+  return /\.(png|jpe?g|webp)$/i.test(String(name || ""));
+}
+
+/** Decodes a plain PNG/JPG/WEBP flyer upload — no placeholders to detect, used as a static flyer. */
+function decodeFlyerImageUpload_(data) {
+  const raw = String((data && data.base64) || "").replace(/\s/g, "");
+  if (!raw) throw new Error("Choose a flyer image to upload.");
+  const bytes = Utilities.base64Decode(raw);
+  if (bytes.length > FLYER_PPTX_MAX_BYTES) {
+    throw new Error("File is too large (max " + Math.round(FLYER_PPTX_MAX_BYTES / (1024 * 1024)) + " MB).");
+  }
+  const name = String((data && data.filename) || "flyer-template.png").trim() || "flyer-template.png";
+  const ext = (name.match(/\.([a-z0-9]+)$/i) || ["", ""])[1].toLowerCase();
+  const mime = FLYER_IMAGE_MIME_BY_EXT_[ext];
+  if (!mime) throw new Error("Upload a PNG, JPG, or WEBP flyer image.");
+  const blob = Utilities.newBlob(bytes, mime, name);
+  return { blob: blob, title: name.replace(/\.[a-z0-9]+$/i, "") };
+}
+
+/** Appends a new blank slide to the square master deck with the image filling it (letterboxed, not cropped). */
+/**
+ * Serializes read-append-write on the shared master deck. Two imports
+ * submitted close together would otherwise both read the same "current
+ * slide count" before either save commits, and compute the same next
+ * slide_index — this lock is what stops that collision.
+ */
+function withFlyerMasterLock_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * The slide count read right after appendSlide() can't be trusted as the
+ * final index — re-opens the deck fresh (past any stale in-memory state)
+ * and locates the appended slide by its own object id, which is always
+ * correct regardless of what else changed the slide count meanwhile.
+ */
+function resolveFlyerSlideIndexByObjectId_(masterId, objectId) {
+  const fresh = SlidesApp.openById(masterId);
+  const slides = fresh.getSlides();
+  for (let i = 0; i < slides.length; i++) {
+    if (slides[i].getObjectId() === objectId) return i + 1;
+  }
+  throw new Error("Could not locate the newly added slide in the master deck.");
+}
+
+function appendImageSlideToSquareMaster_(imageBlob) {
+  return withFlyerMasterLock_(function () {
+    const masterId = getOrCreateSquareFlyerMasterId_();
+    const master = SlidesApp.openById(masterId);
+    const countBefore = master.getSlides().length;
+    const slide = master.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    const appendedId = slide.getObjectId();
+    const pageWidth = master.getPageWidth();
+    const pageHeight = master.getPageHeight();
+    const image = slide.insertImage(imageBlob);
+    const srcW = image.getWidth();
+    const srcH = image.getHeight();
+    const scale = Math.min(pageWidth / srcW, pageHeight / srcH);
+    const newW = srcW * scale;
+    const newH = srcH * scale;
+    image.setWidth(newW);
+    image.setHeight(newH);
+    image.setLeft((pageWidth - newW) / 2);
+    image.setTop((pageHeight - newH) / 2);
+
+    const slides = master.getSlides();
+    if (countBefore === 1 && slides.length === 2 && !slideHasVisibleText_(slides[0])) {
+      slides[0].remove();
+    }
+    master.saveAndClose();
+    return { masterId: masterId, slideIndex: resolveFlyerSlideIndexByObjectId_(masterId, appendedId) };
+  });
+}
+
+/**
+ * Converts a PPTX blob to a native Google Slides file.
+ * Drive API v3 uses Files.create; older v2 uses Files.insert + convert.
+ */
+function convertPptxBlobToSlidesId_(blob, title) {
+  ensureDriveApi_();
+  const folder = flyerImportScratchFolder_();
+  const slidesTitle = title + " (import)";
+
+  if (typeof Drive.Files.create === "function") {
+    const file = Drive.Files.create(
+      {
+        name: slidesTitle,
+        mimeType: MimeType.GOOGLE_SLIDES,
+        parents: [folder.getId()],
+      },
+      blob,
+      { fields: "id,name" }
+    );
+    if (!file || !file.id) throw new Error("Could not convert PPTX to Google Slides.");
+    return file.id;
+  }
+
+  const file = Drive.Files.insert(
+    {
+      title: slidesTitle,
+      mimeType: MimeType.GOOGLE_SLIDES,
+      parents: [{ id: folder.getId() }],
+    },
+    blob,
+    { convert: true }
+  );
+  if (!file || !file.id) throw new Error("Could not convert PPTX to Google Slides.");
+  return file.id;
+}
+
+function slugFlyerFieldKey_(raw) {
+  return String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[<>{}]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+}
+
+function humanizeFlyerFieldKey_(key) {
+  return String(key || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, function (c) {
+      return c.toUpperCase();
+    });
+}
+
+function forEachTextRangeOnPageElement_(element, fn) {
+  if (!element) return;
+  const type = element.getPageElementType();
+  if (type === SlidesApp.PageElementType.GROUP) {
+    element
+      .asGroup()
+      .getChildren()
+      .forEach(function (child) {
+        forEachTextRangeOnPageElement_(child, fn);
+      });
+    return;
+  }
+  if (type === SlidesApp.PageElementType.SHAPE) {
+    const shape = element.asShape();
+    try {
+      const text = shape.getText();
+      if (text) fn(text);
+    } catch (e) {
+      // not a text shape
+    }
+    return;
+  }
+  if (type === SlidesApp.PageElementType.TABLE) {
+    const table = element.asTable();
+    for (let r = 0; r < table.getNumRows(); r++) {
+      for (let c = 0; c < table.getNumColumns(); c++) {
+        try {
+          const text = table.getCell(r, c).getText();
+          if (text) fn(text);
+        } catch (e2) {
+          // empty cell
+        }
+      }
+    }
+  }
+}
+
+function forEachTextRangeOnSlide_(slide, fn) {
+  slide.getPageElements().forEach(function (pe) {
+    forEachTextRangeOnPageElement_(pe, fn);
+  });
+}
+
+function collectFlyerTokensFromSlide_(slide) {
+  const found = [];
+  const seen = {};
+  function addToken(token) {
+    const t = String(token || "").trim();
+    if (!t || seen[t]) return;
+    seen[t] = true;
+    found.push(t);
+  }
+  forEachTextRangeOnSlide_(slide, function (textRange) {
+    const s = textRange.asString();
+    let m;
+    const angle = /<([^>]+)>/g;
+    while ((m = angle.exec(s))) addToken("<" + m[1].trim() + ">");
+    const curly = /\{\{([^}]+)\}\}/g;
+    while ((m = curly.exec(s))) addToken("{{" + m[1].trim() + "}}");
+  });
+  return found;
+}
+
+function placeholdersFromTokens_(tokens) {
+  return tokens.map(function (token) {
+    let inner = token;
+    if (/^<.+>$/.test(token)) inner = token.slice(1, -1);
+    else if (/^\{\{[\s\S]+\}\}$/.test(token)) inner = token.slice(2, -2);
+    const key = slugFlyerFieldKey_(inner);
+    return {
+      token: token,
+      key: key || "field",
+      label: humanizeFlyerFieldKey_(key || inner),
+      required: true,
+      type: /link|url|http/i.test(inner) ? "url" : "text",
+    };
+  });
+}
+
+function normalizePlaceholdersOnSlide_(slide, fields) {
+  (fields || []).forEach(function (f) {
+    const token = String(f.token || "").trim();
+    const key = String(f.key || "").trim();
+    if (!token || !key) return;
+    const replacement = "{{" + key + "}}";
+    if (token === replacement) return;
+    forEachTextRangeOnSlide_(slide, function (textRange) {
+      textRange.replaceAllText(token, replacement);
+    });
+  });
+}
+
+function slideHasVisibleText_(slide) {
+  let has = false;
+  forEachTextRangeOnSlide_(slide, function (textRange) {
+    if (String(textRange.asString() || "").trim()) has = true;
+  });
+  return has;
+}
+
+function appendPptxSlideToSquareMaster_(tempSlidesId) {
+  return withFlyerMasterLock_(function () {
+    const masterId = getOrCreateSquareFlyerMasterId_();
+    const tempPres = SlidesApp.openById(tempSlidesId);
+    if (!tempPres.getSlides().length) throw new Error("The PPTX has no slides.");
+    const importedSlide = tempPres.getSlides()[0];
+
+    const master = SlidesApp.openById(masterId);
+    const countBefore = master.getSlides().length;
+    const appended = master.appendSlide(importedSlide);
+    const appendedId = appended.getObjectId();
+    const slides = master.getSlides();
+    if (countBefore === 1 && slides.length === 2 && !slideHasVisibleText_(slides[0])) {
+      slides[0].remove();
+    }
+    master.saveAndClose();
+    return { masterId: masterId, slideIndex: resolveFlyerSlideIndexByObjectId_(masterId, appendedId) };
+  });
+}
+
+function buildFieldsJsonForSave_(fields) {
+  const out = [];
+  (fields || []).forEach(function (f) {
+    const key = String(f.key || "").trim();
+    if (!key) return;
+    const item = {
+      key: key,
+      label: String(f.label || humanizeFlyerFieldKey_(key)).trim() || key,
+      required: f.required !== false,
+    };
+    if (f.type === "url" || f.type === "time") item.type = f.type;
+    out.push(item);
+  });
+  return out;
+}
+
+function appendFlyerTemplateRow_(row) {
+  ensureSheet_(FLYER_TEMPLATES_SHEET, FLYER_TEMPLATE_HEADERS);
+  const sheet = ss_().getSheetByName(FLYER_TEMPLATES_SHEET);
+  const headers = sheet
+    .getRange(1, 1, 1, Math.max(sheet.getLastColumn(), FLYER_TEMPLATE_HEADERS.length))
+    .getValues()[0]
+    .map(function (h) {
+      return h.toString().trim().toLowerCase();
+    });
+  const values = headers.map(function (h) {
+    if (h === "template_id") return row.template_id || "";
+    if (h === "program_title") return row.program_title || "";
+    if (h === "label") return row.label || "";
+    if (h === "thumbnail_url") return row.thumbnail_url || "";
+    if (h === "slide_id") return row.slide_id || "";
+    if (h === "slide_index") return row.slide_index || "";
+    if (h === "fields_json") return JSON.stringify(row.fields || []);
+    if (h === "active") return "yes";
+    return "";
+  });
+  sheet.appendRow(values);
+}
+
+function trashFileQuiet_(fileId) {
+  if (!fileId) return;
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+  } catch (e) {
+    // ignore
+  }
+}
+
+function adminPreviewFlyerPptx(data) {
+  requireRole_(data.token, ["admin"]);
+  const upload = decodeFlyerPptxUpload_(data);
+  let tempId = "";
+  try {
+    tempId = convertPptxBlobToSlidesId_(upload.blob, upload.title);
+    const slide = SlidesApp.openById(tempId).getSlides()[0];
+    const tokens = collectFlyerTokensFromSlide_(slide);
+    const placeholders = placeholdersFromTokens_(tokens);
+    // No placeholders is fine — it's just imported as a static flyer with
+    // no editable fields, same as a plain image upload.
+    return { success: true, placeholders: placeholders, filename: upload.blob.getName() };
+  } finally {
+    trashFileQuiet_(tempId);
+  }
+}
+
+function adminImportFlyerTemplate(data) {
+  requireRole_(data.token, ["admin"]);
+  const templateId = String(data.templateId || "").trim();
+  const label = String(data.label || "").trim();
+  let programTitles = [];
+  if (Array.isArray(data.program_titles)) {
+    programTitles = data.program_titles;
+  } else if (Array.isArray(data.programTitles)) {
+    programTitles = data.programTitles;
+  } else if (data.program_title || data.programTitle) {
+    programTitles = [data.program_title || data.programTitle];
+  }
+  const programTitleCell = serializeFlyerProgramTitles_(programTitles);
+  if (!templateId) throw new Error("Enter a template id (e.g. ie-centre-v2).");
+  if (!programTitleCell) throw new Error("Choose at least one program.");
+  if (!label) throw new Error("Enter a short label for the flyer picker.");
+  if (findFlyerTemplateRow_(templateId)) throw new Error("That template id is already in use.");
+
+  const filename = String(data.filename || "");
+  const isImage = isFlyerImageFilename_(filename);
+  const upload = isImage ? decodeFlyerImageUpload_(data) : decodeFlyerPptxUpload_(data);
+  let tempId = "";
+  try {
+    const appended = isImage
+      ? appendImageSlideToSquareMaster_(upload.blob)
+      : (function () {
+          tempId = convertPptxBlobToSlidesId_(upload.blob, upload.title);
+          return appendPptxSlideToSquareMaster_(tempId);
+        })();
+    const master = SlidesApp.openById(appended.masterId);
+    const slide = master.getSlides()[appended.slideIndex - 1];
+
+    // Images have no editable text to scan, and a PPTX with no {{placeholders}}
+    // is a valid static flyer too — either way, an empty field list is fine.
+    let fieldDefs = Array.isArray(data.fields) ? data.fields : [];
+    if (!fieldDefs.length && !isImage) {
+      fieldDefs = placeholdersFromTokens_(collectFlyerTokensFromSlide_(slide));
+    }
+    fieldDefs = fieldDefs.map(function (f) {
+      return {
+        token: String(f.token || "").trim(),
+        key: slugFlyerFieldKey_(f.key || f.token || ""),
+        label: String(f.label || "").trim(),
+        required: f.required !== false,
+        type: f.type === "url" || f.type === "time" ? f.type : "text",
+      };
+    });
+    fieldDefs = fieldDefs.filter(function (f) {
+      return f.key;
+    });
+
+    if (fieldDefs.length) normalizePlaceholdersOnSlide_(slide, fieldDefs);
+    master.saveAndClose();
+
+    const fieldsJson = buildFieldsJsonForSave_(fieldDefs);
+    const thumbnailUrl = generateFlyerThumbnail_({
+      slide_id: appended.masterId,
+      slide_index: appended.slideIndex,
+      label: label,
+    });
+    const savedTitles = parseFlyerProgramTitles_(programTitleCell);
+    appendFlyerTemplateRow_({
+      template_id: templateId,
+      program_title: programTitleCell,
+      label: label,
+      thumbnail_url: thumbnailUrl,
+      slide_id: appended.masterId,
+      slide_index: appended.slideIndex,
+      fields: fieldsJson,
+    });
+
+    const cfg = getFlyerImportConfig_();
+    return {
+      success: true,
+      template_id: templateId,
+      slide_id: appended.masterId,
+      slide_index: appended.slideIndex,
+      thumbnail_url: thumbnailUrl,
+      program_titles: savedTitles,
+      masterUrl: cfg.masterUrl,
+      fields: fieldsJson,
+    };
+  } finally {
+    trashFileQuiet_(tempId);
+  }
+}
+
 function getCentreImagesFolder_() {
   const props = PropertiesService.getScriptProperties();
   const savedId = props.getProperty("DRIVE_FOLDER_ID");
@@ -1246,6 +2279,9 @@ function getAllItems(sheetName, includeHidden) {
   });
   const items = [];
 
+  // How many volunteers Nurturing has recruited per program, for a progress line.
+  const volunteerCounts = sheetName === PROGRAMS_SHEET ? evVolunteerCountsByEvent_() : null;
+
   for (let i = 1; i < rows.length; i++) {
     let row = rows[i];
     if (!row[0]) continue;
@@ -1267,6 +2303,9 @@ function getAllItems(sheetName, includeHidden) {
     const item = rowToItem_(headers, row, i);
     if (sheetName === PROGRAMS_SHEET || sheetName === VOLUNTEER_SHEET) {
       enrichListingDates_(item, headers, row);
+    }
+    if (volunteerCounts) {
+      item.volunteers_added = volunteerCounts[String(item.id)] || 0;
     }
     items.push(item);
   }
@@ -1358,7 +2397,7 @@ const INQUIRY_DEFS = [
     key: "homeQueries",
     sheet: HOME_QUERIES_SHEET,
     title: "Home queries",
-    headers: ["Timestamp", "Name", "WhatsApp", "Area", "Query", "Status", "Remarks"],
+    headers: ["Timestamp", "Name", "WhatsApp", "Area", "Query", "Status", "Remarks", "In Group"],
   },
   {
     key: "programInterest",
@@ -1374,13 +2413,26 @@ const INQUIRY_DEFS = [
       "Search Keyword",
       "Status",
       "Remarks",
+      "Invite Sent",
+      "In Group",
     ],
   },
   {
     key: "programVolunteer",
     sheet: PROGRAM_VOLUNTEER_SHEET,
     title: "Program volunteer",
-    headers: ["Timestamp", "Name", "WhatsApp", "Area", "Program Name", "Program ID", "Status", "Remarks"],
+    headers: [
+      "Timestamp",
+      "Name",
+      "WhatsApp",
+      "Area",
+      "Program Name",
+      "Program ID",
+      "Status",
+      "Remarks",
+      "In Group",
+      "IE Completion",
+    ],
   },
   {
     key: "volunteeringInterest",
@@ -1395,6 +2447,25 @@ const INQUIRY_DEFS = [
       "Opportunity ID",
       "Status",
       "Remarks",
+      "In Group",
+      "IE Completion",
+    ],
+  },
+  {
+    key: "volunteerAttendance",
+    sheet: VOLUNTEER_ATTENDANCE_SHEET,
+    title: "Volunteer attendance",
+    headers: [
+      "Timestamp",
+      "Name",
+      "WhatsApp",
+      "Area",
+      "Program Name",
+      "Program ID",
+      "Consent",
+      "Status",
+      "Remarks",
+      "In Group",
     ],
   },
 ];
@@ -1587,8 +2658,56 @@ function adminUpdateInquiry(data) {
   const row = sheet.getRange(rowIndex + 1, 1, 1, headers.length).getValues()[0];
   row[statusIx] = status;
   row[remarksIx] = remarks;
+  const inviteIx = headers.indexOf("invite sent");
+  let inviteSent;
+  if (data.inviteSent !== undefined && inviteIx >= 0) {
+    inviteSent = data.inviteSent ? nowIsoKolkata_() : "";
+    row[inviteIx] = inviteSent;
+  }
+  const groupIx = headers.indexOf("in group");
+  let inGroup;
+  if (data.inGroup !== undefined && groupIx >= 0) {
+    inGroup = data.inGroup ? String(data.inGroup).trim() + " · " + nowIsoKolkata_().slice(0, 10) : "";
+    row[groupIx] = inGroup;
+  }
   sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([row]);
-  return { success: true, status: status };
+  return { success: true, status: status, inviteSent: inviteSent, inGroup: inGroup };
+}
+
+/**
+ * Enquiries Sandesha just added to a WhatsApp group: record the group in
+ * "In Group" and mark each one Resolved. data.items = [{ sheet, id }], data.group = group name.
+ */
+function adminInquiriesAddedToGroup(data) {
+  requireRole_(data.token, ["admin", "nurturing"]);
+  const items = Array.isArray(data && data.items) ? data.items : [];
+  const groupName = String((data && data.group) || "").trim() || "WhatsApp group";
+  const stamp = groupName + " · " + nowIsoKolkata_().slice(0, 10);
+  const bySheet = {};
+  items.forEach(function (it) {
+    const key = String((it && it.sheet) || "");
+    if (!inquiryDefByKey_(key)) return;
+    (bySheet[key] = bySheet[key] || []).push(parseInt(it.id, 10));
+  });
+  let updated = 0;
+  Object.keys(bySheet).forEach(function (key) {
+    const def = inquiryDefByKey_(key);
+    const sheet = ensureSheet_(def.sheet, def.headers);
+    const lastCol = sheet.getLastColumn() || 1;
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+      return h.toString().trim().toLowerCase();
+    });
+    const statusIx = headers.indexOf("status");
+    const groupIx = headers.indexOf("in group");
+    if (statusIx < 0 || groupIx < 0) throw new Error("Status/In Group columns missing on " + def.sheet + ".");
+    bySheet[key].forEach(function (rowIndex) {
+      if (isNaN(rowIndex) || rowIndex < 1 || rowIndex + 1 > sheet.getLastRow()) return;
+      sheet.getRange(rowIndex + 1, statusIx + 1).setValue("Resolved");
+      sheet.getRange(rowIndex + 1, groupIx + 1).setValue(stamp);
+      updated += 1;
+    });
+  });
+  return { success: true, updated: updated, inGroup: stamp };
 }
 
 function saveHomeQuery(data) {
@@ -1639,14 +2758,58 @@ function saveProgramInterest(data) {
   ]);
 }
 
+/** Appends a row by header name, so columns added later (e.g. IE Completion) land in the right place. */
+function appendByHeaders_(sheet, map) {
+  const lastCol = sheet.getLastColumn() || 1;
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  sheet.appendRow(
+    headers.map(function (h) {
+      return map[h] === undefined || map[h] === null ? "" : map[h];
+    })
+  );
+}
+
 function saveProgramVolunteer(data) {
-  const sheet = ensureSheet_(PROGRAM_VOLUNTEER_SHEET, [
+  const sheet = ensureSheet_(PROGRAM_VOLUNTEER_SHEET, inquiryDefByKey_("programVolunteer").headers);
+  appendByHeaders_(sheet, {
+    timestamp: data.timestamp || new Date().toISOString(),
+    name: data.name || "",
+    whatsapp: data.phone || "",
+    area: data.area || "",
+    "program name": (data.programName && String(data.programName).trim()) || "",
+    "program id": data.programId || "",
+    status: "Open",
+    remarks: "",
+    "ie completion": String(data.ieCompletion || "").trim(),
+  });
+}
+
+function saveVolunteeringInterest(data) {
+  const sheet = ensureSheet_(VOLUNTEERING_INTEREST_SHEET, inquiryDefByKey_("volunteeringInterest").headers);
+  appendByHeaders_(sheet, {
+    timestamp: data.timestamp || new Date().toISOString(),
+    name: data.name || "",
+    whatsapp: data.phone || "",
+    area: data.area || "",
+    "opportunity name": data.opportunityName || "",
+    "opportunity id": data.opportunityId || "",
+    status: "Open",
+    remarks: "",
+    "ie completion": String(data.ieCompletion || "").trim(),
+  });
+}
+
+function saveVolunteerAttendance(data) {
+  const sheet = ensureSheet_(VOLUNTEER_ATTENDANCE_SHEET, [
     "Timestamp",
     "Name",
     "WhatsApp",
     "Area",
     "Program Name",
     "Program ID",
+    "Consent",
     "Status",
     "Remarks",
   ]);
@@ -1657,29 +2820,7 @@ function saveProgramVolunteer(data) {
     data.area || "",
     (data.programName && String(data.programName).trim()) || "",
     data.programId || "",
-    "Open",
-    "",
-  ]);
-}
-
-function saveVolunteeringInterest(data) {
-  const sheet = ensureSheet_(VOLUNTEERING_INTEREST_SHEET, [
-    "Timestamp",
-    "Name",
-    "WhatsApp",
-    "Area",
-    "Opportunity Name",
-    "Opportunity ID",
-    "Status",
-    "Remarks",
-  ]);
-  sheet.appendRow([
-    data.timestamp || new Date().toISOString(),
-    data.name || "",
-    data.phone || "",
-    data.area || "",
-    data.opportunityName || "",
-    data.opportunityId || "",
+    data.consent ? "Yes" : "No",
     "Open",
     "",
   ]);
@@ -2137,6 +3278,18 @@ function listPromotions_(opts) {
   return { items: items, due: dueItems, counts: promoCounts_(items), stamp: stamp };
 }
 
+/** programId -> message the Promotions team wrote for that program. Text only
+ * (no flyer / schedule), so Nurturing can invite a Program-interest lead. */
+function programInviteMessages_() {
+  const out = {};
+  loadPromos_().items.forEach(function (item) {
+    if (String(item.event_type) !== "programs") return;
+    const msg = String(item.message || "").trim();
+    if (msg) out[String(item.event_id)] = msg;
+  });
+  return out;
+}
+
 function findPromoByEvent_(eventType, eventId) {
   const wantedType = String(eventType || "").trim();
   const wantedId = String(eventId || "").trim();
@@ -2163,6 +3316,8 @@ function appendPromo_(fields) {
     updated_at: nowIsoKolkata_(),
     sent_at: "",
     sent_by: "",
+    target: fields.target || "",
+    wa_schedule_ids: fields.wa_schedule_ids || "",
   };
   item.status = promoReadyStatus_(item);
   const values = loaded.headers.map(function (h) {
@@ -2226,6 +3381,7 @@ function adminSavePromotion(data) {
   if (!String(item.flyer_url || "").trim()) {
     item.flyer_url = promoFlyerSource_(item, listingMap);
   }
+  if (data.target !== undefined) item.target = String(data.target || "");
   if (data.send_at !== undefined) {
     const nextSend = sendAtKey_(data.send_at);
     const nextDay = sendAtDayKey_(nextSend);
@@ -2236,6 +3392,11 @@ function adminSavePromotion(data) {
       }
     }
     item.send_at = nextSend;
+    // Off the day board means Sandesha is no longer holding a row for it.
+    if (!nextSend && data.wa_schedule_ids === undefined) item.wa_schedule_ids = "";
+  }
+  if (data.wa_schedule_ids !== undefined) {
+    item.wa_schedule_ids = normalizeScheduleIds_(data.wa_schedule_ids);
   }
 
   if (data.clear_sent) {
@@ -2280,6 +3441,19 @@ function adminAddPromotion(data) {
   return { success: true, item: enrichPromo_(item, listingMapForPromos_()) };
 }
 
+/** Sandesha schedule ids, stored as a comma list so one promo can fan out. */
+function normalizeScheduleIds_(raw) {
+  const list = Array.isArray(raw) ? raw : String(raw || "").split(",");
+  return list
+    .map(function (v) {
+      return String(v).trim();
+    })
+    .filter(function (v) {
+      return v !== "";
+    })
+    .join(",");
+}
+
 function adminMarkPromotionSent(data) {
   const session = requireRole_(data.token, ["admin", "promotions"]);
   const loaded = loadPromos_();
@@ -2287,7 +3461,10 @@ function adminMarkPromotionSent(data) {
   if (!item) throw new Error("Promotion not found.");
   item.status = "sent";
   item.sent_at = nowIsoKolkata_();
-  item.sent_by = session.username;
+  // Sandesha delivered it on the schedule; the admin who happened to open the
+  // board did not, so record the bot rather than them.
+  item.sent_by = data.source === "sandesha" ? "sandesha" : session.username;
+  item.wa_schedule_ids = "";
   item.updated_at = item.sent_at;
   writePromoRow_(loaded.sheet, loaded.headers, item._row, item);
   const listingMap = listingMapForPromos_();
@@ -2310,4 +3487,1098 @@ function adminUnmarkPromotionSent(data) {
   item.updated_at = nowIsoKolkata_();
   writePromoRow_(loaded.sheet, loaded.headers, item._row, item);
   return { success: true, item: enrichPromo_(item, listingMapForPromos_()) };
+}
+
+/* ================================================================
+   Event volunteers — Nurturing recruits, tracks attendance, and
+   pushes attendees into a general WhatsApp group after the event.
+   One sheet (EVENT_VOLUNTEERS_SHEET), "kind" column: need | volunteer.
+   ================================================================ */
+
+function evSheet_() {
+  return ensureSheet_(EVENT_VOLUNTEERS_SHEET, EV_HEADERS);
+}
+
+function evYes_(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  return s === "yes" || s === "true" || s === "1" || s === "y";
+}
+
+/** Digits only when it looks like a dialable number (10–13, not a LID shape). */
+function evDigits_(raw) {
+  const d = String(raw || "").replace(/\D/g, "");
+  if (d.length < 10 || d.length > 13) return "";
+  if (d.charAt(0) === "1" && d.length !== 11) return "";
+  return d;
+}
+
+/** Server mirror of admin.js isVolunteerAvailableValue. */
+function programWantsVolunteers_(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  return s === "yes" || s === "true" || s === "1" || s === "y";
+}
+
+function parseVolunteersNeeded_(raw) {
+  const n = parseInt(String(raw || "").replace(/\D/g, ""), 10);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+
+function loadEventVolunteers_() {
+  const sheet = evSheet_();
+  const lastRow = sheet.getLastRow();
+  const lastCol = Math.max(sheet.getLastColumn() || 1, EV_HEADERS.length);
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  if (lastRow < 2) return { sheet: sheet, headers: headers, rows: [] };
+  const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  const rows = [];
+  for (let i = 0; i < values.length; i++) {
+    const obj = {};
+    headers.forEach(function (h, idx) {
+      const v = values[i][idx];
+      obj[h] = v === undefined || v === null ? "" : String(v).trim();
+    });
+    if (!obj.row_id) continue;
+    obj._row = i + 2;
+    rows.push(obj);
+  }
+  return { sheet: sheet, headers: headers, rows: rows };
+}
+
+function evWriteRow_(loaded, obj) {
+  const values = loaded.headers.map(function (h) {
+    if (h === "_row") return "";
+    return obj[h] === undefined || obj[h] === null ? "" : String(obj[h]);
+  });
+  loaded.sheet.getRange(obj._row, 1, 1, loaded.headers.length).setValues([values]);
+}
+
+function evAppendRow_(loaded, obj) {
+  const values = loaded.headers.map(function (h) {
+    return obj[h] === undefined || obj[h] === null ? "" : String(obj[h]);
+  });
+  loaded.sheet.appendRow(values);
+}
+
+/** { eventId: countOfVolunteerRows } — for the Programs progress line. */
+function evVolunteerCountsByEvent_() {
+  const map = {};
+  try {
+    loadEventVolunteers_().rows.forEach(function (r) {
+      if (r.kind !== "volunteer") return;
+      const id = String(r.event_id || "");
+      if (id) map[id] = (map[id] || 0) + 1;
+    });
+  } catch (err) {
+    // sheet missing — no counts
+  }
+  return map;
+}
+
+function evProgramSnapshot_(eventId) {
+  const single = getSingleItem(PROGRAMS_SHEET, String(eventId), true);
+  const item = single && single.item ? single.item : null;
+  if (!item) return null;
+  return {
+    title: item.title || "",
+    date: item.date || item.startdate || "",
+    startdate: item.startdate || "",
+    enddate: item.enddate || "",
+    status: item.status || "",
+    open: isOpenListingStatus_(item.status),
+    needed: parseVolunteersNeeded_(item.volunteers_needed || item.volunteersneeded),
+    wantsVolunteers: programWantsVolunteers_(item.volunteering_available || item.volunteeringavailable),
+    requirements: item.volunteer_requirements || "",
+  };
+}
+
+function evVolunteerView_(r) {
+  return {
+    rowId: r.row_id,
+    name: r.volunteer_name || "",
+    phone: r.phone || "",
+    remarks: r.volunteer_remarks || "",
+    area: r.area_of_stay || "",
+    ieCompletion: r.ie_completion || "",
+    attended: String(r.attended || "").toLowerCase(),
+    inGroup: evYes_(r.in_wa_group),
+    inviteSent: evYes_(r.invite_sent),
+    attendanceAt: r.attendance_at || "",
+    addedBy: r.added_by || "",
+  };
+}
+
+function evFindNeed_(loaded, eventId) {
+  const id = String(eventId || "");
+  for (let i = 0; i < loaded.rows.length; i++) {
+    if (loaded.rows[i].kind === "need" && String(loaded.rows[i].event_id) === id) return loaded.rows[i];
+  }
+  return null;
+}
+
+function evFindVolunteer_(loaded, rowId) {
+  const id = String(rowId || "");
+  for (let i = 0; i < loaded.rows.length; i++) {
+    if (loaded.rows[i].kind === "volunteer" && String(loaded.rows[i].row_id) === id) return loaded.rows[i];
+  }
+  return null;
+}
+
+/** Nurturing view: every program that asked for volunteers, joined with tracking. */
+function getVolunteerNeeds_() {
+  const programs = getAllItems(PROGRAMS_SHEET, true).items || [];
+  const loaded = loadEventVolunteers_();
+  const needByEvent = {};
+  const volsByEvent = {};
+  loaded.rows.forEach(function (r) {
+    const id = String(r.event_id || "");
+    if (!id) return;
+    if (r.kind === "need") needByEvent[id] = r;
+    else if (r.kind === "volunteer") {
+      if (!volsByEvent[id]) volsByEvent[id] = [];
+      volsByEvent[id].push(r);
+    }
+  });
+
+  const items = [];
+  let unmet = 0;
+  let awaitingAttendance = 0;
+
+  programs.forEach(function (p) {
+    if (!programWantsVolunteers_(p.volunteering_available || p.volunteeringavailable)) return;
+    const id = String(p.id);
+    const needed = parseVolunteersNeeded_(p.volunteers_needed || p.volunteersneeded);
+    const need = needByEvent[id] || null;
+    const vols = (volsByEvent[id] || []).map(evVolunteerView_);
+    vols.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    const open = isOpenListingStatus_(p.status);
+    const handled = !!(need && evYes_(need.handled));
+    const addedCount = vols.length;
+    const allAttendanceDone =
+      vols.length > 0 && vols.every(function (v) { return v.attended === "yes" || v.attended === "no"; });
+
+    if (open && addedCount < needed) unmet += 1;
+    if (!open && handled && vols.some(function (v) { return v.attended === ""; })) awaitingAttendance += 1;
+
+    items.push({
+      id: id,
+      title: p.title || "",
+      date: p.date || p.startdate || "",
+      startdate: p.startdate || "",
+      enddate: p.enddate || "",
+      slots: p.slots || [],
+      timings: p.timings || "",
+      status: p.status || "",
+      open: open,
+      needed: needed,
+      requirements: p.volunteer_requirements || "",
+      handled: handled,
+      handledRemarks: need ? need.handled_remarks || "" : "",
+      handledBy: need ? need.handled_by || "" : "",
+      handledAt: need ? need.handled_at || "" : "",
+      formId: need ? need.volunteer_form_id || "" : "",
+      formShortUrl: need ? need.volunteer_form_short_url || "" : "",
+      formFields: need ? (need.volunteer_form_fields || "").split(",").filter(Boolean) : [],
+      formTemplateId: need ? need.volunteer_form_template || "" : "",
+      volunteers: vols,
+      addedCount: addedCount,
+      allAttendanceDone: allAttendanceDone,
+    });
+  });
+
+  items.sort(function (a, b) {
+    const ra = a.open ? (a.addedCount < a.needed ? 0 : 1) : 2;
+    const rb = b.open ? (b.addedCount < b.needed ? 0 : 1) : 2;
+    if (ra !== rb) return ra - rb;
+    return String(a.startdate || "").localeCompare(String(b.startdate || ""));
+  });
+
+  return { items: items, counts: { unmet: unmet, awaitingAttendance: awaitingAttendance } };
+}
+
+function adminSaveVolunteerNeed(data) {
+  const session = requireRole_(data.token, ["admin", "nurturing"]);
+  const eventId = String((data && data.eventId) || "").trim();
+  if (!eventId) throw new Error("eventId required.");
+  const snap = evProgramSnapshot_(eventId);
+  if (!snap) throw new Error("Program not found.");
+
+  const loaded = loadEventVolunteers_();
+  let need = evFindNeed_(loaded, eventId);
+  const now = nowIsoKolkata_();
+  const handled = evYes_(data.handled);
+  const remarks = data.remarks === undefined || data.remarks === null ? "" : String(data.remarks);
+
+  if (!need) {
+    need = { row_id: Utilities.getUuid(), kind: "need", event_id: eventId, _row: null };
+  }
+  need.event_title = snap.title;
+  need.event_date = snap.date;
+  need.needed = String(snap.needed);
+  need.handled = handled ? "yes" : "no";
+  need.handled_remarks = remarks;
+  if (handled) {
+    if (!need.handled_at) need.handled_at = now;
+    need.handled_by = session.username || need.handled_by || "";
+  } else {
+    need.handled_at = "";
+    need.handled_by = "";
+    need.reminded_at = "";
+  }
+  need.updated_at = now;
+
+  if (need._row) evWriteRow_(loaded, need);
+  else evAppendRow_(loaded, need);
+  return { success: true };
+}
+
+function adminAddEventVolunteer(data) {
+  const session = requireRole_(data.token, ["admin", "nurturing", "programs"]);
+  const eventId = String((data && data.eventId) || "").trim();
+  const name = String((data && data.name) || "").trim();
+  const phone = evDigits_(data && data.phone);
+  const area = String((data && data.area) || "").trim();
+  const ieCompletion = String((data && data.ieCompletion) || "").trim();
+  const fromForm = String((data && data.addedBy) || "").toLowerCase() === "google-form";
+  if (!eventId) throw new Error("eventId required.");
+  if (!name) throw new Error("Volunteer name required.");
+  if (!phone) throw new Error("A valid phone number is required.");
+  if (!area && !fromForm) throw new Error("Area of stay is required.");
+
+  const loaded = loadEventVolunteers_();
+  let need = evFindNeed_(loaded, eventId);
+  const now = nowIsoKolkata_();
+
+  // Historically Nurturing had to click "Mark handled" before anyone could
+  // add a volunteer. Programs (and anyone else) can now add directly —
+  // silently create/confirm the need row instead of blocking on that step.
+  if (!need || !evYes_(need.handled)) {
+    const snap = evProgramSnapshot_(eventId);
+    if (!snap) throw new Error("Program not found.");
+    if (!need) {
+      need = { row_id: Utilities.getUuid(), kind: "need", event_id: eventId, _row: null };
+    }
+    need.event_title = snap.title;
+    need.event_date = snap.date;
+    need.needed = String(snap.needed);
+    need.handled = "yes";
+    need.handled_remarks = need.handled_remarks || "";
+    if (!need.handled_at) need.handled_at = now;
+    need.handled_by = session.username || need.handled_by || "";
+    need.updated_at = now;
+    if (need._row) evWriteRow_(loaded, need);
+    else evAppendRow_(loaded, need);
+  }
+
+  const dup = loaded.rows.some(function (r) {
+    return r.kind === "volunteer" && String(r.event_id) === eventId && evDigits_(r.phone) === phone;
+  });
+  if (dup) throw new Error("That number is already on this event's list.");
+
+  evAppendRow_(loaded, {
+    row_id: Utilities.getUuid(),
+    kind: "volunteer",
+    event_id: eventId,
+    event_title: need.event_title || "",
+    volunteer_name: name,
+    phone: phone,
+    volunteer_remarks: String((data && data.remarks) || ""),
+    area_of_stay: area,
+    ie_completion: ieCompletion,
+    added_by: fromForm ? "google-form" : (session.username || ""),
+    attended: "",
+    in_wa_group: "no",
+    invite_sent: "no",
+    updated_at: now,
+  });
+  return { success: true };
+}
+
+function adminUpdateEventVolunteer(data) {
+  requireRole_(data.token, ["admin", "nurturing", "programs"]);
+  const loaded = loadEventVolunteers_();
+  const row = evFindVolunteer_(loaded, data && data.rowId);
+  if (!row) throw new Error("Volunteer row not found.");
+  const now = nowIsoKolkata_();
+
+  if (data.name !== undefined) {
+    const nm = String(data.name || "").trim();
+    if (nm) row.volunteer_name = nm;
+  }
+  if (data.phone !== undefined) {
+    const p = evDigits_(data.phone);
+    if (!p) throw new Error("A valid phone number is required.");
+    row.phone = p;
+  }
+  if (data.remarks !== undefined) row.volunteer_remarks = String(data.remarks || "");
+  if (data.area !== undefined) row.area_of_stay = String(data.area || "").trim();
+  if (data.attended !== undefined) {
+    const a = String(data.attended || "").toLowerCase();
+    row.attended = a === "yes" || a === "no" ? a : "";
+    row.attendance_at = row.attended ? now : "";
+  }
+  if (data.inGroup !== undefined) row.in_wa_group = evYes_(data.inGroup) ? "yes" : "no";
+  if (data.inviteSent !== undefined) row.invite_sent = evYes_(data.inviteSent) ? "yes" : "no";
+  row.updated_at = now;
+  evWriteRow_(loaded, row);
+  return { success: true, volunteer: evVolunteerView_(row) };
+}
+
+function adminDeleteEventVolunteer(data) {
+  requireRole_(data.token, ["admin", "nurturing", "programs"]);
+  const loaded = loadEventVolunteers_();
+  const row = evFindVolunteer_(loaded, data && data.rowId);
+  if (!row) throw new Error("Volunteer row not found.");
+  loaded.sheet.deleteRow(row._row);
+  return { success: true };
+}
+
+function adminMarkVolunteersInGroup(data) {
+  requireRole_(data.token, ["admin", "nurturing"]);
+  const ids = (data && data.rowIds) || [];
+  const field = data && data.field === "inviteSent" ? "invite_sent" : "in_wa_group";
+  if (!ids.length) return { success: true, updated: 0 };
+  const loaded = loadEventVolunteers_();
+  const wanted = {};
+  ids.forEach(function (id) { wanted[String(id)] = true; });
+  const now = nowIsoKolkata_();
+  let updated = 0;
+  loaded.rows.forEach(function (r) {
+    if (r.kind !== "volunteer" || !wanted[String(r.row_id)]) return;
+    r[field] = "yes";
+    r.updated_at = now;
+    evWriteRow_(loaded, r);
+    updated += 1;
+  });
+  return { success: true, updated: updated };
+}
+
+/* ── Attendance reminder (Web Push via the Sandesha server) ──────
+   Needs Script Properties:
+     SANDESHA_API_URL        e.g. https://sandesha.example.ts.net
+     SANDESHA_INTERNAL_TOKEN  the value Sandesha prints/stores in its .env
+*/
+function ensureAttendanceTrigger_() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === "remindAttendance") return;
+    }
+    ScriptApp.newTrigger("remindAttendance").timeBased().everyMinutes(30).create();
+  } catch (err) {
+    Logger.log("Could not create attendance-reminder trigger: " + err.message);
+  }
+}
+
+function remindAttendance() {
+  const props = PropertiesService.getScriptProperties();
+  const base = String(props.getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
+  const secret = String(props.getProperty("SANDESHA_INTERNAL_TOKEN") || "");
+  if (!base || !secret) {
+    Logger.log("remindAttendance: set SANDESHA_API_URL and SANDESHA_INTERNAL_TOKEN script properties");
+    return;
+  }
+  const loaded = loadEventVolunteers_();
+  const needs = loaded.rows.filter(function (r) { return r.kind === "need" && evYes_(r.handled); });
+  if (!needs.length) return;
+
+  const volsByEvent = {};
+  loaded.rows.forEach(function (r) {
+    if (r.kind !== "volunteer") return;
+    const id = String(r.event_id);
+    if (!volsByEvent[id]) volsByEvent[id] = [];
+    volsByEvent[id].push(r);
+  });
+
+  const now = Date.now();
+  needs.forEach(function (need) {
+    const id = String(need.event_id);
+    const vols = volsByEvent[id] || [];
+    if (!vols.some(function (v) { return String(v.attended || "") === ""; })) return;
+
+    const snap = evProgramSnapshot_(id);
+    if (!snap || snap.open) return;
+
+    const last = Date.parse(need.reminded_at || "");
+    if (!isNaN(last) && now - last < 20 * 3600 * 1000) return;
+
+    try {
+      UrlFetchApp.fetch(base + "/push/notify-internal", {
+        method: "post",
+        contentType: "application/json",
+        muteHttpExceptions: true,
+        payload: JSON.stringify({
+          token: secret,
+          audience: "nurturing",
+          title: "Mark volunteer attendance",
+          body: '"' + (need.event_title || snap.title || "An event") + '" has finished — mark who came',
+          url: "admin.html#volunteering",
+          tag: "vjn-attendance-" + id,
+        }),
+      });
+      need.reminded_at = nowIsoKolkata_();
+      need.updated_at = need.reminded_at;
+      evWriteRow_(loaded, need);
+    } catch (err) {
+      Logger.log("remindAttendance push failed: " + err.message);
+    }
+  });
+}
+
+/* ── Upcoming-program reminder (Web Push via the Sandesha server) ────
+   Same Script Properties as remindAttendance:
+     SANDESHA_API_URL, SANDESHA_INTERNAL_TOKEN
+   Fires once per program, ~2 days before it starts, to everyone
+   subscribed as "programs". Dedup lives in a Script Property (a small
+   JSON map of programId -> the date it was sent) rather than a sheet
+   column, since Programs has no per-program tracking row the way
+   EventVolunteers does for attendance.
+*/
+function ensureProgramReminderTrigger_() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === "remindUpcomingPrograms") return;
+    }
+    ScriptApp.newTrigger("remindUpcomingPrograms").timeBased().everyHours(6).create();
+  } catch (err) {
+    Logger.log("Could not create program-reminder trigger: " + err.message);
+  }
+}
+
+function remindUpcomingPrograms() {
+  const props = PropertiesService.getScriptProperties();
+  const base = String(props.getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
+  const secret = String(props.getProperty("SANDESHA_INTERNAL_TOKEN") || "");
+  if (!base || !secret) {
+    Logger.log("remindUpcomingPrograms: set SANDESHA_API_URL and SANDESHA_INTERNAL_TOKEN script properties");
+    return;
+  }
+
+  const target = new Date();
+  target.setDate(target.getDate() + 2);
+  const targetStr = Utilities.formatDate(target, PROGRAM_TZ_, "yyyy-MM-dd");
+
+  const items = (getAllItems(PROGRAMS_SHEET, true).items || []).filter(function (p) {
+    if (!isOpenListingStatus_(p.status)) return false;
+    return String(p.startdate || "") === targetStr;
+  });
+  if (!items.length) return;
+
+  const sentKey = "remind2d_sent";
+  let sent = {};
+  try {
+    sent = JSON.parse(props.getProperty(sentKey) || "{}");
+  } catch (err) {
+    sent = {};
+  }
+
+  let changed = false;
+  items.forEach(function (p) {
+    const id = String(p.id);
+    if (sent[id] === targetStr) return; // already reminded for this program's 2-day mark
+
+    const timings = String(p.timings || "").split("\n")[0] || "";
+    const body = timings
+      ? '"' + p.title + '" is happening in 2 days — ' + timings
+      : '"' + (p.title || "A program") + '" is happening in 2 days';
+
+    try {
+      UrlFetchApp.fetch(base + "/push/notify-internal", {
+        method: "post",
+        contentType: "application/json",
+        muteHttpExceptions: true,
+        payload: JSON.stringify({
+          token: secret,
+          audience: "programs",
+          title: "Program in 2 days",
+          body: body,
+          url: "admin.html#events",
+          tag: "vjn-program-2d-" + id,
+        }),
+      });
+      sent[id] = targetStr;
+      changed = true;
+    } catch (err) {
+      Logger.log("remindUpcomingPrograms push failed for " + id + ": " + err.message);
+    }
+  });
+
+  if (changed) {
+    // Trim entries older than ~14 days so this property never grows unbounded.
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+    const cutoffStr = Utilities.formatDate(cutoff, PROGRAM_TZ_, "yyyy-MM-dd");
+    Object.keys(sent).forEach(function (id) {
+      if (sent[id] < cutoffStr) delete sent[id];
+    });
+    props.setProperty(sentKey, JSON.stringify(sent));
+  }
+}
+
+/* ── Google Form generation ──────────────────────────────────────────────── */
+
+/**
+ * Create (or reuse) a per-program Google Form for volunteer sign-ups.
+ *
+ * data.eventId    – required
+ * data.templateId – if set, copy the master template form and update slot choices
+ * data.slots      – array of slot strings (used when templateId is set)
+ * data.fields     – array of optional field keys for custom (no-template) path:
+ *                   "area_of_stay", "ie_completion", "volunteer_remarks"
+ * data.regenerate – if true, replace an existing form
+ *
+ * Returns { success, formId, shortUrl, formFields, templateId }
+ */
+/** Questions on a template's master form, so the app can show exactly what a
+ * generated form will contain. Cached for a few hours; the master rarely changes. */
+function formTemplateQuestions_(templateId) {
+  const tmpl = FORM_TEMPLATES.filter(function (t) { return t.id === templateId; })[0];
+  if (!tmpl) throw new Error("Unknown template.");
+  const cache = CacheService.getScriptCache();
+  const key = "vjn_tq_" + templateId;
+  try {
+    const hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+  } catch (e) { /* fall through */ }
+  const requiredGetters = {
+    TEXT: "asTextItem", PARAGRAPH_TEXT: "asParagraphTextItem", CHECKBOX: "asCheckboxItem",
+    MULTIPLE_CHOICE: "asMultipleChoiceItem", LIST: "asListItem", DATE: "asDateItem",
+    TIME: "asTimeItem", SCALE: "asScaleItem", DATETIME: "asDateTimeItem", DURATION: "asDurationItem",
+  };
+  const skip = { IMAGE: 1, VIDEO: 1, PAGE_BREAK: 1, SECTION_HEADER: 1 };
+  const out = [];
+  FormApp.openById(tmpl.masterFormId).getItems().forEach(function (item) {
+    const type = String(item.getType());
+    if (skip[type]) return;
+    let required = false;
+    try {
+      const getter = requiredGetters[type];
+      if (getter) required = !!item[getter]().isRequired();
+    } catch (e) { /* leave false */ }
+    out.push({ title: item.getTitle(), type: type, required: required, help: item.getHelpText() || "" });
+  });
+  try { cache.put(key, JSON.stringify(out), 21600); } catch (e) { /* ignore */ }
+  return out;
+}
+
+/**
+ * Coordinator-defined extra fields (any form type). Titles are remembered in Script
+ * Properties so a regenerate removes the old extras instead of duplicating them, and so
+ * the submit handler knows which answers to keep.
+ */
+function applyCustomFields_(form, data) {
+  const props = PropertiesService.getScriptProperties();
+  const key = "vjn_form_extras_" + form.getId();
+  try {
+    const prev = JSON.parse(props.getProperty(key) || "[]");
+    if (prev.length) {
+      form.getItems().forEach(function (it) {
+        if (prev.indexOf(it.getTitle()) >= 0) form.deleteItem(it);
+      });
+    }
+  } catch (e) { /* nothing to clean */ }
+  const added = [];
+  (Array.isArray(data && data.customFields) ? data.customFields : []).slice(0, 15).forEach(function (f) {
+    const title = String((f && f.title) || "").trim().slice(0, 200);
+    if (!title) return;
+    const opts = (Array.isArray(f.options) ? f.options : [])
+      .map(function (o) { return String(o || "").trim(); }).filter(Boolean);
+    let item;
+    switch (String(f.type)) {
+      case "PARAGRAPH": item = form.addParagraphTextItem(); break;
+      case "DATE": item = form.addDateItem(); break;
+      case "TIME": item = form.addTimeItem(); break;
+      case "MULTIPLE_CHOICE": if (!opts.length) return; item = form.addMultipleChoiceItem().setChoiceValues(opts); break;
+      case "CHECKBOX": if (!opts.length) return; item = form.addCheckboxItem().setChoiceValues(opts); break;
+      case "LIST": if (!opts.length) return; item = form.addListItem().setChoiceValues(opts); break;
+      default: item = form.addTextItem();
+    }
+    item.setTitle(title).setRequired(!!f.required);
+    added.push(title);
+  });
+  if (added.length) props.setProperty(key, JSON.stringify(added));
+  else props.deleteProperty(key);
+}
+
+/** "Question: answer | …" for a response's custom-field answers ("" if none). */
+function customFieldsRemark_(formId, answers) {
+  try {
+    const titles = JSON.parse(PropertiesService.getScriptProperties().getProperty("vjn_form_extras_" + formId) || "[]");
+    const parts = [];
+    titles.forEach(function (t) {
+      const v = Array.isArray(answers[t]) ? answers[t].join(", ") : String(answers[t] || "").trim();
+      if (v) parts.push(t + ": " + v);
+    });
+    return parts.join(" | ");
+  } catch (e) { return ""; }
+}
+
+function adminCreateProgramVolunteerForm(data) {
+  requireRole_(data.token, ["admin", "nurturing"]);
+  const eventId = String((data && data.eventId) || "").trim();
+  if (!eventId) throw new Error("eventId required.");
+
+  const snap = evProgramSnapshot_(eventId);
+  if (!snap) throw new Error("Program not found.");
+
+  const loaded = loadEventVolunteers_();
+  let need = evFindNeed_(loaded, eventId);
+  const now = nowIsoKolkata_();
+
+  // Reuse existing form unless the caller explicitly asked to regenerate.
+  if (!data.regenerate && need && need.volunteer_form_id) {
+    return {
+      success: true,
+      formId: need.volunteer_form_id,
+      shortUrl: need.volunteer_form_short_url || "",
+      formFields: (need.volunteer_form_fields || "").split(",").filter(Boolean),
+      templateId: need.volunteer_form_template || "",
+    };
+  }
+
+  const formTitle = String((data && data.formTitle) || "").trim()
+    || (snap.title || "Program") + " — volunteer sign-up";
+  let form;
+  let storedFields = "";
+  let programSnaps = {};   // hoisted — used later in multi-program persistence
+
+  // ── Template path: copy master form + update slot/program choices ────────
+  const templateId = String((data && data.templateId) || "").trim();
+  if (templateId) {
+    const tmpl = FORM_TEMPLATES.filter(function (t) { return t.id === templateId; })[0] || null;
+    if (!tmpl) throw new Error("Unknown template: " + templateId);
+
+    // ── Prefer updating the EXISTING form so images/theme are preserved ──
+    // Only copy the master when no form exists yet for this program.
+    const existingFormId = (need && need.volunteer_form_id) ? String(need.volunteer_form_id) : "";
+    var formIsNew = false;
+    if (existingFormId) {
+      try {
+        form = FormApp.openById(existingFormId);
+        form.setTitle(formTitle);
+        // Don't touch description — preserves prerequisite text from the original copy
+      } catch (openErr) {
+        Logger.log("Could not open existing form " + existingFormId + ": " + openErr.message + ". Creating fresh copy.");
+        form = null;
+      }
+    }
+    if (!form) {
+      // First time or form was deleted — make a fresh copy of the master
+      formIsNew = true;
+      const masterFile = DriveApp.getFileById(tmpl.masterFormId);
+      const copiedFile = masterFile.makeCopy(formTitle);
+      form = FormApp.openById(copiedFile.getId());
+      form.setTitle(formTitle);
+      form.setDescription(""); // clear any __vjn__ metadata inherited from master
+      // Insert header image as first item (makeCopy doesn't copy the banner image)
+      if (tmpl.headerImageDriveId) {
+        try {
+          var imgBlob = DriveApp.getFileById(tmpl.headerImageDriveId).getBlob();
+          var imgItem = form.addImageItem();
+          imgItem.setImage(imgBlob);
+          imgItem.setAlignment(FormApp.Alignment.CENTER);
+          // Move to top (position 0)
+          var allFormItems = form.getItems();
+          form.moveItem(allFormItems.length - 1, 0);
+          Logger.log("Header image inserted successfully.");
+        } catch (imgErr) {
+          Logger.log("Could not insert header image: " + imgErr.message);
+        }
+      }
+    }
+
+    if (tmpl.type === "multi-program") {
+      // ── Multi-program: choices = individual program titles ──────────────
+      // Collect all programs to include: primary + any additional ones
+      const allProgramIds = [eventId];
+      const extra = Array.isArray(data && data.additionalProgramIds) ? data.additionalProgramIds : [];
+      extra.forEach(function (id) { if (id && allProgramIds.indexOf(id) < 0) allProgramIds.push(String(id)); });
+
+      // Build title list for the checkbox choices
+      // programTimings is an optional map of pid → timing string (appended as "Title | Timing")
+      const timings = (data && data.programTimings) || {};
+      const choiceTitles = [];
+      allProgramIds.forEach(function (pid) {
+        const s = pid === eventId ? snap : evProgramSnapshot_(pid);
+        if (s) {
+          programSnaps[pid] = s;
+          const timing = timings[pid] ? String(timings[pid]).trim() : "";
+          // Format: "Program Title | Date | Timing"
+          const dateStr = s.date ? String(s.date).trim() : "";
+          let label = s.title;
+          if (dateStr) label += " | " + dateStr;
+          if (timing) label += " | " + timing;
+          choiceTitles.push(label);
+        }
+      });
+      if (!choiceTitles.length) throw new Error("No valid programs selected.");
+
+      // Update the checkbox question with program titles.
+      // The master form question may be MULTIPLE_CHOICE (radio) or CHECKBOX;
+      // we always want CHECKBOX so volunteers can pick multiple programs.
+      const items = form.getItems();
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].getTitle() === tmpl.slotQuestion) {
+          var itemType = items[i].getType();
+          if (itemType === FormApp.ItemType.CHECKBOX) {
+            // Already a checkbox — just update choices
+            items[i].asCheckboxItem().setChoiceValues(choiceTitles);
+          } else if (itemType === FormApp.ItemType.MULTIPLE_CHOICE) {
+            // Radio button — replace with a checkbox item at the same position
+            var mcItem = items[i].asMultipleChoiceItem();
+            var helpText = mcItem.getHelpText();
+            var isRequired = mcItem.isRequired();
+            form.deleteItem(items[i]);
+            var newCb = form.addCheckboxItem();
+            newCb.setTitle(tmpl.slotQuestion);
+            if (helpText) newCb.setHelpText(helpText);
+            newCb.setRequired(isRequired);
+            newCb.setChoiceValues(choiceTitles);
+            // Move from end to original position
+            var allItems = form.getItems();
+            form.moveItem(allItems.length - 1, i);
+          }
+          break;
+        }
+      }
+
+      // Store mapping: choice label → eventId in Script Properties
+      const mapping = {};
+      allProgramIds.forEach(function (pid) {
+        if (programSnaps[pid]) {
+          const timing = timings[pid] ? String(timings[pid]).trim() : "";
+          const dateStr = programSnaps[pid].date ? String(programSnaps[pid].date).trim() : "";
+          let label = programSnaps[pid].title;
+          if (dateStr) label += " | " + dateStr;
+          if (timing) label += " | " + timing;
+          mapping[label] = pid;
+        }
+      });
+
+      // Create/update need rows for ALL included programs
+      allProgramIds.forEach(function (pid) {
+        const s = programSnaps[pid];
+        if (!s) return;
+        let n = evFindNeed_(loaded, pid);
+        if (!n) n = { row_id: Utilities.getUuid(), kind: "need", event_id: pid, _row: null };
+        n.event_title = s.title;
+        n.event_date = s.date;
+        n.needed = String(s.needed);
+        n.volunteer_form_id = ""; // will be set after getId() below
+        n.volunteer_form_fields = "multi-program";
+        n.volunteer_form_template = templateId;
+        n.updated_at = now;
+        // Temporarily mark; real formId written after creation
+        programSnaps[pid]._needObj = n;
+      });
+      storedFields = "multi-program";
+
+    } else {
+      // ── Single-program: choices = time slots entered by user ─────────────
+      const slots = Array.isArray(data && data.slots) ? data.slots.filter(Boolean) : [];
+      if (slots.length > 0 && tmpl.slotQuestion) {
+        const items = form.getItems();
+        for (var j = 0; j < items.length; j++) {
+          if (items[j].getTitle() === tmpl.slotQuestion) {
+            var itype = items[j].getType();
+            if (itype === FormApp.ItemType.CHECKBOX) {
+              items[j].asCheckboxItem().setChoiceValues(slots);
+            } else if (itype === FormApp.ItemType.MULTIPLE_CHOICE) {
+              var mc2 = items[j].asMultipleChoiceItem();
+              var ht2 = mc2.getHelpText(); var req2 = mc2.isRequired();
+              form.deleteItem(items[j]);
+              var cb2 = form.addCheckboxItem();
+              cb2.setTitle(tmpl.slotQuestion);
+              if (ht2) cb2.setHelpText(ht2);
+              cb2.setRequired(req2);
+              cb2.setChoiceValues(slots);
+              var ai2 = form.getItems();
+              form.moveItem(ai2.length - 1, j);
+            }
+            break;
+          }
+        }
+      }
+      storedFields = "template:" + templateId;
+    }
+
+  // ── Custom path: build form from selected field checkboxes ────────────────
+  } else {
+    const requestedFields = (Array.isArray(data && data.fields) ? data.fields : [])
+      .filter(function (f) {
+        return ["area_of_stay", "ie_completion", "volunteer_remarks"].indexOf(f) >= 0;
+      });
+
+    form = FormApp.create(formTitle);
+    form.setDescription(
+      "Register as a volunteer for this program. Name and WhatsApp number are required so we can stay in touch."
+    );
+    form.setCollectEmail(false);
+
+    form.addTextItem().setTitle("Name").setRequired(true);
+    form.addTextItem().setTitle("WhatsApp number").setRequired(true)
+      .setHelpText("Include country code if needed, e.g. +91 98765 43210");
+
+    const reqMap = (data && data.fieldRequired) || {};
+    if (requestedFields.indexOf("area_of_stay") >= 0) {
+      form.addTextItem().setTitle("Area of stay").setRequired(!!reqMap.area_of_stay);
+    }
+    if (requestedFields.indexOf("ie_completion") >= 0) {
+      form.addTextItem().setTitle("IE Completion date")
+        .setHelpText("e.g. May-2024")
+        .setRequired(!!reqMap.ie_completion);
+    }
+    if (requestedFields.indexOf("volunteer_remarks") >= 0) {
+      form.addParagraphTextItem().setTitle("Remarks if any").setRequired(!!reqMap.volunteer_remarks);
+    }
+    // Optional checkbox question: volunteers pick from options the coordinator wrote.
+    const customOptions = (Array.isArray(data && data.slots) ? data.slots : [])
+      .map(function (s) { return String(s || "").trim(); })
+      .filter(Boolean);
+    const stored = requestedFields.slice();
+    if (customOptions.length) {
+      const optionTitle = String((data && data.slotQuestionTitle) || "").trim() || "How would you like to volunteer?";
+      form.addCheckboxItem().setTitle(optionTitle).setChoiceValues(customOptions).setRequired(true);
+      stored.push("custom_options");
+    }
+    storedFields = stored.join(",");
+  }
+
+  applyCustomFields_(form, data);
+
+  // Make the form live (ignore if method not available in this Apps Script version)
+  try { form.setPublished(true); } catch (e) { /* ignore */ }
+
+  const formId = form.getId();
+  const publishedUrl = form.getPublishedUrl();
+  // Reuse stored shortUrl if updating an existing form (avoids re-shortening)
+  let shortUrl = (need && need.volunteer_form_short_url && need.volunteer_form_id === formId)
+    ? need.volunteer_form_short_url
+    : publishedUrl;
+  if (shortUrl === publishedUrl) {
+    try {
+      const maybe = form.shortenFormUrl(publishedUrl);
+      if (maybe && maybe.length < publishedUrl.length) shortUrl = maybe;
+    } catch (e) {
+      Logger.log("shortenFormUrl failed: " + e.message + ". Using full URL.");
+    }
+  }
+
+  // For multi-program forms: persist choice→eventId mapping in Script Properties
+  // so onVolunteerFormSubmit can route responses to the correct program rows.
+  if (storedFields === "multi-program" && typeof mapping !== "undefined") {
+    try {
+      PropertiesService.getScriptProperties()
+        .setProperty("vjn_form_map_" + formId, JSON.stringify(mapping));
+    } catch (e) {
+      Logger.log("Could not store form mapping: " + e.message);
+    }
+  }
+
+  // Install per-form onFormSubmit trigger (once)
+  try {
+    const existingTriggers = ScriptApp.getUserTriggers(form);
+    const hasSubmit = existingTriggers.some(function (t) {
+      return t.getEventType() === ScriptApp.EventType.ON_FORM_SUBMIT;
+    });
+    if (!hasSubmit) {
+      ScriptApp.newTrigger("onVolunteerFormSubmit")
+        .forForm(form)
+        .onFormSubmit()
+        .create();
+    }
+  } catch (e) {
+    Logger.log("Could not install form trigger: " + e.message);
+  }
+
+  // Persist on the need row(s)
+  if (templateId && storedFields === "multi-program") {
+    // Multi-program: write need row for every included program
+    const allSnaps = Object.keys(programSnaps || {});
+    allSnaps.forEach(function (pid) {
+      const s = programSnaps[pid];
+      if (!s || !s._needObj) return;
+      const n = s._needObj;
+      n.volunteer_form_id = formId;
+      n.volunteer_form_short_url = shortUrl;
+      if (n._row) evWriteRow_(loaded, n);
+      else evAppendRow_(loaded, n);
+    });
+  } else {
+    // Single-program path
+    if (!need) {
+      need = { row_id: Utilities.getUuid(), kind: "need", event_id: eventId, _row: null };
+    }
+    need.event_title = snap.title;
+    need.event_date = snap.date;
+    need.needed = String(snap.needed);
+    need.volunteer_form_id = formId;
+    need.volunteer_form_short_url = shortUrl;
+    need.volunteer_form_fields = storedFields;
+    need.volunteer_form_template = templateId || "";
+    need.updated_at = now;
+    if (need._row) evWriteRow_(loaded, need);
+    else evAppendRow_(loaded, need);
+  }
+
+  return { success: true, formId: formId, shortUrl: shortUrl, formFields: storedFields, templateId: templateId };
+}
+
+/**
+ * onFormSubmit trigger — installed automatically when a volunteer form is created.
+ * Maps form answers to EventVolunteers rows (kind="volunteer").
+ *
+ * NOTE: This function must be deployed as part of the Apps Script project.
+ *       The trigger is installed per-form by adminCreateProgramVolunteerForm.
+ */
+function onVolunteerFormSubmit(e) {
+  try {
+    const formId = e.source.getId();
+    const loaded = loadEventVolunteers_();
+
+    // Find need row(s) for this form
+    var needRows = [];
+    for (var i = 0; i < loaded.rows.length; i++) {
+      var r = loaded.rows[i];
+      if (r.kind === "need" && r.volunteer_form_id === formId) {
+        needRows.push(r);
+      }
+    }
+    if (!needRows.length) return;
+
+    // Parse responses into a map keyed by question title
+    var responses = e.response.getItemResponses();
+    var answers = {};
+    responses.forEach(function (ir) {
+      var resp = ir.getResponse();
+      // Checkbox questions return an array; join for storage
+      answers[ir.getItem().getTitle()] = Array.isArray(resp) ? resp : String(resp || "").trim();
+    });
+
+    var name = String(answers["Name"] || "").trim();
+    var phone = evDigits_(answers["WhatsApp number"] || answers["WhatsApp Number"] || "");
+    if (!name || !phone) return;
+
+    var now = nowIsoKolkata_();
+
+    // ── Multi-program: create one volunteer row per selected program ──────
+    var isMulti = needRows.some(function (n) { return (n.volunteer_form_fields || "") === "multi-program"; });
+
+    if (isMulti) {
+      // Read choice→eventId mapping from Script Properties (stored at form creation time)
+      var mapping = {};
+      try {
+        var stored = PropertiesService.getScriptProperties()
+          .getProperty("vjn_form_map_" + formId);
+        if (stored) mapping = JSON.parse(stored);
+      } catch (parseErr) { /* fall through to title-match */ }
+
+      // The checkbox question answer is an array of selected program titles
+      var slotQuestion = "";
+      for (var t = 0; t < FORM_TEMPLATES.length; t++) {
+        if (FORM_TEMPLATES[t].type === "multi-program") { slotQuestion = FORM_TEMPLATES[t].slotQuestion; break; }
+      }
+      var selectedTitles = [];
+      if (slotQuestion && Array.isArray(answers[slotQuestion])) {
+        selectedTitles = answers[slotQuestion];
+      } else {
+        // Fallback: any array answer is likely the program choices
+        Object.keys(answers).forEach(function (q) {
+          if (Array.isArray(answers[q])) selectedTitles = selectedTitles.concat(answers[q]);
+        });
+      }
+
+      selectedTitles.forEach(function (title) {
+        // Find eventId from mapping, or by matching need row title
+        var eventId = mapping[title] || "";
+        if (!eventId) {
+          var matchingNeed = needRows.filter(function (n) { return n.event_title === title; })[0];
+          if (matchingNeed) eventId = String(matchingNeed.event_id);
+        }
+        if (!eventId) return; // unrecognised choice — skip
+
+        var needRow = needRows.filter(function (n) { return String(n.event_id) === eventId; })[0] || needRows[0];
+
+        // Dedup: skip if same phone+event already exists
+        var dup = loaded.rows.some(function (row) {
+          return row.kind === "volunteer" && String(row.event_id) === eventId && evDigits_(row.phone) === phone;
+        });
+        if (dup) return;
+
+        evAppendRow_(loaded, {
+          row_id: Utilities.getUuid(),
+          kind: "volunteer",
+          event_id: eventId,
+          event_title: needRow ? (needRow.event_title || title) : title,
+          volunteer_name: name,
+          phone: phone,
+          area_of_stay: String(answers["Area of stay"] || "").trim(),
+          ie_completion: String(answers["IE completion date, month and year (Ex: May-2023)"] || answers["IE Completion date"] || "").trim(),
+          volunteer_remarks: [String(answers["Remarks"] || answers["Remarks if any"] || "").trim(), customFieldsRemark_(formId, answers)].filter(Boolean).join(" | "),
+          added_by: "google-form",
+          attended: "",
+          in_wa_group: "no",
+          invite_sent: "no",
+          updated_at: now,
+        });
+      });
+
+    } else {
+      // ── Single-program: one need row, one volunteer row ───────────────
+      var needRow = needRows[0];
+      var eventId = String(needRow.event_id);
+      var formFields = (needRow.volunteer_form_fields || "").split(",").filter(Boolean);
+
+      var dup = loaded.rows.some(function (row) {
+        return row.kind === "volunteer" && String(row.event_id) === eventId && evDigits_(row.phone) === phone;
+      });
+      if (dup) return;
+
+      evAppendRow_(loaded, {
+        row_id: Utilities.getUuid(),
+        kind: "volunteer",
+        event_id: eventId,
+        event_title: needRow.event_title || "",
+        volunteer_name: name,
+        phone: phone,
+        area_of_stay: formFields.indexOf("area_of_stay") >= 0 ? String(answers["Area of stay"] || "").trim() : "",
+        ie_completion: formFields.indexOf("ie_completion") >= 0 ? String(answers["IE Completion date"] || "").trim() : "",
+        volunteer_remarks: (function () {
+          var remarks = formFields.indexOf("volunteer_remarks") >= 0 ? String(answers["Remarks if any"] || "").trim() : "";
+          // Custom forms with a choice question: keep what they picked with the volunteer.
+          if (formFields.indexOf("custom_options") >= 0) {
+            var chosen = [];
+            Object.keys(answers).forEach(function (q) {
+              if (Array.isArray(answers[q])) chosen = chosen.concat(answers[q]);
+            });
+            if (chosen.length) remarks = (remarks ? remarks + " | " : "") + "Chose: " + chosen.join(", ");
+          }
+          var extrasText = customFieldsRemark_(formId, answers);
+          if (extrasText) remarks = (remarks ? remarks + " | " : "") + extrasText;
+          return remarks;
+        })(),
+        added_by: "google-form",
+        attended: "",
+        in_wa_group: "no",
+        invite_sent: "no",
+        updated_at: now,
+      });
+    }
+  } catch (err) {
+    Logger.log("onVolunteerFormSubmit error: " + err.message);
+  }
+}
+
+/**
+ * ONE-TIME scope authorizer for FormApp.
+ * Run this once from the Apps Script editor to approve the Forms + Drive OAuth scopes.
+ * After running it and clicking Allow, you can delete this function.
+ */
+function authorizeFormApp() {
+  var form = FormApp.create("_auth_test_delete_me");
+  Logger.log("FormApp authorized. Test form URL: " + form.getPublishedUrl());
+  try { DriveApp.getFileById(form.getId()).setTrashed(true); } catch (e) {}
+  Logger.log("Test form trashed. Authorization complete — you can delete this function now.");
 }

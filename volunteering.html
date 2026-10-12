@@ -12,8 +12,8 @@
   <meta name="apple-mobile-web-app-title" content="Isha VJN"/>
   <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn"/>
-  <link rel="stylesheet" href="style.css?v=promo-dayboard"/>
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn2"/>
+  <link rel="stylesheet" href="style.css?v=vol-redesign"/>
 </head>
 <body class="volunteering-page" data-wait-load="1">
 
@@ -44,30 +44,404 @@
     </div>
   </nav>
 
-  <header class="volunteering-hero">
+  <header class="volunteering-hero vol-hero">
     <div class="container volunteering-hero-inner">
       <span class="section-label">Isha Place, Vijayanagar</span>
       <h1>Volunteering</h1>
+      <p class="vol-hero-lead">A few hours, a skill or a whole weekend &mdash; in person or from home. There are many ways to give yourself.</p>
+      <div class="vol-actions">
+        <button type="button" class="vol-btn vol-btn-primary" onclick="openQuizModal()"><span>Fill the interest form</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></button>
+        <a class="vol-btn vol-btn-ghost" href="#ways">Browse ways to volunteer</a>
+      </div>
     </div>
   </header>
 
-  <div class="volunteering-browse" id="volunteerInterestStrip">
-    <div class="container volunteering-browse-inner">
-      <p class="volunteering-browse-copy">Interested in volunteering with us?</p>
-      <button type="button" class="interest-btn" onclick="openVolunteerModal()">Express interest</button>
-    </div>
-  </div>
-
-  <section class="listings-section">
+  <section class="listings-section vol-live" id="liveOpportunitiesSection" hidden>
     <div class="container">
+      <div class="vol-section-head">
+        <span class="section-label">Open Right Now</span>
+        <h2>Current opportunities</h2>
+      </div>
       <div class="volunteering-result-bar" id="volunteeringResultBar" hidden>
         <p class="volunteering-result-count" id="volunteeringResultCount"></p>
       </div>
-      <div id="listingsContainer">
-        <div class="state-box">
-          <div class="spinner"></div>
-          <p>Loading opportunities...</p>
+      <div id="listingsContainer"></div>
+    </div>
+  </section>
+
+
+  <section class="vol-ways" id="ways">
+    <div class="container">
+      <div class="vol-section-head">
+        <span class="section-label">Ways To Volunteer</span>
+        <h2>Explore opportunities</h2>
+      </div>
+    </div>
+    <div class="vol-tabs-bar">
+      <div class="container">
+        <div class="vol-tabs" role="tablist" aria-label="Volunteering categories">
+          <button type="button" class="vol-tab" role="tab" id="tab-seva-local" data-panel="seva-local" aria-selected="true">Isha Place, Vijayanagar</button>
+          <button type="button" class="vol-tab" role="tab" id="tab-seva-emedia" data-panel="seva-emedia" aria-selected="false" tabindex="-1">E-Media</button>
+          <button type="button" class="vol-tab" role="tab" id="tab-seva-ashram" data-panel="seva-ashram" aria-selected="false" tabindex="-1" hidden>Ashram</button>
+          <button type="button" class="vol-tab" role="tab" id="tab-seva-outreach" data-panel="seva-outreach" aria-selected="false" tabindex="-1" hidden>Isha Outreach</button>
+          <button type="button" class="vol-tab" role="tab" id="tab-seva-hatha" data-panel="seva-hatha" aria-selected="false" tabindex="-1">Hatha Yoga</button>
+          <button type="button" class="vol-tab" role="tab" id="tab-seva-advanced" data-panel="seva-advanced" aria-selected="false" tabindex="-1" hidden>Advanced Programs</button>
         </div>
+      </div>
+    </div>
+    <div class="container vol-panels">
+      <!-- Local center volunteering -->
+      <div class="seva-category vol-panel is-active" id="seva-local" role="tabpanel" aria-labelledby="tab-seva-local">
+        <div class="seva-category-head">
+          <div class="seva-category-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/><path d="M9.5 20v-6h5v6"/></svg>
+          </div>
+          <div>
+            <h3>Isha Place, Vijayanagar</h3>
+            <p>Everyday ways to support programs and teachers right here at our center.</p>
+          </div>
+        </div>
+        <div class="seva-grid">
+          <article class="seva-card">
+            <h4>Nurturing <span>(Phone Calls)</span></h4>
+            <p>Participate in phone outreach for programs and events, staying connected with fellow meditators.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Remote · Flexible</span><button type="button" class="seva-card-cta" data-opportunity-title="General">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Hall Setup</h4>
+            <p class="seva-card-note">Satsang · Inner Engineering · Hatha Yoga · Specific events</p>
+            <p>Play a vital role in Satsangs, a monthly gathering to refine and deepen your Inner Engineering experience — and help set up the hall for other programs and events.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">On-site · Flexible</span><button type="button" class="seva-card-cta" data-opportunity-title="General">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Transport Arrangement</h4>
+            <p class="seva-card-note">Class materials · Teachers</p>
+            <p>Help arrange transport for class materials and visiting teachers.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">On-site · As needed</span><button type="button" class="seva-card-cta" data-opportunity-title="General">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Accommodation for Teachers</h4>
+            <p>Help arrange comfortable stay and hospitality for visiting teachers.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">On-site · As needed</span><button type="button" class="seva-card-cta" data-opportunity-title="General">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Food Arrangement for Teachers</h4>
+            <p>Assist with food preparation and arrangements for visiting teachers and program participants.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">On-site · As needed</span><button type="button" class="seva-card-cta" data-opportunity-title="General">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Program Volunteering</h4>
+            <p class="seva-card-note">Inner Engineering · Hatha Yoga</p>
+            <p>Deepen your practice while supporting others.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Flexible Duration</span><button type="button" class="seva-card-cta" data-opportunity-title="Hatha Yoga">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Token of Gratitude Volunteering</h4>
+            <p>Offer your time and effort as a token of gratitude towards programs and events.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Flexible</span><button type="button" class="seva-card-cta" data-opportunity-title="General">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Yoga Veera</h4>
+            <p>Champions of Yoga who offer Upa Yoga sessions — simple, potent practices that enhance health and bring joy, peace and inner wellbeing to others.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Requires Training</span><button type="button" class="seva-card-cta" data-opportunity-title="Hatha Yoga">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Inner Engineering Online Facilitating</h4>
+            <p>Facilitate and support participants through their Inner Engineering Online journey.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Remote · Flexible</span><button type="button" class="seva-card-cta" data-opportunity-title="Inner Engineering">Express interest</button></div>
+          </article>
+        </div>
+      </div>
+
+      <!-- E-media volunteering -->
+      <div class="seva-category vol-panel" id="seva-emedia" role="tabpanel" aria-labelledby="tab-seva-emedia">
+        <div class="seva-category-head">
+          <div class="seva-category-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a2 2 0 0 0 2 2h1l4 4V5L6 9H5a2 2 0 0 0-2 2Z"/><path d="M16 8a5 5 0 0 1 0 8"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
+          </div>
+          <div>
+            <h3>E-Media Volunteering</h3>
+            <p>Skill-based activities to support the exciting projects at Isha are open to qualified individuals from any location.</p>
+          </div>
+        </div>
+        <div class="seva-skill-pills">
+          <span>Graphics Design</span>
+          <span>Content Creation</span>
+          <span>Web Designing</span>
+          <span>IT (MS-Office, Google Sheets, etc.)</span>
+          <span>Social Media (X, Facebook, Instagram, Reddit, LinkedIn, etc.)</span>
+        </div>
+        <div class="seva-category-cta">
+          <button type="button" class="seva-card-cta seva-card-cta-lg" data-opportunity-title="E-Media Volunteering">Express interest in E-Media</button>
+        </div>
+      </div>
+
+      <!-- Ashram volunteering -->
+      <div class="seva-category vol-panel" id="seva-ashram" role="tabpanel" aria-labelledby="tab-seva-ashram" hidden>
+        <div class="seva-category-head">
+          <div class="seva-category-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 6 9h12L12 2Z"/><path d="M5 9v11h14V9"/><path d="M9.5 20v-6h5v6"/></svg>
+          </div>
+          <div>
+            <h3>Ashram Volunteering</h3>
+            <p>Isha Yoga Center, Coimbatore — a deep sense of involvement and a powerful tool for inner transformation.</p>
+          </div>
+        </div>
+        <div class="seva-grid">
+          <article class="seva-card">
+            <h4>Program Volunteering</h4>
+            <p>Touch the lives of program participants through this intense process of volunteering.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Flexible · Requires Inner Engineering</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Weekend Volunteering</h4>
+            <p>Offer your weekends in seva at the ashram.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Flexible</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Event Volunteering</h4>
+            <p>Be part of the team that brings Isha's large events to life, from setup to execution.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Flexible</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Naga Volunteering</h4>
+            <p>Spend dedicated time volunteering in the consecrated Naga shrine and receiving its grace.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">7 Days · Requires Inner Engineering</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Linga Seva</h4>
+            <p>Offer yourself in the space of Dhyanalinga and be immersed in its energy.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">5 or 10 Days · Requires Inner Engineering</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Shayana Arati Volunteering</h4>
+            <p>Take part in the Shayana Arati, the closing ritual of light offered at the end of the day.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">On-site</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Devi Rituals Volunteering</h4>
+            <p>Volunteer at the abode of Linga Bhairavi and experience her unbounded grace.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">18 Days · Requires Inner Engineering</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Sadhguru Sahabhagi</h4>
+            <p>Offer yourself to make programs and events happen at the Isha Yoga Center.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">11-Day Training</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Akshaya</h4>
+            <p>A kitchen seva offering — be part of the team that prepares and serves food at the ashram.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Kitchen Seva</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Prana Danam</h4>
+            <p>Deepen your connection with life-giving food by being a part of making and serving food at Isha Yoga Center.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">10 Days · Requires Inner Engineering</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Sannidhi Seva</h4>
+            <p>Be part of a dedicated group of volunteers committed to bringing Sadhguru's vision of Sadhguru Sannidhi Bengaluru to reality.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Flexible Duration</span><button type="button" class="seva-card-cta" data-opportunity-title="Ashram Volunteering">Express interest</button></div>
+          </article>
+        </div>
+      </div>
+
+      <!-- Isha Outreach -->
+      <div class="seva-category vol-panel" id="seva-outreach" role="tabpanel" aria-labelledby="tab-seva-outreach" hidden>
+        <div class="seva-category-head">
+          <div class="seva-category-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c3 3 4.5 5.7 4.5 8.2A4.5 4.5 0 0 1 12 15.7a4.5 4.5 0 0 1-4.5-4.5C7.5 8.7 9 6 12 3Z"/><path d="M12 15.7V21"/></svg>
+          </div>
+          <div>
+            <h3>Isha Outreach</h3>
+            <p>Large-scale social transformation, driven by committed volunteers who deeply care for the wellbeing of rural India.</p>
+          </div>
+        </div>
+        <div class="seva-grid">
+          <article class="seva-card">
+            <h4>Isha Vidhya</h4>
+            <p>Committed to raising the level of education and literacy in rural India and helping disadvantaged children realize their full potential.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Education</span><button type="button" class="seva-card-cta" data-opportunity-title="Isha Outreach">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Cauvery Calling</h4>
+            <p>The world's largest farmer-driven eco-movement, working to revitalize the Cauvery river basin by enabling farmers to plant billions of trees.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Environment</span><button type="button" class="seva-card-cta" data-opportunity-title="Isha Outreach">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Save Soil</h4>
+            <p>A global movement to safeguard soil health — because soil is not a resource, it is the source of our life.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Environment</span><button type="button" class="seva-card-cta" data-opportunity-title="Isha Outreach">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Farmer Producer Organization <span>(FPO)</span></h4>
+            <p>Collectivizing small and marginal farmers into Farmer Producer Organizations, with technical, financial and marketing support for sustained prosperity.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Rural Livelihood</span><button type="button" class="seva-card-cta" data-opportunity-title="Isha Outreach">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Rural Rejuvenation</h4>
+            <p>A holistic outreach program revitalizing rural communities through healthcare, sanitation, livelihood and community development.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Community</span><button type="button" class="seva-card-cta" data-opportunity-title="Isha Outreach">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Tree Care</h4>
+            <p>Project GreenHands — a grassroots ecological initiative that has enabled the planting of millions of saplings across South India.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Environment</span><button type="button" class="seva-card-cta" data-opportunity-title="Isha Outreach">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Gramotsavam</h4>
+            <p>A celebration of village life — an annual sports festival promoting sporting culture among rural India.</p>
+            <div class="seva-card-foot"><span class="seva-card-tag">Annual Event</span><button type="button" class="seva-card-cta" data-opportunity-title="Isha Outreach">Express interest</button></div>
+          </article>
+        </div>
+      </div>
+
+      <!-- Hatha Yoga programs -->
+      <div class="seva-category vol-panel" id="seva-hatha" role="tabpanel" aria-labelledby="tab-seva-hatha">
+        <div class="seva-category-head">
+          <div class="seva-category-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path stroke-linecap="round" d="M12 2.5v2.4M12 19.1v2.4M21.5 12h-2.4M4.9 12H2.5M18.6 5.4l-1.7 1.7M7.1 16.9l-1.7 1.7M18.6 18.6l-1.7-1.7M7.1 7.1 5.4 5.4"/></svg>
+          </div>
+          <div>
+            <h3>Hatha Yoga Programs</h3>
+            <p>Volunteer to support these classical yogic offerings, exactly as they are taught at Isha.</p>
+          </div>
+        </div>
+        <div class="seva-grid">
+          <article class="seva-card">
+            <h4>Surya Kriya</h4>
+            <p>A potent yogic practice of tremendous antiquity, designed as a holistic process for health, wellness and complete inner wellbeing.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Hatha Yoga">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Angamardana</h4>
+            <p>A fitness system rooted in yoga that offers everyone the opportunity to invigorate the body and reach peak physical and mental health.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Hatha Yoga">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Yogasanas</h4>
+            <p>A set of classical yogasanas that enable a person to flower into their ultimate potential — a natural process toward health, joy and blissfulness.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Hatha Yoga">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Bhuta Shuddhi</h4>
+            <p>A whole system of yoga meaning "purification of the elements" — establishing wellbeing by purifying the five elements within the human system.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Hatha Yoga">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Shanmukhi Mudra</h4>
+            <p>A simple but subtle practice that brightens and rejuvenates the face and eyes, bringing about a state of balance and meditativeness.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Hatha Yoga">Express interest</button></div>
+          </article>
+        </div>
+      </div>
+
+      <!-- Advanced programs -->
+      <div class="seva-category vol-panel" id="seva-advanced" role="tabpanel" aria-labelledby="tab-seva-advanced" hidden>
+        <div class="seva-category-head">
+          <div class="seva-category-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2c-3 6-6 9-6 13a6 6 0 0 0 12 0c0-2.4-1.2-4-2-5.6.2 1.6-.7 2.5-1.2 1.9C13.8 8.8 13 5.6 12 2Z"/></svg>
+          </div>
+          <div>
+            <h3>Advanced Programs</h3>
+            <p>Volunteer to support these deeper offerings for those established on the spiritual path.</p>
+          </div>
+        </div>
+        <div class="seva-grid">
+          <article class="seva-card">
+            <h4>Shivanga Sadhana</h4>
+            <p>A powerful sadhana to bring forth devotion from within and enhance one's receptivity to Shiva, the Adiyogi.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Bhava Spandana</h4>
+            <p>An advanced meditation program to go beyond the limitations of body and mind and experience higher levels of consciousness.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Shoonya</h4>
+            <p>An advanced program combining Shakti Chalana Kriya and Shoonya Meditation, leading to a deep sense of inner wellbeing.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Guru Pooja</h4>
+            <p>A certain science of using chants and offerings to manifest a powerful experience — an invitation to the Divine.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Samyama</h4>
+            <p>An 8-day residential program of complete silence and long hours of meditation, opening participants to subtler realms of experience.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Silence</h4>
+            <p>A dedicated period of inner silence and meditation — immersing oneself in stillness.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Sadhanapada</h4>
+            <p>A 7-month residential program for inner transformation, combining intense sadhana and volunteering (seva) at the Isha Yoga Center.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+          <article class="seva-card">
+            <h4>Poornanga</h4>
+            <p>Serving as true pillars of Isha, offering three years directly to Sadhguru's vision through daily sadhana and dedicated seva.</p>
+            <div class="seva-card-foot"><span></span><button type="button" class="seva-card-cta" data-opportunity-title="Advanced Programs">Express interest</button></div>
+          </article>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="vol-steps-section" aria-labelledby="volStepsTitle">
+    <div class="container">
+      <div class="vol-section-head">
+        <span class="section-label">How It Works</span>
+        <h2 id="volStepsTitle">Three simple steps</h2>
+      </div>
+      <ol class="vol-steps">
+        <li class="vol-step">
+          <span class="vol-step-num" aria-hidden="true">1</span>
+          <div>
+            <h3>Share your interest</h3>
+            <p>Fill the short form, or pick a specific seva above.</p>
+          </div>
+        </li>
+        <li class="vol-step">
+          <span class="vol-step-num" aria-hidden="true">2</span>
+          <div>
+            <h3>We reach out</h3>
+            <p>A volunteer from the center contacts you on WhatsApp.</p>
+          </div>
+        </li>
+        <li class="vol-step">
+          <span class="vol-step-num" aria-hidden="true">3</span>
+          <div>
+            <h3>Start giving</h3>
+            <p>Get matched to a seva that fits your time and skills.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sg-quote">
+    <div class="container sg-quote-inner">
+      <span class="sg-quote-mark" aria-hidden="true">&ldquo;</span>
+      <blockquote class="sg-quote-text">The whole process of Yoga is just to give yourself.</blockquote>
+      <img class="sg-quote-signature" src="assets/signature-40159.png" alt="Sadhguru" width="277" height="130" loading="lazy" decoding="async"/>
+    </div>
+  </section>
+
+  <section class="vol-final">
+    <div class="container vol-final-inner">
+      <span class="section-label">Ready When You Are</span>
+      <h2>Interested in volunteering with us?</h2>
+      <p>Tell us a little about yourself and we&rsquo;ll get in touch on WhatsApp.</p>
+      <div class="vol-actions">
+        <button type="button" class="vol-btn vol-btn-primary" onclick="openQuizModal()"><span>Fill the interest form</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></button>
+        <button type="button" class="vol-btn vol-btn-ghost" onclick="openVolunteerModal()">Express interest</button>
       </div>
     </div>
   </section>
@@ -83,6 +457,7 @@
         <div class="form-group"><label>WhatsApp Number *</label><input type="text" id="vPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only"/></div>
         <div class="form-group"><label>Area of Stay *</label><input type="text" id="vArea" placeholder="e.g. Vijayanagar, Rajajinagar"/></div>
         <div class="form-group"><label>Opportunity *</label><select id="vOpportunity" aria-label="Volunteering opportunity"></select></div>
+        <div id="vIeGate"></div>
         <button type="button" class="submit-btn" id="vSubmitBtn" onclick="submitVolunteerInterest()">Submit</button>
       </div>
       <div class="form-success-msg" id="vFormSuccess" style="display:none">
@@ -90,6 +465,109 @@
         <h4>Thank you!</h4>
         <p>We’ll reach out to you on WhatsApp soon.</p>
       </div>
+    </div>
+  </div>
+
+  <div class="quiz-overlay" id="quizOverlay">
+    <div class="quiz-modal" role="dialog" aria-modal="true" aria-labelledby="quizStepHeading">
+      <button type="button" class="quiz-close" onclick="closeQuizModal()" aria-label="Close">✕</button>
+
+      <div class="quiz-progress" id="quizProgress">
+        <div class="quiz-progress-fill" id="quizProgressFill"></div>
+      </div>
+      <p class="quiz-step-count" id="quizStepCount">Step 1 of 5</p>
+
+      <div class="quiz-steps" id="quizSteps">
+
+        <!-- Step 1 — mode -->
+        <div class="quiz-step is-active" data-step="1">
+          <span class="quiz-step-eyebrow">Isha Volunteering</span>
+          <h3 id="quizStepHeading">How would you like to volunteer?</h3>
+          <div class="quiz-options" data-field="mode" data-select="single">
+            <button type="button" class="quiz-option" data-value="Remote Volunteering"><span class="quiz-option-emoji">🌐</span><span class="quiz-option-label">Remote Volunteering</span></button>
+            <button type="button" class="quiz-option" data-value="In-person Volunteering"><span class="quiz-option-emoji">🏛️</span><span class="quiz-option-label">In-person Volunteering</span></button>
+            <button type="button" class="quiz-option" data-value="Either"><span class="quiz-option-emoji">🔀</span><span class="quiz-option-label">Either</span></button>
+          </div>
+        </div>
+
+        <!-- Step 2 — time -->
+        <div class="quiz-step" data-step="2">
+          <span class="quiz-step-eyebrow">Isha Volunteering</span>
+          <h3>How much time would you be able to volunteer?</h3>
+          <div class="quiz-options" data-field="time" data-select="single">
+            <button type="button" class="quiz-option" data-value="Flexible Duration"><span class="quiz-option-emoji">⏱️</span><span class="quiz-option-label">Flexible Duration</span></button>
+            <button type="button" class="quiz-option" data-value="A few hours every week"><span class="quiz-option-emoji">🕐</span><span class="quiz-option-label">A few hours every week</span></button>
+            <button type="button" class="quiz-option" data-value="Weekends"><span class="quiz-option-emoji">📅</span><span class="quiz-option-label">Weekends</span></button>
+            <button type="button" class="quiz-option" data-value="During programs and events"><span class="quiz-option-emoji">🎉</span><span class="quiz-option-label">During programs and events</span></button>
+          </div>
+        </div>
+
+        <!-- Step 3 — profile -->
+        <div class="quiz-step" data-step="3">
+          <span class="quiz-step-eyebrow">Isha Volunteering</span>
+          <h3>Profession and Work Experience</h3>
+          <p class="quiz-step-lead">We'd like to get to know your background a bit better to suggest appropriate opportunity.</p>
+          <div class="quiz-options" data-field="profile" data-select="single">
+            <button type="button" class="quiz-option" data-value="Student"><span class="quiz-option-emoji">🎓</span><span class="quiz-option-label">Student</span></button>
+            <button type="button" class="quiz-option" data-value="IT / Tech / Design"><span class="quiz-option-emoji">💻</span><span class="quiz-option-label">IT / Tech / Design</span></button>
+            <button type="button" class="quiz-option" data-value="Teacher / Educator"><span class="quiz-option-emoji">📚</span><span class="quiz-option-label">Teacher / Educator</span></button>
+            <button type="button" class="quiz-option" data-value="Business / Management"><span class="quiz-option-emoji">💼</span><span class="quiz-option-label">Business / Management</span></button>
+            <button type="button" class="quiz-option" data-value="Homemaker"><span class="quiz-option-emoji">🏡</span><span class="quiz-option-label">Homemaker</span></button>
+            <button type="button" class="quiz-option" data-value="Retired"><span class="quiz-option-emoji">🌿</span><span class="quiz-option-label">Retired</span></button>
+            <button type="button" class="quiz-option" data-value="Other"><span class="quiz-option-emoji">✨</span><span class="quiz-option-label">Other</span></button>
+          </div>
+        </div>
+
+        <!-- Step 4 — skills (multi-select) -->
+        <div class="quiz-step" data-step="4">
+          <span class="quiz-step-eyebrow">Isha Volunteering</span>
+          <h3>Skills <small>(select all that apply)</small></h3>
+          <div class="quiz-options quiz-options-multi" data-field="interests" data-select="multi">
+            <button type="button" class="quiz-option" data-value="Communication & Design"><span class="quiz-option-emoji">🎨</span><span class="quiz-option-label">Communication &amp; Design</span></button>
+            <button type="button" class="quiz-option" data-value="Participant Support"><span class="quiz-option-emoji">🤝</span><span class="quiz-option-label">Participant Support</span></button>
+            <button type="button" class="quiz-option" data-value="IT"><span class="quiz-option-emoji">💻</span><span class="quiz-option-label">IT</span></button>
+            <button type="button" class="quiz-option" data-value="Programming"><span class="quiz-option-emoji">⌨️</span><span class="quiz-option-label">Programming</span></button>
+            <button type="button" class="quiz-option" data-value="Media"><span class="quiz-option-emoji">🎬</span><span class="quiz-option-label">Media</span></button>
+            <button type="button" class="quiz-option" data-value="Promotions"><span class="quiz-option-emoji">📣</span><span class="quiz-option-label">Promotions</span></button>
+            <button type="button" class="quiz-option" data-value="General Volunteering Opportunities"><span class="quiz-option-emoji">🙏</span><span class="quiz-option-label">General Volunteering Opportunities</span></button>
+          </div>
+          <button type="button" class="quiz-continue-btn" onclick="quizGoNext()">Continue</button>
+        </div>
+
+        <!-- Step 5 — contact + consent -->
+        <div class="quiz-step" data-step="5">
+          <span class="quiz-step-eyebrow">Isha Volunteering</span>
+          <h3>Volunteering Interest Form</h3>
+          <div class="form-err" id="quizErr">Please fill in all required fields.</div>
+          <div class="form-group"><label>Full Name*</label><input type="text" id="qName" placeholder="Your name"/></div>
+          <div class="form-group"><label>Whatsapp Number*</label><input type="text" id="qPhone" data-ten-digit-phone placeholder="9876543210" title="10 digits only"/></div>
+          <div class="form-group"><label>Location*</label><input type="text" id="qArea" placeholder="e.g. Vijayanagar, Rajajinagar"/></div>
+          <div id="qIeGate"></div>
+          <p class="quiz-consent-note">By filling this form you consent to your data being stored in our database. The security and privacy of your personal information is of highest importance to us. Your information will not be shared with any third parties. You give your consent to us for the collection and use of your personal information that you have provided to us while registering in connection with volunteering. You declare that the above-mentioned information is true to the best of your knowledge.</p>
+          <label class="quiz-consent">
+            <input type="checkbox" id="qConsent"/>
+            <span>I have read and agree.</span>
+          </label>
+          <button type="button" class="submit-btn" id="quizSubmitBtn" onclick="submitQuizAnswers()">Submit</button>
+        </div>
+
+        <!-- Step 6 — thank you -->
+        <div class="quiz-step quiz-step-success" data-step="6">
+          <div class="quiz-success">
+            <div class="quiz-success-icon">🙏</div>
+            <h3>Thank you<span id="quizSuccessName"></span>!</h3>
+            <p>We’ll reach out to you on WhatsApp soon.</p>
+            <div class="quiz-success-summary" id="quizSuccessSummary"></div>
+            <button type="button" class="submit-btn" onclick="closeQuizModal()">Done</button>
+          </div>
+        </div>
+
+      </div>
+
+      <button type="button" class="quiz-back-btn" id="quizBackBtn" onclick="quizGoBack()" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"/></svg>
+        Back
+      </button>
     </div>
   </div>
 
@@ -123,11 +601,14 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
-  <script src="protect.js?v=home-nav"></script>
+  <script src="protect.js?v=selectable-v1"></script>
   <script src="site.js?v=home-nav"></script>
   <script src="ptr.js?v=1"></script>
+  <script src="ie-gate.js?v=1"></script>
   <script>
     let allVolunteering = [];
+    IEGate.mount(document.getElementById('vIeGate'), { submitBtn: document.getElementById('vSubmitBtn') });
+    IEGate.mount(document.getElementById('qIeGate'), { submitBtn: document.getElementById('quizSubmitBtn') });
 
     function driveFileId(url) {
       if (!url || typeof url !== 'string') return '';
@@ -165,6 +646,10 @@
       [
         { value: 'Hatha Yoga', label: 'Hatha Yoga Volunteering' },
         { value: 'Inner Engineering', label: 'Inner Engineering Volunteering' },
+        { value: 'Ashram Volunteering', label: 'Ashram Volunteering' },
+        { value: 'E-Media Volunteering', label: 'E-Media Volunteering' },
+        { value: 'Isha Outreach', label: 'Isha Outreach' },
+        { value: 'Advanced Programs', label: 'Advanced Program Volunteering' },
         { value: 'General', label: 'General Volunteering' }
       ].forEach((f) => {
         const o = document.createElement('option');
@@ -219,6 +704,12 @@
         return;
       }
       const phone = phoneCheck.normalized;
+      const ie = IEGate.read(document.getElementById('vIeGate'));
+      if (!ie.ok) {
+        err.textContent = ie.message;
+        err.style.display = 'block';
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = 'Submitting...';
@@ -230,6 +721,7 @@
             name,
             phone,
             area,
+            ieCompletion: ie.value,
             opportunityName,
             opportunityId,
             timestamp: new Date().toISOString()
@@ -291,6 +783,7 @@
 
     async function loadVolunteering() {
       const container = document.getElementById('listingsContainer');
+      const section = document.getElementById('liveOpportunitiesSection');
       try {
         const res = await fetch(`${APPS_SCRIPT_URL}?type=volunteering`);
         const data = await res.json();
@@ -299,14 +792,15 @@
         populateVolunteerSelect();
 
         if (!items.length) {
+          if (section) section.hidden = true;
           const strip = document.getElementById('volunteerInterestStrip');
           if (strip) strip.style.display = 'none';
           const bar = document.getElementById('volunteeringResultBar');
           if (bar) bar.hidden = true;
-          container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>No Opportunities Listed</h3><p>Check back soon — or leave your interest and we’ll contact you regarding opportunities.</p><button type="button" onclick="openVolunteerModal()" class="interest-btn" style="margin-top:1.5rem">Express interest</button></div>`;
           return;
         }
 
+        if (section) section.hidden = false;
         const strip = document.getElementById('volunteerInterestStrip');
         if (strip) strip.style.display = '';
 
@@ -362,25 +856,219 @@
       } catch (err) {
         allVolunteering = [];
         populateVolunteerSelect();
+        if (section) section.hidden = true;
         const strip = document.getElementById('volunteerInterestStrip');
         if (strip) strip.style.display = 'none';
         const bar = document.getElementById('volunteeringResultBar');
         if (bar) bar.hidden = true;
-        container.innerHTML = `<div class="state-box"><div class="icon">🤝</div><h3>Could not load</h3><p>Please try again later.</p><button type="button" onclick="openVolunteerModal()" class="interest-btn" style="margin-top:1.5rem">Express interest</button></div>`;
       } finally {
         if (window.endPageLoad) endPageLoad();
       }
     }
 
     document.addEventListener('click', function (e) {
-      const btn = e.target.closest('.program-card-interest-btn[data-opportunity-id], .program-card-interest-btn[data-opportunity-title]');
+      const btn = e.target.closest('.program-card-interest-btn[data-opportunity-id], .program-card-interest-btn[data-opportunity-title], .seva-card-cta[data-opportunity-title]');
       if (btn) {
         openVolunteerModal(btn.dataset.opportunityId || '', btn.dataset.opportunityTitle || '');
       }
     });
 
+    /* Ways to volunteer — category tabs */
+    (function () {
+      const tabs = Array.from(document.querySelectorAll('.vol-tab'));
+      const panels = Array.from(document.querySelectorAll('.vol-panel'));
+      function activate(id, fromUser) {
+        const tab = tabs.find((t) => t.dataset.panel === id && !t.hidden);
+        if (!tab) return false;
+        tabs.forEach((t) => {
+          const on = t === tab;
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          t.tabIndex = on ? 0 : -1;
+        });
+        panels.forEach((p) => p.classList.toggle('is-active', p.id === id));
+        if (fromUser) tab.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+        return true;
+      }
+      tabs.forEach((t) => {
+        t.addEventListener('click', () => activate(t.dataset.panel, true));
+        t.addEventListener('keydown', (e) => {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          const visible = tabs.filter((x) => !x.hidden);
+          const i = visible.indexOf(t);
+          const next = visible[(i + (e.key === 'ArrowRight' ? 1 : visible.length - 1)) % visible.length];
+          activate(next.dataset.panel, true);
+          next.focus();
+          e.preventDefault();
+        });
+      });
+      if (location.hash) activate(location.hash.slice(1), false);
+    })();
+
     loadVolunteering();
     if (window.registerRefresh) registerRefresh(loadVolunteering);
+
+    /* =====================
+       VOLUNTEER FIT FINDER — quiz modal
+       ===================== */
+    const QUIZ_TOTAL_STEPS = 5; // question/contact steps shown in the progress bar (step 6 is the thank-you screen)
+
+    const quizState = {
+      step: 1,
+      answers: { mode: '', time: '', profile: '', interests: [], name: '', phone: '', area: '', consent: false }
+    };
+
+    function quizResetState() {
+      quizState.step = 1;
+      quizState.answers = { mode: '', time: '', profile: '', interests: [], name: '', phone: '', area: '', consent: false };
+      document.querySelectorAll('#quizSteps .quiz-option').forEach((btn) => btn.classList.remove('is-selected'));
+      const nameEl = document.getElementById('qName');
+      const phoneEl = document.getElementById('qPhone');
+      const areaEl = document.getElementById('qArea');
+      const consentEl = document.getElementById('qConsent');
+      if (nameEl) nameEl.value = '';
+      if (phoneEl) phoneEl.value = '';
+      if (areaEl) areaEl.value = '';
+      if (consentEl) consentEl.checked = false;
+      const err = document.getElementById('quizErr');
+      if (err) err.style.display = 'none';
+    }
+
+    function openQuizModal() {
+      quizResetState();
+      quizRenderStep();
+      document.getElementById('quizOverlay').classList.add('open');
+    }
+
+    function closeQuizModal() {
+      document.getElementById('quizOverlay').classList.remove('open');
+    }
+
+    function quizRenderStep() {
+      const steps = document.querySelectorAll('#quizSteps .quiz-step');
+      steps.forEach((el) => {
+        el.classList.toggle('is-active', Number(el.dataset.step) === quizState.step);
+      });
+
+      const progressFill = document.getElementById('quizProgressFill');
+      const stepCount = document.getElementById('quizStepCount');
+      const progressWrap = document.getElementById('quizProgress');
+      const backBtn = document.getElementById('quizBackBtn');
+      const onThankYou = quizState.step > QUIZ_TOTAL_STEPS;
+
+      if (progressWrap) progressWrap.hidden = onThankYou;
+      if (stepCount) stepCount.hidden = onThankYou;
+      if (!onThankYou) {
+        const pct = ((quizState.step - 1) / (QUIZ_TOTAL_STEPS - 1)) * 100;
+        if (progressFill) progressFill.style.width = pct + '%';
+        if (stepCount) stepCount.textContent = `Step ${quizState.step} of ${QUIZ_TOTAL_STEPS}`;
+      }
+      if (backBtn) backBtn.hidden = quizState.step <= 1 || onThankYou;
+    }
+
+    function quizGoNext() {
+      if (quizState.step < QUIZ_TOTAL_STEPS + 1) {
+        quizState.step += 1;
+        quizRenderStep();
+      }
+    }
+
+    function quizGoBack() {
+      if (quizState.step > 1) {
+        quizState.step -= 1;
+        quizRenderStep();
+      }
+    }
+
+    document.querySelectorAll('#quizSteps .quiz-options').forEach((group) => {
+      const field = group.dataset.field;
+      const mode = group.dataset.select;
+      group.addEventListener('click', function (e) {
+        const btn = e.target.closest('.quiz-option');
+        if (!btn) return;
+        const value = btn.dataset.value;
+
+        if (mode === 'multi') {
+          btn.classList.toggle('is-selected');
+          const list = quizState.answers[field];
+          const idx = list.indexOf(value);
+          if (idx === -1) list.push(value); else list.splice(idx, 1);
+          return;
+        }
+
+        group.querySelectorAll('.quiz-option').forEach((o) => o.classList.remove('is-selected'));
+        btn.classList.add('is-selected');
+        quizState.answers[field] = value;
+        window.setTimeout(quizGoNext, 220);
+      });
+    });
+
+    function quizBuildSummary() {
+      const a = quizState.answers;
+      const parts = [];
+      if (a.mode) parts.push(a.mode);
+      if (a.time) parts.push(a.time);
+      if (a.profile) parts.push(a.profile);
+      if (a.interests.length) parts.push(a.interests.join(', '));
+      return parts.join(' · ');
+    }
+
+    async function submitQuizAnswers() {
+      const name = document.getElementById('qName').value.trim();
+      const area = document.getElementById('qArea').value.trim();
+      const consent = document.getElementById('qConsent').checked;
+      const err = document.getElementById('quizErr');
+
+      err.style.display = 'none';
+      if (!name || !area || !consent) {
+        err.textContent = !consent
+          ? 'Please accept the consent to continue.'
+          : 'Please fill in all required fields.';
+        err.style.display = 'block';
+        return;
+      }
+      const phoneCheck = validateWhatsAppNumber(document.getElementById('qPhone').value);
+      if (!phoneCheck.ok) {
+        err.textContent = phoneCheck.message;
+        err.style.display = 'block';
+        return;
+      }
+
+      const ie = IEGate.read(document.getElementById('qIeGate'));
+      if (!ie.ok) {
+        err.textContent = ie.message;
+        err.style.display = 'block';
+        return;
+      }
+
+      quizState.answers.name = name;
+      quizState.answers.ieCompletion = ie.value;
+      quizState.answers.area = area;
+      quizState.answers.phone = phoneCheck.normalized;
+      quizState.answers.consent = true;
+
+      // TODO: wire this up to the Apps Script backend / Google Sheet once
+      // the "volunteerFitQuiz" endpoint exists. Payload shape below is
+      // ready to POST as-is, mirroring the pattern used by
+      // submitVolunteerInterest() elsewhere on this page:
+      //
+      // await fetch(APPS_SCRIPT_URL, {
+      //   method: 'POST',
+      //   body: JSON.stringify({
+      //     formType: 'volunteerFitQuiz',
+      //     ...quizState.answers,
+      //     timestamp: new Date().toISOString()
+      //   })
+      // });
+      console.log('Volunteer Fit Finder answers (front-end only, not yet submitted):', quizState.answers);
+
+      const nameEl = document.getElementById('quizSuccessName');
+      if (nameEl) nameEl.textContent = ', ' + name.split(' ')[0];
+      const summaryEl = document.getElementById('quizSuccessSummary');
+      if (summaryEl) summaryEl.textContent = quizBuildSummary();
+
+      quizState.step = QUIZ_TOTAL_STEPS + 1;
+      quizRenderStep();
+    }
   </script>
 </body>
 </html>

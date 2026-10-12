@@ -1,0 +1,158 @@
+========================================================================
+ SANDESHA — APP OVERVIEW
+========================================================================
+
+Sandesha (Sanskrit for "message") is a WhatsApp group messaging
+automation bot with a mobile-first web dashboard. It automates your
+WhatsApp Web session using Node.js, so you can send, schedule, and
+manage messages across many groups from either a web UI or WhatsApp
+chat commands.
+
+Version: 1.3.0
+
+------------------------------------------------------------------------
+ WHAT IT DOES
+------------------------------------------------------------------------
+
+- Send to one group, a named "set" of groups (e.g. family, work), or
+  broadcast to all groups
+- Schedule messages for later (natural language: "9am today",
+  "Tomorrow 8am", "In 1 hour")
+- Bulk send to up to 100 phone numbers
+- Manage groups — search, find a member across all groups, view member
+  lists, detect inactive groups
+- Add members to groups via background jobs
+- AI chat through an external ZeroClaw service (optional)
+- Dual control: a phone-friendly web dashboard AND a WhatsApp group
+  called "Me Commands"
+
+------------------------------------------------------------------------
+ TWO WAYS TO CONTROL IT
+------------------------------------------------------------------------
+
+    WhatsApp Web (Puppeteer)
+            |
+    listen.js (bot + scheduler + 5s poller)
+            |
+    HTTP API :42620  <->  docs/ web app (GitHub Pages + Cloudflare Tunnel)
+            |
+    JSON files (groups, contacts, schedules, state)
+
+1. Web dashboard (docs/) — 5 tabs: Home, Send, Schedule, Groups, More
+2. WhatsApp commands — !help, !send, !schedule, !bulk, or natural
+   language like "send hello to family"
+
+------------------------------------------------------------------------
+ TECH STACK
+------------------------------------------------------------------------
+
+Layer       | Technology
+------------|-----------------------------------------------------------
+Runtime     | Node.js 18+
+WhatsApp    | whatsapp-web.js + Puppeteer (headless Chrome)
+Server      | Native Node http module (no Express), API on 127.0.0.1:42620
+Frontend    | Vanilla JS ES modules — no React/Vue, no build step
+Styling     | Plain CSS with design tokens — Isha Sadhguru-inspired
+            | sage/terracotta/cream palette, glassmorphism
+Storage     | JSON files (groups.json, contacts.json, schedules.json,
+            | state.json)
+Deployment  | GitHub Pages + Cloudflare Tunnel to a Pi/laptop
+AI          | External ZeroClaw webhook @ :42617
+
+------------------------------------------------------------------------
+ PROJECT STRUCTURE
+------------------------------------------------------------------------
+
+sandesha/
+  listen.js            Main 24/7 bot (~2569 lines)
+  send.js              CLI for sending via HTTP API
+  auth.js              Server-side password + bearer token auth
+  api-handlers.js      Extended REST handlers (schedules, bulk, jobs, AI)
+  settings.js          WhatsApp !settings wizard
+  bulk-send.js         WhatsApp !bulk wizard
+  bulk-add-members.js  WhatsApp !addmembers wizard
+  add-participants.js  Group member add logic
+  start.sh / start.bat Start scripts
+  package.json
+
+  docs/                Mobile web app (GitHub Pages + local serve)
+    index.html
+    manifest.webmanifest
+    config.js / config.example.js
+    css/               tokens, typography, layout, components
+    js/                app, router, api, auth, store, pages/
+    icons/
+
+  dashboard/index.html Separate desktop "Command Center" prototype
+  tests/               Custom Node test runners (no Jest/Mocha)
+  scripts/             Cloudflare tunnel config, generate-group-jids.js
+
+Runtime data files (gitignored, created at runtime):
+  groups.json          set name -> array of group JIDs
+  contacts.json        named contacts
+  schedules.json       scheduled messages
+  state.json           { lastProcessedTimestamp }
+  .wwebjs_auth/        WhatsApp session
+  media/               uploaded media
+  sandesha.log, notifications.log
+
+------------------------------------------------------------------------
+ WEB DASHBOARD — MAIN TABS
+------------------------------------------------------------------------
+
+Home     Connection status, bot phone number, group count, quick
+         actions, upcoming schedules, recent send activity
+Send     Target picker (sets/groups/contacts/broadcast), text + media
+         upload, progress bar for multi-group sets
+Schedule List/cancel schedules, create with datetime picker + chips
+Groups   Search, active/inactive filters, find member, group detail
+More     Hub for sub-pages: Sets, Contacts, Bulk send, Add members,
+         AI chat, Settings, Help
+
+------------------------------------------------------------------------
+ HTTP API ENDPOINTS (127.0.0.1:42620)
+------------------------------------------------------------------------
+
+GET    /health                    Status + auth info
+POST   /auth/login                { password } -> { token }
+POST   /auth/logout               Invalidate token
+GET/POST /sets                    Read/write groups.json
+POST   /send                      { recipient, message }
+POST   /send-media                { recipient, filePath, caption }
+POST   /send/broadcast            Message all groups
+POST   /send/bulk                 Up to 100 phone numbers
+GET    /groups                    Enriched list (?refresh=1)
+GET    /groups/inactive?days=30   Inactive groups
+GET    /groups/find-member?q=     Search member name
+GET    /groups/:jid/members       Member list
+GET/POST /schedules               List/create schedules
+DELETE /schedules/:id             Cancel schedule
+GET/POST /contacts                List/add contact
+DELETE /contacts/:name            Delete contact
+POST   /upload                    Multipart file upload (max 16MB)
+POST   /jobs/add-members          Background add-members job
+GET    /jobs/:id                  Job progress
+GET    /ai/status                 Probe ZeroClaw
+POST   /ai/chat                   Forward to ZeroClaw
+GET    /chats                     Recent chats list
+
+------------------------------------------------------------------------
+ NOTABLE DETAILS
+------------------------------------------------------------------------
+
+- No database — everything persists in JSON files; session survives
+  restarts
+- Custom test suite (no Jest) — README claims 172 tests passing
+- PWA manifest exists, but service worker is currently disabled
+  (index.html actively unregisters service workers)
+- Auth: admin password + 24h bearer tokens; API bound to localhost,
+  Cloudflare tunnel provides the HTTPS edge
+- Setup guides for Raspberry Pi and Termux (run on an old Android phone)
+
+------------------------------------------------------------------------
+ MENTAL MODEL
+------------------------------------------------------------------------
+
+Sandesha is essentially your WhatsApp Web session automated by Node.js,
+with a phone-friendly dashboard and WhatsApp chat commands as two UIs
+over the same backend.

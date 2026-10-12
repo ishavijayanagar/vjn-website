@@ -1,0 +1,17 @@
+# GitHub Pages (Jekyll) configuration.
+#
+# Pages publishes this repo from its root, so anything not excluded here is
+# served publicly. sandesha-server/ is a Node backend that runs on a local
+# machine behind a Tailscale funnel — it must never be part of the built site.
+#
+# Setting `exclude` replaces Jekyll's default list, so the defaults are
+# repeated below.
+exclude:
+  - sandesha-server/
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/

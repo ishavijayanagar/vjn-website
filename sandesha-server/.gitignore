@@ -1,0 +1,93 @@
+# Ignore rules for the Sandesha backend only.
+#
+# These are deliberately scoped to this folder rather than the repo root: the
+# parent repo is a public GitHub Pages site, and rules like *.png below would
+# otherwise start silently skipping website images in ../assets/.
+
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+
+# WhatsApp session data (IMPORTANT - DO NOT COMMIT)
+.wwebjs_auth/
+.wwebjs_test_auth/
+.wwebjs_test_auth2/
+.baileys_auth/
+.wwebjs_cache/
+.lock
+state.json
+
+# Media files
+media/
+*.png
+!docs/icons/*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.pdf
+*.zip
+
+# Logs
+*.log
+logs/
+notifications.log
+send-audit.jsonl
+send-audit.jsonl.1
+activity.jsonl
+activity.jsonl.1
+push-subscriptions.json
+push-prewarned.json
+
+# Cloudflare Quick Tunnel (runtime; URL changes each start)
+.tunnel-url
+.tunnel.log
+
+# Named tunnel config (has tunnel UUID / paths — use the .example file in git)
+scripts/sandesha-named-tunnel.yml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Auth sessions (persisted logins)
+.sandesha-sessions.json
+
+# JSON data files (personal config)
+schedules.json
+contacts.json
+groups.json
+qr-code.png
+MyGroups.txt
+output.txt
+
+# Dashboard API URL — docs/config.js is committed on purpose (URL is not secret)
+# docs/config.js
+
+# Test files
+test_*.js
+getgroups.js
+debug.js
+
+# Windows
+nul
+
+# Subfolders
+whatsapp-sender/

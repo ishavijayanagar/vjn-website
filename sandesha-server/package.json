@@ -1,0 +1,28 @@
+{
+  "name": "sandesha",
+  "version": "1.3.0",
+  "description": "Sandesha - WhatsApp Group Messaging Bot",
+  "main": "send.js",
+  "scripts": {
+    "install:no-browser": "PUPPETEER_SKIP_DOWNLOAD=1 npm install",
+    "list": "node send.js --list",
+    "send": "node send.js",
+    "test": "node tests/comprehensive.test.js && node tests/mock-integration.test.js && node tests/send-safety.test.js",
+    "test:unit": "node tests/comprehensive.test.js",
+    "test:auth": "node tests/auth.test.js",
+    "test:api-handlers": "node tests/api-handlers.test.js",
+    "test:mock": "node tests/mock-integration.test.js",
+    "test:safety": "node tests/send-safety.test.js",
+    "test:http": "node tests/test-http.js",
+    "test:notify-email": "node tests/notify-email.test.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "pino": "^10.3.1",
+    "puppeteer": "^24.40.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "web-push": "^3.6.7",
+    "whatsapp-web.js": "^1.34.7"
+  }
+}

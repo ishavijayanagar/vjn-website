@@ -1,0 +1,104 @@
+:root {
+  /* Isha Sadhguru palette */
+  --isha-cream-50: #FAF7F2;
+  --isha-cream-100: #F5F0E8;
+  --isha-cream-200: #E8E1D5;
+  --isha-cream-300: #DBD4C6;
+  --isha-charcoal: #2C2A26;
+  --isha-brown: #464038;
+  --isha-taupe: #797160;
+  --isha-gray: #3C3C3C;
+  --isha-sage: #94A676;
+  --isha-sage-dark: #6F8458;
+  --isha-sage-light: #B5C9A0;
+  --isha-terracotta: #D98C40;
+  --isha-terracotta-dark: #C47A32;
+  --isha-terracotta-light: #E8A862;
+
+  --color-primary: var(--isha-sage);
+  --color-primary-dark: var(--isha-sage-dark);
+  --color-accent: var(--isha-terracotta);
+  --color-accent-dark: var(--isha-terracotta-dark);
+  --color-bg-deep: var(--isha-cream-100);
+  --color-bg-mid: var(--isha-cream-200);
+  --color-text: var(--isha-charcoal);
+  --color-text-secondary: var(--isha-brown);
+  --color-text-muted: var(--isha-taupe);
+  --color-text-faint: #A69B8C;
+  --color-danger: #C45C4a;
+  --color-warning: var(--isha-terracotta);
+  --color-success: var(--isha-sage-dark);
+  --color-badge-active: var(--isha-sage-dark);
+  --color-badge-week: var(--isha-terracotta);
+  --color-badge-inactive: #B85C5C;
+  --color-border: rgba(70, 64, 56, 0.12);
+  --color-border-subtle: rgba(70, 64, 56, 0.07);
+
+  /* Premium glass — denser frost, sharper highlight */
+  --glass-bg: rgba(255, 255, 255, 0.38);
+  --glass-bg-strong: rgba(255, 255, 255, 0.72);
+  --glass-bg-solid: rgba(255, 255, 255, 0.9);
+  --glass-bg-form: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(70, 64, 56, 0.1);
+  --glass-border-subtle: rgba(70, 64, 56, 0.06);
+  --glass-blur: 28px;
+  --glass-blur-heavy: 48px;
+  --glass-shadow: 0 2px 16px rgba(70, 64, 56, 0.06);
+  --glass-shadow-lg: 0 10px 40px rgba(70, 64, 56, 0.1);
+  --glass-glow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --glass-surface: var(--glass-shadow), var(--glass-glow);
+
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2.125rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.08em;
+
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Motion — strong custom curves (built-in CSS easings are too weak) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --touch-min: 48px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  /* Bottom inset off — iOS was reporting ~60–80px and leaving a hole under the tab labels. */
+  --safe-bottom: 0px;
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --page-x: max(var(--space-lg), var(--safe-left));
+  --page-x-right: max(var(--space-lg), var(--safe-right));
+
+  --header-content-h: 52px;
+  --header-h: calc(var(--header-content-h) + var(--safe-top));
+  --nav-content-h: 52px;
+  --nav-h: var(--nav-content-h);
+  --page-gap: 14px;
+}

@@ -139,6 +139,16 @@
       "touchstart",
       function (e) {
         if (busy || e.touches.length !== 1) return;
+        // The scroll-lock technique pins body position:fixed with a negative
+        // top offset, which reports window.scrollY as 0 while any modal is
+        // open — indistinguishable from "really at the top of the page" to
+        // scrollTopOf() below. Without this guard, pulling down at the top
+        // of a modal's own content (e.g. a form) both fights that modal's
+        // scrolling and can fire a background refresh underneath it.
+        if (document.documentElement.classList.contains("modal-scroll-locked")) return;
+        // Bottom drawers (admin) scroll their own content; a downward drag inside
+        // one must never be taken as a page pull-to-refresh.
+        if (document.documentElement.classList.contains("bsheet-lock")) return;
         if (scrollTopOf(scroller) > 0) return;
         var t = e.touches[0];
         touchId = t.identifier;

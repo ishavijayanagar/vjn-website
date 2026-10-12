@@ -2,6 +2,7 @@
   "use strict";
 
   const TOKEN_KEY = "vjn_admin_token";
+  const THEME_KEY = "vjn_promo_theme";
   const USER_KEY = "vjn_admin_user";
   const NOTIFY_KEY = "vjn_query_notify";
   const MAX_SLOTS = 4;
@@ -14,6 +15,55 @@
     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.4"/><path d="M21 15l-5-5L5 21"/></svg>';
   const CHK =
     '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+  const CLK =
+    '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  const CLK_ART =
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  const CAL_ART =
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+  const LOCK_ART =
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+
+  /** Timeline placeholders while the sheet is still answering. */
+  function skeletonHtml() {
+    const row =
+      '<li class="row skel" aria-hidden="true">' +
+      '<div class="t"><span class="sk sk-time"></span><small class="sk sk-mer"></small></div>' +
+      '<div class="rowcard"><div class="fg sk-card">' +
+      '<span class="sk sk-th"></span><span class="tx">' +
+      '<span class="sk sk-line short"></span><span class="sk sk-line"></span>' +
+      "</span></div></div></li>";
+    return (
+      '<ul class="rail is-loading" aria-busy="true" aria-label="Loading promotions">' +
+      row +
+      row +
+      row +
+      "</ul>"
+    );
+  }
+
+  function showBoardLoading() {
+    if (barEl) barEl.hidden = false;
+    if (fillEl) fillEl.style.transform = "scaleX(0)";
+    if (btLEl) btLEl.innerHTML = "<b>Loading</b>";
+    if (btREl) btREl.textContent = "";
+    listEl.innerHTML = skeletonHtml();
+    listEl.setAttribute("aria-busy", "true");
+  }
+
+  /** One shape for every empty screen: mark, headline, a line, an exit. */
+  function emptyHtml(art, title, body, action) {
+    return (
+      '<div class="empty"><div class="mark-art">' +
+      art +
+      "</div><h3>" +
+      esc(title) +
+      "</h3>" +
+      body +
+      (action ? "<br/>" + action : "") +
+      "</div>"
+    );
+  }
 
   const $ = function (id) {
     return document.getElementById(id);
@@ -42,12 +92,71 @@
   let current = null;
   let toastTimer = 0;
   let sheetMode = "detail";
-  let composeDay = "today";
+  let composeDateYmd = "";
   let editingId = "";
   let pendingFlyer = null;
   let flyerOverride = "";
+  let composeTargets = [];
+  let relayReady = null;
+  let reconciling = false;
   const busyIds = {};
   const MARK_SPIN = '<span class="mark-spin" aria-hidden="true"></span>';
+
+  /* ───────── theme ───────── */
+  /* The inline script in the page already picked a theme before first paint;
+     this only keeps the button, the browser chrome and the stored choice in
+     step with it. */
+  function isDarkTheme() {
+    return document.documentElement.getAttribute("data-theme") === "dark";
+  }
+
+  function savedTheme() {
+    try {
+      return localStorage.getItem(THEME_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function applyTheme(dark, remember) {
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#1c1a17" : "#ffffff");
+    const light = $("themeLight");
+    const darkBtn = $("themeDark");
+    if (light) light.setAttribute("aria-pressed", dark ? "false" : "true");
+    if (darkBtn) darkBtn.setAttribute("aria-pressed", dark ? "true" : "false");
+    if (remember) {
+      try {
+        localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
+      } catch (e) {}
+    }
+  }
+
+  function initTheme() {
+    applyTheme(isDarkTheme(), false);
+    const light = $("themeLight");
+    const darkBtn = $("themeDark");
+    if (light) {
+      light.onclick = function () {
+        applyTheme(false, true);
+      };
+    }
+    if (darkBtn) {
+      darkBtn.onclick = function () {
+        applyTheme(true, true);
+      };
+    }
+    // Until someone picks a side, the device keeps deciding.
+    try {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const follow = function (ev) {
+        if (!savedTheme()) applyTheme(ev.matches, false);
+      };
+      if (mq.addEventListener) mq.addEventListener("change", follow);
+      else if (mq.addListener) mq.addListener(follow);
+    } catch (e) {}
+  }
 
   function esc(value) {
     return String(value == null ? "" : value)
@@ -302,6 +411,63 @@
     else btn.removeAttribute("aria-busy");
   }
 
+  /**
+   * Put a blob in the phone's gallery, by whichever route this browser allows.
+   *
+   * @param {Promise<{blob: Blob, mime: string, filename: string}>} pending
+   *   resolved bytes; started by the caller *before* any await, so the picker
+   *   below still counts as being inside the tap gesture.
+   * @param {object} [opts] - dirPromise: an in-flight Pictures handle request,
+   *   label: what to call the file in the share sheet.
+   */
+  async function saveBlobToGallery(pending, opts) {
+    const options = opts || {};
+    const galleryPromise = options.dirPromise || null;
+    const tasks = [pending];
+    if (galleryPromise) tasks.push(galleryPromise);
+    const results = await Promise.all(tasks);
+    const resolved = results[0];
+    const dir = galleryPromise ? results[1] : null;
+    const blob = resolved.blob;
+    const mime = resolved.mime;
+    const filename = resolved.filename;
+
+    if (dir) {
+      await writeBlobToDir(dir, blob, filename);
+      return "Flyer saved to gallery";
+    }
+
+    try {
+      if (await saveWithFilePicker(blob, filename, mime)) return "Flyer saved";
+    } catch (pickerErr) {
+      if (pickerErr && pickerErr.name === "AbortError") return "";
+    }
+
+    /* Share sheet = preview + manual save — only use on iOS where downloads are limited. */
+    if (isIosLike()) {
+      const file = new File([blob], filename, { type: mime });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: filename,
+          text: options.label || "Flyer",
+        });
+        return "Tap Save Image in the share sheet";
+      }
+    }
+
+    triggerAnchorDownload(blob, filename);
+    return "Flyer downloaded";
+  }
+
+  /** Ask for Pictures access while the tap gesture is still valid, or null. */
+  function galleryDirRequest() {
+    if (typeof window.showDirectoryPicker !== "function") return null;
+    return ensureGalleryDir(true).catch(function () {
+      return null;
+    });
+  }
+
   async function downloadFlyer(item, btn) {
     const url = flyerOf(item);
     if (!url) {
@@ -309,54 +475,13 @@
       return;
     }
     setBtnBusy(btn, true);
-    /* Ask for Pictures access immediately while the tap gesture is still valid. */
-    let galleryPromise = null;
-    if (typeof window.showDirectoryPicker === "function") {
-      galleryPromise = ensureGalleryDir(true).catch(function () {
-        return null;
-      });
-    }
+    const dirPromise = galleryDirRequest();
     try {
-      const tasks = [resolveFlyerBlob(item, url)];
-      if (galleryPromise) tasks.push(galleryPromise);
-      const results = await Promise.all(tasks);
-      const resolved = results[0];
-      const dir = galleryPromise ? results[1] : null;
-      const blob = resolved.blob;
-      const mime = resolved.mime;
-      const filename = resolved.filename;
-
-      if (dir) {
-        await writeBlobToDir(dir, blob, filename);
-        toast("Flyer saved to gallery", null);
-        return;
-      }
-
-      try {
-        if (await saveWithFilePicker(blob, filename, mime)) {
-          toast("Flyer saved", null);
-          return;
-        }
-      } catch (pickerErr) {
-        if (pickerErr && pickerErr.name === "AbortError") return;
-      }
-
-      /* Share sheet = preview + manual save — only use on iOS where downloads are limited. */
-      if (isIosLike()) {
-        const file = new File([blob], filename, { type: mime });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: filename,
-            text: (item && item.event_title) || "Flyer",
-          });
-          toast("Tap Save Image in the share sheet", null);
-          return;
-        }
-      }
-
-      triggerAnchorDownload(blob, filename);
-      toast("Flyer downloaded", null);
+      const done = await saveBlobToGallery(resolveFlyerBlob(item, url), {
+        dirPromise: dirPromise,
+        label: (item && item.event_title) || "Flyer",
+      });
+      if (done) toast(done, null);
     } catch (e) {
       if (e && e.name === "AbortError") {
         toast("Save cancelled", null);
@@ -367,6 +492,16 @@
       setBtnBusy(btn, false);
     }
   }
+
+  /**
+   * Handed to the Sandesha Schedule sheet, which is an ES module and cannot
+   * reach into this classic script. Mirrors window.SandeshaPromo the other way.
+   */
+  window.VjnPromoBoard = {
+    galleryDirRequest: galleryDirRequest,
+    saveBlobToGallery: saveBlobToGallery,
+    isIosLike: isIosLike,
+  };
 
   function thumbHtml(url) {
     if (!url) return IMG;
@@ -418,7 +553,7 @@
     const ymd = offset ? shiftYmd(todayYmd(), offset) : todayYmd();
     const parts = ymd.split("-");
     const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    return dt.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short" });
+    return dt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
   }
 
   function nowLabel() {
@@ -441,6 +576,11 @@
   }
 
   function groupsOf(item) {
+    const bridge = relay();
+    if (bridge && item && item.target) {
+      const targets = bridge.parse(item.target);
+      if (targets.length) return bridge.summary(targets);
+    }
     return String(item.event_location || "").trim() || "Vijayanagar";
   }
 
@@ -465,6 +605,48 @@
     if (mins < 60) return "in " + mins + " min";
     const hrs = Math.round(mins / 60);
     return "in " + hrs + (hrs === 1 ? " hr" : " hrs");
+  }
+
+  /** Compact slot label for the program picker (e.g. "Aug 31 · 5:30 PM"). */
+  function formatPickScheduleWhen(sendAt) {
+    const parts = splitSendAt(sendAt);
+    if (!parts.date || !parts.hm) return "";
+    const dp = parts.date.split("-");
+    const dt = new Date(Number(dp[0]), Number(dp[1]) - 1, Number(dp[2]));
+    if (isNaN(dt.getTime())) return "";
+    const day = dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const clock = formatHmAmPm(parts.hm);
+    return day + " · " + clock.time + " " + clock.mer;
+  }
+
+  function pickStatusMarkup(item) {
+    const s = normalizeStatus(item.status);
+    const when = formatPickScheduleWhen(item.send_at);
+    if (s === "pending") {
+      return (
+        '<span class="pick-status pick-status--pending">' +
+        '<span class="pick-status-kind">Pending</span></span>'
+      );
+    }
+    if (when) {
+      const mod = s === "due" ? "due" : "scheduled";
+      const kind = s === "due" ? "Overdue" : "Scheduled";
+      const sub = s === "due" ? formatLateBy(item.send_at) : when;
+      return (
+        '<span class="pick-status pick-status--' +
+        mod +
+        '">' +
+        '<span class="pick-status-kind">' +
+        kind +
+        '</span><span class="pick-status-when">' +
+        esc(sub) +
+        "</span></span>"
+      );
+    }
+    return (
+      '<span class="pick-status pick-status--ready">' +
+      '<span class="pick-status-kind">Ready</span></span>'
+    );
   }
 
   function formatSentAt(item) {
@@ -497,8 +679,7 @@
     });
   }
 
-  function dayList(offset, includeSent) {
-    const ymd = offset ? shiftYmd(todayYmd(), 1) : todayYmd();
+  function promosOnDate(ymd, includeSent) {
     return items
       .filter(function (item) {
         if (!includeSent && normalizeStatus(item.status) === "sent") return false;
@@ -507,6 +688,25 @@
       .sort(function (a, b) {
         return String(a.send_at || "").localeCompare(String(b.send_at || ""));
       });
+  }
+
+  function dayList(offset, includeSent) {
+    const ymd = offset ? shiftYmd(todayYmd(), 1) : todayYmd();
+    return promosOnDate(ymd, includeSent);
+  }
+
+  function viewIndexForYmd(ymd) {
+    const today = todayYmd();
+    if (ymd === today) return 0;
+    if (ymd === shiftYmd(today, 1)) return 1;
+    return 2;
+  }
+
+  function readComposeDate() {
+    const el = $("composeDate");
+    const val = el && el.value ? String(el.value).trim() : "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val) && val >= todayYmd()) return val;
+    return composeDateYmd || todayYmd();
   }
 
   function libraryItems() {
@@ -540,9 +740,210 @@
     }
   }
 
+  /* ───────── sandesha ─────────
+     The board decides what goes out and when; Sandesha holds the queue and
+     does the sending, so every scheduled post is mirrored into it. */
+  function relay() {
+    return window.SandeshaPromo || null;
+  }
+
+  /** Boots messaging once. Rejects with a message worth showing the user. */
+  function ensureRelay() {
+    if (relayReady) return relayReady;
+    relayReady = (async function () {
+      const bridge = await waitForRelay();
+      await bridge.ready();
+      return bridge;
+    })();
+    relayReady.catch(function () {
+      relayReady = null;
+    });
+    return relayReady;
+  }
+
+  /** promo-shell.js is a module, so it may still be parsing on first paint. */
+  function waitForRelay() {
+    if (relay()) return Promise.resolve(relay());
+    return new Promise(function (resolve, reject) {
+      const timer = setTimeout(function () {
+        window.removeEventListener("sandesha:promo-relay-ready", onReady);
+        reject(new Error("Messaging did not load. Reload the page and try again."));
+      }, 15000);
+      function onReady() {
+        clearTimeout(timer);
+        window.removeEventListener("sandesha:promo-relay-ready", onReady);
+        resolve(relay());
+      }
+      window.addEventListener("sandesha:promo-relay-ready", onReady);
+    });
+  }
+
+  /** Kolkata wall-clock slot → the absolute instant Sandesha fires on. */
+  function sendAtToIso(ymd, hm) {
+    const dt = new Date(ymd + "T" + hm + ":00+05:30");
+    if (isNaN(dt.getTime())) throw new Error("That time could not be read.");
+    return dt.toISOString();
+  }
+
+  /** Bytes for the flyer, from the unsaved pick if there is one. */
+  async function flyerForSandesha(item, flyerUrl) {
+    if (pendingFlyer) {
+      return {
+        blob: base64ToBlob(pendingFlyer.base64, pendingFlyer.mimeType),
+        filename: pendingFlyer.filename || flyerFileName(item, pendingFlyer.mimeType),
+      };
+    }
+    if (!flyerUrl) return null;
+    const resolved = await resolveFlyerBlob(item, flyerUrl);
+    return { blob: resolved.blob, filename: resolved.filename };
+  }
+
+  function scheduleIdsOf(item) {
+    return String((item && item.wa_schedule_ids) || "")
+      .split(",")
+      .map(function (v) {
+        return v.trim();
+      })
+      .filter(Boolean);
+  }
+
+  /** Take rows off Sandesha's queue. Never throws — the board moves on. */
+  async function cancelIds(ids) {
+    if (!ids || !ids.length) return;
+    try {
+      const bridge = await ensureRelay();
+      await bridge.cancel(ids);
+    } catch (e) {
+      /* Server unreachable: the row stays queued and the next load reconciles. */
+    }
+  }
+
+  /** Take a post off the queue entirely. */
+  function unqueue(item) {
+    return cancelIds(scheduleIdsOf(item));
+  }
+
+  /**
+   * Rows the post no longer refers to. Re-saving an unchanged slot inside the
+   * server's dedupe window hands back the row that is already queued, and
+   * cancelling that would silently unschedule the post.
+   */
+  function staleIds(previousIds, keptIds) {
+    const kept = (keptIds || []).map(String);
+    return (previousIds || []).filter(function (id) {
+      return kept.indexOf(String(id)) < 0;
+    });
+  }
+
+  /**
+   * Bring the board in line with what Sandesha has actually posted.
+   *
+   * Sandesha's own delivery record is the truth: it names the board post it
+   * sent. The older reading — the schedule row is gone and the slot has passed
+   * — is kept as a fallback for posts sent before the server started keeping
+   * that record, but it cannot stand on its own, because a post whose schedule
+   * ids never reached the sheet looks exactly like one that was never queued.
+   */
+  async function reconcileSent() {
+    const queued = items.filter(function (item) {
+      return normalizeStatus(item.status) !== "sent";
+    });
+    if (!queued.length) return false;
+
+    let live;
+    let liveSources;
+    let delivered = new Set();
+    try {
+      const bridge = await ensureRelay();
+      if (typeof bridge.deliveredSources === "function") {
+        try {
+          delivered = await bridge.deliveredSources();
+        } catch (e) {
+          /* Server predates the delivered record — fall back to the inference. */
+        }
+      }
+      if (typeof bridge.liveSchedules === "function") {
+        const rows = await bridge.liveSchedules();
+        live = new Set((rows || []).map(function (s) {
+          return String(s.id);
+        }));
+        liveSources = new Set(
+          (rows || [])
+            .filter(function (s) {
+              return s && s.sourceId;
+            })
+            .map(function (s) {
+              return String(s.sourceId);
+            })
+        );
+      } else if (typeof bridge.liveIds === "function") {
+        live = await bridge.liveIds();
+        liveSources = new Set();
+      } else {
+        return false;
+      }
+    } catch (e) {
+      return false;
+    }
+
+    const done = queued.filter(function (item) {
+      // Queued again since it last went out — the board is waiting on the new
+      // row, not reporting the old send.
+      if (liveSources.has(String(item.id))) return false;
+      if (delivered.has(String(item.id))) return true;
+      if (!scheduleIdsOf(item).length) return false;
+      if (!isPastSlot(item.send_at)) return false;
+      return scheduleIdsOf(item).every(function (id) {
+        return !live.has(String(id));
+      });
+    });
+    if (!done.length) return false;
+
+    let changed = false;
+    for (const item of done) {
+      try {
+        const data = await apiPost({
+          formType: "adminMarkPromotionSent",
+          token: token(),
+          id: item.id,
+          source: "sandesha",
+        });
+        if (!data.error) {
+          changed = true;
+          patchItemSent(item.id, data.item);
+        }
+      } catch (e) {
+        /* try again on the next load */
+      }
+    }
+    return changed;
+  }
+
+  function patchItemSent(id, fromServer) {
+    const idx = items.findIndex(function (item) {
+      return String(item.id) === String(id);
+    });
+    if (idx < 0) return;
+    if (fromServer && typeof fromServer === "object") {
+      fromServer.status = normalizeStatus(fromServer.status || "sent");
+      items[idx] = fromServer;
+      return;
+    }
+    items[idx].status = "sent";
+    items[idx].sent_at = items[idx].sent_at || nowLabel();
+    items[idx].wa_schedule_ids = "";
+  }
+
+  function isPastSlot(sendAt) {
+    const parts = splitSendAt(sendAt);
+    if (!parts.date || !parts.hm) return false;
+    const target = new Date(parts.date + "T" + parts.hm + ":00+05:30");
+    return !isNaN(target.getTime()) && target.getTime() <= Date.now();
+  }
+
   function nextFreeHm(ymd) {
     const used = {};
-    dayList(ymd === shiftYmd(todayYmd(), 1) ? 1 : 0, true).forEach(function (item) {
+    promosOnDate(ymd, true).forEach(function (item) {
       const hm = splitSendAt(item.send_at).hm;
       if (hm) used[hm] = true;
     });
@@ -567,10 +968,18 @@
   /* ───────── tabs ───────── */
   function buildTabs() {
     const html = TABS.map(function (n, i) {
-      return '<button type="button" data-i="' + i + '">' + n + "</button>";
+      return (
+        '<button type="button" role="tab" data-i="' +
+        i +
+        '" aria-selected="' +
+        (i === 0 ? "true" : "false") +
+        '">' +
+        n +
+        "</button>"
+      );
     }).join("");
     tabsBase.innerHTML = html;
-    tabsAct.innerHTML = html;
+    if (tabsAct) tabsAct.innerHTML = html;
     tabsBase.querySelectorAll("button").forEach(function (b) {
       b.onclick = function () {
         setView(+b.dataset.i);
@@ -578,11 +987,24 @@
     });
   }
 
+  /** Tab labels carry the day's load, so the count reads before the tap. */
+  function syncTabCounts() {
+    const counts = [dayList(0, true).length, dayList(1, true).length, libraryItems().length];
+    tabsBase.querySelectorAll("button").forEach(function (btn, i) {
+      const n = counts[i];
+      btn.innerHTML = TABS[i] + (n ? '<span class="count">' + n + "</span>" : "");
+    });
+  }
+
   function setView(i) {
     view = i;
-    const w = 100 / TABS.length;
-    tabsAct.style.clipPath =
-      "inset(0 " + (100 - w * (i + 1)) + "% 0 " + w * i + "% round 10px)";
+    const thumb = $("tabsThumb");
+    if (thumb) thumb.style.transform = "translate3d(" + i * 100 + "%,0,0)";
+    tabsBase.querySelectorAll("button").forEach(function (b, idx) {
+      const on = idx === i;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
     if (i === 0) dayTitleEl.textContent = dayTitle(0);
     else if (i === 1) dayTitleEl.textContent = dayTitle(1);
     else dayTitleEl.textContent = "Events";
@@ -590,11 +1012,17 @@
   }
 
   /* ───────── render ───────── */
-  function statusLine(entry) {
-    if (entry.state === "sent") return "<em>Sent " + esc(entry.note) + "</em>";
-    if (entry.state === "late") return "<em>" + esc(entry.note) + "</em>";
-    if (entry.state === "next") return "<em>Next " + esc(entry.note) + "</em>";
-    return "Scheduled";
+  /** The chip carries the state; the line beside it carries the detail. */
+  function chipHtml(entry) {
+    if (entry.state === "sent") return '<span class="chip sent">' + CHK + " Sent</span>";
+    if (entry.state === "late") return '<span class="chip late">' + CLK + " Due</span>";
+    if (entry.state === "next") return '<span class="chip queued">' + CLK + " Next</span>";
+    return '<span class="chip">Queued</span>';
+  }
+
+  function audLine(entry) {
+    const where = groupsOf(entry.item);
+    return entry.note ? entry.note + " · " + where : where;
   }
 
   function rowHTML(entry) {
@@ -609,6 +1037,14 @@
       '" data-id="' +
       esc(p.id) +
       '">' +
+      // The time sits outside the card, on the rail, so the spine can run
+      // through the dot between the two columns.
+      '<div class="t">' +
+      esc(clock.time) +
+      "<small>" +
+      esc(clock.mer) +
+      "</small></div>" +
+      '<div class="rowcard">' +
       '<div class="rowbg">' +
       '<span class="bg-l">' +
       CHK +
@@ -621,25 +1057,22 @@
       '"' +
       (busy ? ' aria-busy="true"' : "") +
       ">" +
-      '<span class="t">' +
-      esc(clock.time) +
-      "<small>" +
-      esc(clock.mer) +
-      "</small></span>" +
       '<span class="th">' +
       thumbHtml(flyer) +
       "</span>" +
-      '<span class="tx"><b>' +
+      '<span class="tx"><span class="cline">' +
+      chipHtml(entry) +
+      '<span class="aud">' +
+      esc(audLine(entry)) +
+      "</span></span><b>" +
       esc(p.event_title || "Untitled") +
-      "</b><span>" +
-      statusLine(entry) +
-      "</span></span>" +
+      "</b></span>" +
       '<span class="mark' +
       (busy ? " is-busy" : "") +
       '" aria-hidden="true">' +
       (busy ? MARK_SPIN : CHK) +
       "</span>" +
-      "</button></li>"
+      "</button></div></li>"
     );
   }
 
@@ -689,21 +1122,32 @@
 
   function render() {
     if (!token()) {
-      barEl.style.visibility = "hidden";
-      listEl.innerHTML =
-        '<div class="empty"><h3>Sign in required</h3>Open <a href="admin.html">Admin</a> to sign in, then return here.</div>';
+      barEl.hidden = true;
+      listEl.innerHTML = emptyHtml(
+        LOCK_ART,
+        "Sign in required",
+        'Open <a href="admin.html">Admin</a> to sign in, then come back here.',
+      );
       return;
     }
 
+    syncTabCounts();
+
     if (view === 2) {
-      barEl.style.visibility = "hidden";
+      barEl.hidden = true;
       const lib = libraryItems();
       if (!lib.length) {
-        listEl.innerHTML =
-          '<div class="empty"><h3>No events yet</h3>Open programs appear here after Programs publishes an event.</div>';
+        listEl.innerHTML = emptyHtml(
+          CAL_ART,
+          "No events yet",
+          "Open programs land here as soon as Programs publishes one.",
+        );
         return;
       }
       listEl.innerHTML =
+        '<div class="groupline">Open programs · ' +
+        lib.length +
+        "</div>" +
         '<div class="lib">' +
         lib
           .map(function (item) {
@@ -731,20 +1175,26 @@
       return;
     }
 
-    barEl.style.visibility = "visible";
+    barEl.hidden = false;
     const offset = view === 1 ? 1 : 0;
     const list = dayList(offset, true);
     updateBar(list, view === 0);
 
     if (!list.length) {
-      listEl.innerHTML =
-        '<div class="empty"><h3>Nothing scheduled</h3>Tap New post to write a message and pick a time.</div>';
+      listEl.innerHTML = emptyHtml(
+        CLK_ART,
+        view === 1 ? "Tomorrow is clear" : "Nothing goes out today",
+        "All " + MAX_SLOTS + " slots are free.",
+        '<button type="button" class="link" data-new>Write a post</button>',
+      );
+      const start = listEl.querySelector("[data-new]");
+      if (start) start.onclick = openPickSheet;
       return;
     }
 
     const annotated = annotate(list);
     listEl.innerHTML =
-      '<ul style="list-style:none;margin:0;padding:0">' +
+      '<ul class="rail">' +
       annotated.map(rowHTML).join("") +
       "</ul>" +
       '<div class="hint">' +
@@ -847,6 +1297,24 @@
     undoFn = null;
   }
 
+  /* The Sandesha Schedule tab hands a Board-owned post back here to edit,
+     since this editor is what owns its copy, flyer and slot. */
+  window.addEventListener("promo:board-show", function () {
+    if (!token()) return;
+    load(false).catch(function () {});
+  });
+
+  window.addEventListener("promo:edit-post", function (ev) {
+    const id = ev && ev.detail && ev.detail.promoId;
+    const item = find(id);
+    if (!item) {
+      toast("That post is no longer on the board", null);
+      return;
+    }
+    // promo-shell.js switches to the Board tab on this same event.
+    openCompose(item, { preferSchedule: true });
+  });
+
   undoEl.onclick = function () {
     if (undoFn) undoFn();
     hideToast();
@@ -859,6 +1327,8 @@
     if (busyIds[String(id)]) return;
     setRowBusy(id, true);
     try {
+      // Posted by hand — pull the queued rows so WhatsApp does not repeat it.
+      await unqueue(p);
       const data = await apiPost({
         formType: "adminMarkPromotionSent",
         token: token(),
@@ -866,14 +1336,19 @@
       });
       if (data.error) throw new Error(data.error);
       delete busyIds[String(id)];
-      await load(false);
+      patchItemSent(id, data.item);
+      render();
       toast((p.event_title || "Post") + " marked as sent", function () {
         unmarkSent(id);
       });
     } catch (e) {
       setRowBusy(id, false);
       toast(e.message || "Could not mark sent", null);
+      return;
     }
+    try {
+      await load(false);
+    } catch (_) {}
   }
 
   async function unmarkSent(id) {
@@ -929,13 +1404,28 @@
     const hm = pad2(Math.floor(mins / 60)) + ":" + pad2(mins % 60);
     setRowBusy(id, true);
     try {
-      const data = await apiPost({
+      const payload = {
         formType: "adminSavePromotion",
         token: token(),
         id: id,
         send_at: day + " " + hm,
-      });
+      };
+      // Move the queue with the slot, or the old time still fires.
+      const previousIds = scheduleIdsOf(p);
+      if (previousIds.length) {
+        const bridge = await ensureRelay();
+        const flyer = await flyerForSandesha(p, flyerOf(p));
+        payload.wa_schedule_ids = await bridge.schedule({
+          promoId: p.id,
+          message: p.message,
+          runAtIso: sendAtToIso(day, hm),
+          targets: bridge.resolveTargets(p.target),
+          flyer: flyer,
+        });
+      }
+      const data = await apiPost(payload);
       if (data.error) throw new Error(data.error);
+      await cancelIds(staleIds(previousIds, payload.wa_schedule_ids));
       await load(false);
       toast((p.event_title || "Post") + " snoozed 15 minutes", null);
     } catch (e) {
@@ -946,6 +1436,7 @@
 
   async function removeFromDay(id) {
     try {
+      await unqueue(find(id));
       const data = await apiPost({
         formType: "adminSavePromotion",
         token: token(),
@@ -966,6 +1457,7 @@
     if (!p) return;
     current = p;
     sheetMode = "detail";
+    sheetEl.classList.remove("is-picker");
     const clock = formatHmAmPm(splitSendAt(p.send_at).hm || "10:00");
     const flyer = flyerOf(p);
     const sent = normalizeStatus(p.status) === "sent";
@@ -992,14 +1484,14 @@
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download flyer</span></button>'
         : '<button type="button" class="b" disabled><span class="lbl">No flyer</span></button>') +
       (sent
-        ? '<button type="button" class="b pri" data-a="unsend" style="background:var(--green-tint);color:var(--green);box-shadow:none"><span class="lbl">' +
+        ? '<button type="button" class="b ok pri" data-a="unsend"><span class="lbl">' +
           CHK +
           " Sent · tap to undo</span></button>"
         : '<button type="button" class="b pri" data-a="sent"><span class="lbl">' +
           CHK +
           " Mark as sent</span></button>") +
       "</div>" +
-      '<button type="button" class="hold" data-a="hold">Hold to remove<span class="fillx">Removing…</span></button>';
+      '<button type="button" class="hold" data-a="hold" draggable="false">Hold to remove<span class="fillx">Removing…</span></button>';
 
     sheetEl.style.transform = "";
     scrimEl.classList.add("on");
@@ -1012,39 +1504,52 @@
     sheetMode = "pick";
     current = null;
     const lib = libraryItems();
+    sheetEl.classList.add("is-picker");
     sheetEl.innerHTML =
       '<div class="grab"></div>' +
       "<div class=\"sh-top\"><div><b>Choose a program</b><span>Open events ready to promote</span></div></div>" +
-      '<input type="search" class="pick-search" id="pickSearch" placeholder="Search…" autocomplete="off"/>' +
+      '<input type="search" class="pick-search" id="pickSearch" placeholder="Search programs, dates, places…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"/>' +
       '<div id="pickList"></div>';
     const renderPick = function (q) {
-      const query = String(q || "").trim().toLowerCase();
+      const words = String(q || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
       const filtered = lib.filter(function (item) {
-        if (!query) return true;
-        return (
-          String(item.event_title || "").toLowerCase().indexOf(query) >= 0 ||
-          String(item.event_location || "").toLowerCase().indexOf(query) >= 0
-        );
+        if (!words.length) return true;
+        const hay = [
+          item.event_title,
+          item.event_location,
+          item.event_date,
+          item.send_at,
+          item.message,
+          normalizeStatus(item.status),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return words.every(function (w) {
+          return hay.indexOf(w) >= 0;
+        });
       });
       const host = $("pickList");
       if (!host) return;
       if (!filtered.length) {
-        host.innerHTML = '<div class="empty">No open programs found.</div>';
+        host.innerHTML = '<div class="empty">No matching programs.</div>';
         return;
       }
       host.innerHTML = filtered
         .map(function (item) {
-          const s = normalizeStatus(item.status);
           return (
             '<button type="button" class="pick-row" data-pick="' +
             esc(item.id) +
             '"><span class="th">' +
             thumbHtml(flyerOf(item)) +
-            "</span><span><b>" +
+            '</span><span class="pick-copy"><b>' +
             esc(item.event_title || "Untitled") +
-            "</b><span>" +
-            (s === "pending" ? "Pending" : "Ready") +
-            "</span></span></button>"
+            "</b>" +
+            (item.event_date
+              ? '<span class="pick-date">' + esc(item.event_date) + "</span>"
+              : "") +
+            "</span>" +
+            pickStatusMarkup(item) +
+            "</button>"
           );
         })
         .join("");
@@ -1060,12 +1565,14 @@
     renderPick("");
     const search = $("pickSearch");
     if (search) {
-      search.oninput = function () {
+      const onQuery = function () {
         renderPick(search.value);
       };
+      search.addEventListener("input", onQuery);
+      search.addEventListener("search", onQuery);
       setTimeout(function () {
         search.focus();
-      }, 50);
+      }, 320);
     }
     sheetEl.style.transform = "";
     scrimEl.classList.add("on");
@@ -1115,6 +1622,7 @@
 
   function closeSheet() {
     sheetEl.classList.remove("on");
+    sheetEl.classList.remove("is-picker");
     scrimEl.classList.remove("on");
     setSheetHidden(true);
     sheetEl.style.transform = "";
@@ -1129,9 +1637,26 @@
       const a = b.dataset.a;
       if (a === "hold") {
         let timer;
-        const start = function () {
+        let armed = false;
+        const clearSel = function () {
+          try {
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();
+          } catch (_) {}
+        };
+        const start = function (e) {
+          if (e.button != null && e.button !== 0) return;
+          if (armed) return;
+          armed = true;
+          e.preventDefault();
+          clearSel();
+          try {
+            if (e.pointerId != null) b.setPointerCapture(e.pointerId);
+          } catch (_) {}
           b.classList.add("holding");
+          clearTimeout(timer);
           timer = setTimeout(function () {
+            armed = false;
             b.classList.remove("holding");
             parkFocusOutside(sheetEl);
             closeSheet();
@@ -1139,13 +1664,20 @@
           }, 1200);
         };
         const stop = function () {
+          armed = false;
           clearTimeout(timer);
           b.classList.remove("holding");
         };
         b.addEventListener("pointerdown", start);
         b.addEventListener("pointerup", stop);
-        b.addEventListener("pointerleave", stop);
         b.addEventListener("pointercancel", stop);
+        b.addEventListener("lostpointercapture", stop);
+        b.addEventListener("touchstart", start, { passive: false });
+        b.addEventListener("touchend", stop);
+        b.addEventListener("touchcancel", stop);
+        b.addEventListener("contextmenu", function (e) {
+          e.preventDefault();
+        });
         return;
       }
 
@@ -1233,7 +1765,7 @@
       sheetEl.style.transition = "";
       const v = d / Math.max(1, Date.now() - t0);
       if (d > 110 || v > 0.11) closeSheet();
-      else sheetEl.style.transform = "translateY(0)";
+      else sheetEl.style.transform = "";
       d = 0;
     };
     sheetEl.addEventListener("pointerup", up);
@@ -1252,7 +1784,44 @@
     const btn = $("composeSave");
     if (btn) btn.textContent = scheduleOn ? "Schedule" : "Save";
     showEl($("composeFlyerReq"), scheduleOn && !currentFlyerUrl());
-    if (scheduleOn) syncComposeDays();
+    if (scheduleOn) {
+      syncComposeDays();
+      syncComposeAudience();
+    }
+  }
+
+  function syncComposeAudience() {
+    const btn = $("composeAud");
+    const name = $("composeAudName");
+    const sub = $("composeAudSub");
+    const count = $("composeAudCount");
+    if (!btn || !name) return;
+    const bridge = relay();
+    const chosen = composeTargets.length;
+    btn.classList.toggle("is-empty", !chosen);
+    name.textContent = bridge && chosen
+      ? bridge.summary(composeTargets)
+      : chosen
+        ? chosen + (chosen === 1 ? " list" : " lists")
+        : "Choose who gets this";
+    sub.textContent = chosen
+      ? "Sandesha posts to " + (chosen === 1 ? "this list" : "these lists") + " at the slot time"
+      : "Tap to pick WhatsApp groups";
+    count.textContent = bridge ? bridge.reach(composeTargets) : chosen;
+  }
+
+  /** Fill the picker from the post, then from whatever was last scheduled. */
+  async function primeComposeAudience(item) {
+    syncComposeAudience();
+    try {
+      const bridge = await ensureRelay();
+      if (String(editingId) !== String(item.id)) return;
+      composeTargets = bridge.resolveTargets(item.target);
+      syncComposeAudience();
+    } catch (e) {
+      const sub = $("composeAudSub");
+      if (sub) sub.textContent = e.message || "Messaging unavailable";
+    }
   }
 
   // Mirrors the flyer resolution in saveCompose so the UI can warn before submit.
@@ -1264,19 +1833,48 @@
     return String(item.flyer_url || "").trim() || String(item.event_image || "").trim();
   }
 
-  // Slot pressure per day, counted the same way saveCompose validates it.
   function syncComposeDays() {
     const cur = find(editingId);
-    document.querySelectorAll(".compose-day").forEach(function (btn) {
-      const day = btn.getAttribute("data-day");
-      const used = dayList(day === "tomorrow" ? 1 : 0, true).filter(function (p) {
-        return !cur || String(p.id) !== String(cur.id);
-      }).length;
-      const left = Math.max(0, MAX_SLOTS - used);
-      const small = btn.querySelector("small");
-      if (small) small.textContent = left ? left + (left === 1 ? " slot free" : " slots free") : "Full";
-      btn.disabled = left === 0;
-    });
+    const ymd = readComposeDate();
+    const used = promosOnDate(ymd, true).filter(function (p) {
+      return !cur || String(p.id) !== String(cur.id);
+    }).length;
+    const left = Math.max(0, MAX_SLOTS - used);
+    const hint = $("composeDateHint");
+    if (hint) {
+      hint.textContent = left
+        ? left + (left === 1 ? " slot free on this day" : " slots free on this day")
+        : "Day is full — pick another date";
+      hint.classList.toggle("is-full", left === 0);
+    }
+  }
+
+  async function pasteComposeMessage() {
+    const box = $("composeMessage");
+    const err = $("composeErr");
+    if (!box) return;
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        throw new Error("Clipboard not available in this browser.");
+      }
+      const text = await navigator.clipboard.readText();
+      if (!String(text || "").trim()) {
+        if (err) {
+          err.textContent = "Clipboard is empty.";
+          err.hidden = false;
+        }
+        return;
+      }
+      box.value = text;
+      syncComposeCount();
+      if (err) err.hidden = true;
+      box.focus();
+    } catch (e) {
+      if (err) {
+        err.textContent = "Could not paste — tap the message field and paste manually.";
+        err.hidden = false;
+      }
+    }
   }
 
   function syncComposeCount() {
@@ -1345,15 +1943,19 @@
     }
   }
 
-  function setComposeDay(day) {
-    composeDay = day === "tomorrow" ? "tomorrow" : "today";
-    document.querySelectorAll(".compose-day").forEach(function (btn) {
-      btn.classList.toggle("on", btn.getAttribute("data-day") === composeDay);
-    });
-    fillTimeSelect();
-    const ymd = composeDay === "tomorrow" ? shiftYmd(todayYmd(), 1) : todayYmd();
+  function setComposeDate(ymd) {
+    const today = todayYmd();
+    let next = String(ymd || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(next) || next < today) next = today;
+    composeDateYmd = next;
+    const dateEl = $("composeDate");
+    if (dateEl) {
+      dateEl.min = today;
+      dateEl.value = next;
+    }
     const timeEl = $("composeTime");
-    if (timeEl) timeEl.value = nextFreeHm(ymd);
+    if (timeEl) timeEl.value = nextFreeHm(next);
+    syncComposeDays();
   }
 
   function syncFlyerReset(item) {
@@ -1391,11 +1993,8 @@
     editingId = item.id;
     pendingFlyer = null;
     flyerOverride = "";
+    composeTargets = [];
     fillTimeSelect();
-    const pending = normalizeStatus(item.status) === "pending";
-    const chip = $("composeEyebrow");
-    chip.textContent = pending ? "Pending" : "Ready";
-    chip.classList.toggle("is-pending", pending);
     $("composeTitle").textContent = item.event_title || "Compose post";
     $("composeMeta").textContent = [item.event_date, item.event_location].filter(Boolean).join(" · ");
     $("composeMessage").value = item.message || "";
@@ -1408,10 +2007,15 @@
     document.querySelectorAll('input[name="composeWhen"]').forEach(function (r) {
       r.checked = prefer ? r.value === "schedule" : r.value === "save";
     });
-    setComposeDay(view === 1 ? "tomorrow" : "today");
+    const sendParts = splitSendAt(item.send_at);
+    const today = todayYmd();
+    const initialDate =
+      sendParts.date && sendParts.date >= today ? sendParts.date : today;
+    setComposeDate(initialDate);
     syncComposeCount();
     syncComposeDays();
     syncComposeWhen();
+    primeComposeAudience(item);
     setComposeOpen(true);
     if (!String(item.message || "").trim()) {
       setTimeout(function () {
@@ -1425,6 +2029,7 @@
     editingId = "";
     pendingFlyer = null;
     flyerOverride = "";
+    composeTargets = [];
   }
 
   function readFileAsImagePayload(file) {
@@ -1482,26 +2087,33 @@
     }
     let flyerUrl =
       flyerOverride || String(item.flyer_url || "").trim() || String(item.event_image || "").trim();
+    if (wantSchedule && !composeTargets.length) {
+      err.textContent = "Choose who this goes to.";
+      err.hidden = false;
+      return;
+    }
     btn.disabled = true;
     btn.textContent = wantSchedule ? "Scheduling…" : "Saving…";
+    const previousIds = scheduleIdsOf(item);
+    let queuedIds = null;
+    let scheduledYmd = "";
     try {
-      if (pendingFlyer) flyerUrl = await uploadPayload(pendingFlyer);
       const payload = {
         formType: "adminSavePromotion",
         token: token(),
         id: item.id,
         message: message,
-        flyer_url: flyerUrl,
       };
       if (wantSchedule) {
-        if (!flyerUrl) {
+        if (!flyerUrl && !pendingFlyer) {
           err.textContent = "Add a flyer before scheduling.";
           err.hidden = false;
           return;
         }
-        const ymd = composeDay === "tomorrow" ? shiftYmd(todayYmd(), 1) : todayYmd();
+        const ymd = readComposeDate();
+        scheduledYmd = ymd;
         if (
-          dayList(composeDay === "tomorrow" ? 1 : 0, true).filter(function (p) {
+          promosOnDate(ymd, true).filter(function (p) {
             return String(p.id) !== String(item.id);
           }).length >= MAX_SLOTS
         ) {
@@ -1510,19 +2122,69 @@
           return;
         }
         const hm = ($("composeTime") && $("composeTime").value) || nextFreeHm(ymd);
+
+        // Hand it to Sandesha before the sheet records the slot, so the board
+        // can never show a queued post that WhatsApp was never told about.
+        const bridge = await ensureRelay();
+        const flyer = await flyerForSandesha(item, flyerUrl);
+        btn.textContent = "Queueing…";
+        queuedIds = await bridge.schedule({
+          promoId: item.id,
+          message: message,
+          runAtIso: sendAtToIso(ymd, hm),
+          targets: composeTargets,
+          flyer: flyer,
+        });
+
         payload.send_at = ymd + " " + hm;
+        payload.target = bridge.stringify(composeTargets);
+        payload.wa_schedule_ids = queuedIds;
+        btn.textContent = "Scheduling…";
       }
+      if (!wantSchedule && previousIds.length) {
+        // Editing the copy of a post that is already queued: re-queue it at
+        // the same slot, or WhatsApp would send the words that were replaced.
+        const parts = splitSendAt(item.send_at);
+        if (parts.date && parts.hm) {
+          const bridge = await ensureRelay();
+          btn.textContent = "Queueing…";
+          queuedIds = await bridge.schedule({
+            promoId: item.id,
+            message: message,
+            runAtIso: sendAtToIso(parts.date, parts.hm),
+            targets: bridge.resolveTargets(item.target),
+            flyer: await flyerForSandesha(item, flyerUrl),
+          });
+          payload.wa_schedule_ids = queuedIds;
+          btn.textContent = "Saving…";
+        }
+      }
+      if (pendingFlyer) flyerUrl = await uploadPayload(pendingFlyer);
+      payload.flyer_url = flyerUrl;
       const data = await apiPost(payload);
       if (data.error) throw new Error(data.error);
+      // Committed — only now is it safe to drop the rows this post used to
+      // hold, since the sheet no longer refers to them.
+      const committed = queuedIds || [];
+      queuedIds = null;
+      await cancelIds(staleIds(previousIds, committed));
       closeCompose();
       await load(false);
       if (wantSchedule) {
-        setView(composeDay === "tomorrow" ? 1 : 0);
-        toast("Scheduled", null);
+        setView(viewIndexForYmd(scheduledYmd || readComposeDate()));
+        const linked = relay() && relay().isLinked();
+        toast(
+          linked ? "Scheduled — Sandesha will post it" : "Scheduled — link WhatsApp so it can send",
+          null
+        );
       } else {
         toast("Saved to Events", null);
       }
     } catch (e) {
+      // The sheet never learned about these rows, so nothing would ever cancel
+      // them — drop them rather than leave WhatsApp holding an orphan post.
+      // Rows the server deduped back to the existing queue are left alone.
+      await cancelIds(staleIds(queuedIds, previousIds));
       err.textContent = e.message || "Could not save.";
       err.hidden = false;
     } finally {
@@ -1534,7 +2196,7 @@
   /* ───────── load / boot ───────── */
   async function load(showLoading) {
     if (showLoading !== false) {
-      listEl.innerHTML = '<div class="empty">Loading…</div>';
+      showBoardLoading();
     }
     const data = await apiPost({
       formType: "adminGet",
@@ -1556,14 +2218,28 @@
     });
     const dot = $("notifyDot");
     if (dot) dot.hidden = !due;
+    listEl.removeAttribute("aria-busy");
     render();
+
+    // Sandesha has no way back into the sheet, so the board catches up on
+    // what it already posted the next time someone opens this page.
+    if (!reconciling && (await reconcileSent())) {
+      render();
+      reconciling = true;
+      try {
+        await load(false);
+      } finally {
+        reconciling = false;
+      }
+    }
   }
 
   function bindChrome() {
     fabEl.onclick = function () {
       openPickSheet();
     };
-    $("logoutBtn").onclick = async function () {
+    const logoutBtn = $("logoutBtn");
+    if (logoutBtn) logoutBtn.onclick = async function () {
       const t = token();
       clearAuth();
       if (t) {
@@ -1576,6 +2252,14 @@
     $("notifyBtn").onclick = function () {
       toast("Alerts stay on when this page is installed as an app", null);
     };
+    const hdr = document.querySelector(".hdr");
+    if (hdr && listEl) {
+      const compact = function () {
+        hdr.classList.toggle("is-compact", listEl.scrollTop > 20);
+      };
+      listEl.addEventListener("scroll", compact, { passive: true });
+      compact();
+    }
     $("composeClose").addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1585,6 +2269,17 @@
       e.preventDefault();
       closeCompose();
     });
+    $("composeAud").addEventListener("click", async function () {
+      const sub = $("composeAudSub");
+      if (sub) sub.textContent = "Opening lists…";
+      try {
+        const bridge = await ensureRelay();
+        composeTargets = await bridge.pick(composeTargets);
+        syncComposeAudience();
+      } catch (e) {
+        if (sub) sub.textContent = e.message || "Messaging unavailable";
+      }
+    });
     $("composeScrim").addEventListener("click", closeCompose);
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && $("compose") && $("compose").classList.contains("open")) {
@@ -1592,15 +2287,17 @@
       }
     });
     $("composeSave").onclick = saveCompose;
+    $("composePaste").onclick = pasteComposeMessage;
     $("composeMessage").addEventListener("input", syncComposeCount);
     document.querySelectorAll('input[name="composeWhen"]').forEach(function (r) {
       r.addEventListener("change", syncComposeWhen);
     });
-    document.querySelectorAll(".compose-day").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        setComposeDay(btn.getAttribute("data-day"));
+    const composeDate = $("composeDate");
+    if (composeDate) {
+      composeDate.addEventListener("change", function () {
+        setComposeDate(composeDate.value);
       });
-    });
+    }
     $("composeFlyerFile").addEventListener("change", async function () {
       const file = this.files && this.files[0];
       if (!file) return;
@@ -1649,6 +2346,7 @@
   }
 
   async function boot() {
+    initTheme();
     buildTabs();
     bindChrome();
     setView(0);
@@ -1660,10 +2358,12 @@
     try {
       await load(true);
     } catch (e) {
-      listEl.innerHTML =
-        '<div class="empty"><h3>Could not load</h3>' +
-        esc(e.message || "Try again") +
-        '<br><a href="admin.html">Return to Admin</a></div>';
+      listEl.removeAttribute("aria-busy");
+      listEl.innerHTML = emptyHtml(
+        CLK_ART,
+        "Could not load",
+        esc(e.message || "Try again") + '<br/><a href="admin.html">Return to Admin</a>',
+      );
     }
   }
 

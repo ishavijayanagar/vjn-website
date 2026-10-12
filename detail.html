@@ -12,8 +12,8 @@
   <meta name="apple-mobile-web-app-title" content="Isha VJN"/>
   <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn"/>
-  <link rel="stylesheet" href="style.css?v=promo-dayboard"/>
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn2"/>
+  <link rel="stylesheet" href="style.css?v=nav-hit"/>
 </head>
 <body class="detail-page" data-wait-load="1">
 
@@ -82,6 +82,7 @@
                 <label>Area of Stay *</label>
                 <input type="text" id="fieldArea" placeholder="e.g. Jayanagar, Koramangala"/>
               </div>
+              <div id="fieldIeGate"></div>
               <button class="submit-btn" id="submitBtn" onclick="submitForm()">Submit Interest</button>
             </div>
 
@@ -129,6 +130,7 @@
           <label for="pvArea">Area of Stay *</label>
           <input type="text" id="pvArea" placeholder="e.g. Jayanagar, Koramangala"/>
         </div>
+        <div id="pvIeGate"></div>
         <button type="button" class="submit-btn" id="pvSubmitBtn" onclick="submitProgramVolunteer()">Submit</button>
       </div>
       <div class="form-success program-volunteer-success" id="pvFormSuccess" style="display:none">
@@ -167,9 +169,10 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
-  <script src="protect.js?v=home-nav"></script>
+  <script src="protect.js?v=selectable-v1"></script>
   <script src="site.js?v=home-nav"></script>
   <script src="ptr.js?v=1"></script>
+  <script src="ie-gate.js?v=1"></script>
   <script>
     function escapeHtmlAttr(s) {
       return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -214,6 +217,12 @@
     } else {
       backLink.href = 'volunteering.html';
       backLink.textContent = '← Back to Volunteering';
+    }
+
+    // Volunteering needs Inner Engineering; program interest does not.
+    IEGate.mount(document.getElementById('pvIeGate'), { submitBtn: document.getElementById('pvSubmitBtn') });
+    if (itemType !== 'program') {
+      IEGate.mount(document.getElementById('fieldIeGate'), { submitBtn: document.getElementById('submitBtn') });
     }
 
     let currentItem = null;
@@ -317,6 +326,7 @@
       document.getElementById('pvPhone').value = '';
       document.getElementById('pvArea').value = '';
       document.getElementById('pvProgramName').value = currentItem.title || '';
+      IEGate.reset(document.getElementById('pvIeGate'));
       errEl.style.display = 'none';
       const btn = document.getElementById('pvSubmitBtn');
       btn.disabled = false;
@@ -361,6 +371,12 @@
         return;
       }
       const phone = phoneCheck.normalized;
+      const ie = IEGate.read(document.getElementById('pvIeGate'));
+      if (!ie.ok) {
+        errEl.textContent = ie.message;
+        errEl.style.display = 'block';
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = 'Submitting...';
@@ -373,6 +389,7 @@
             name,
             phone,
             area,
+            ieCompletion: ie.value,
             programName: currentItem.title || '',
             programId: currentItem.id || '',
             timestamp: new Date().toISOString(),
@@ -412,6 +429,15 @@
         return;
       }
       const phone = phoneCheck.normalized;
+      let ie = null;
+      if (itemType !== 'program') {
+        ie = IEGate.read(document.getElementById('fieldIeGate'));
+        if (!ie.ok) {
+          errEl.textContent = ie.message;
+          errEl.style.display = 'block';
+          return;
+        }
+      }
 
       btn.disabled = true;
       btn.textContent = 'Submitting...';
@@ -433,6 +459,7 @@
                 name,
                 phone,
                 area,
+                ieCompletion: ie ? ie.value : '',
                 opportunityName: currentItem ? currentItem.title : '',
                 opportunityId: currentItem ? currentItem.id : '',
                 timestamp: new Date().toISOString()

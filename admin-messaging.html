@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <meta name="theme-color" content="#FAF8F4"/>
+  <title>Messaging – Isha Place, Vijayanagar</title>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="sandesha/css/tokens.css?v=5"/>
+  <link rel="stylesheet" href="sandesha/css/typography.css?v=3"/>
+  <link rel="stylesheet" href="sandesha/css/layout.css?v=5"/>
+  <link rel="stylesheet" href="sandesha/css/components.css?v=5"/>
+  <link rel="stylesheet" href="sandesha/css/embedded.css?v=6"/>
+  <link rel="stylesheet" href="admin-messaging.css?v=10"/>
+  <script src="config.js"></script>
+</head>
+<body data-sandesha-boot="admin">
+  <div id="app-view">
+    <header class="app-header" id="app-header">
+      <a href="admin.html" class="hdr-icon-btn" id="header-admin-back" aria-label="Back to Admin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </a>
+      <button type="button" class="hdr-icon-btn hidden" id="header-back" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <h1 id="header-title">Messaging</h1>
+      <button type="button" class="hdr-icon-btn" id="header-settings" aria-label="Settings — server connection status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="header-wa-dot unknown" id="header-status-dot" aria-hidden="true"></span>
+      </button>
+    </header>
+
+    <div id="offline-banner" class="hidden">Cannot reach Sandesha server — open Settings and update the API URL</div>
+
+    <div id="pairing-banner" class="pairing-banner hidden" role="status" aria-live="polite">
+      <div class="pairing-banner-inner">
+        <div class="pairing-banner-title">WhatsApp disconnected — reconnect</div>
+        <p class="pairing-banner-help" data-pairing-help></p>
+        <div class="pairing-code" data-pairing-code>—</div>
+        <img class="pairing-qr hidden" data-pairing-qr alt="WhatsApp QR code" width="180" height="180"/>
+      </div>
+    </div>
+
+    <main class="app-main" id="app-main">
+      <div class="page-panel active" data-tab="dashboard" id="page-dashboard"></div>
+      <div class="page-panel" data-tab="tools" id="page-tools"></div>
+
+      <div class="sub-page" data-sub="compose" id="page-compose"></div>
+      <div class="sub-page" data-sub="audience" id="page-audience"></div>
+      <div class="sub-page" data-sub="schedule" id="page-schedule"></div>
+      <div class="sub-page" data-sub="send" id="sub-send"></div>
+      <div class="sub-page" data-sub="groups" id="sub-groups"></div>
+      <div class="sub-page" data-sub="group-detail" id="sub-group-detail"></div>
+      <div class="sub-page" data-sub="sets" id="sub-sets"></div>
+      <div class="sub-page" data-sub="contacts" id="sub-contacts"></div>
+      <div class="sub-page" data-sub="bulk" id="sub-bulk"></div>
+      <div class="sub-page" data-sub="add-members" id="sub-add-members"></div>
+      <div class="sub-page" data-sub="settings" id="sub-settings"></div>
+      <div class="sub-page" data-sub="ai" id="sub-ai"></div>
+      <div class="sub-page" data-sub="status" id="sub-status"></div>
+      <div class="sub-page" data-sub="help" id="sub-help"></div>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Main">
+    <button type="button" data-tab="dashboard" class="active">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="9" rx="2"/>
+          <rect x="14" y="3" width="7" height="5" rx="2"/>
+          <rect x="14" y="12" width="7" height="9" rx="2"/>
+          <rect x="3" y="16" width="7" height="5" rx="2"/>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </button>
+    <button type="button" data-tab="tools">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect x="4" y="4" width="6" height="6" rx="1.5"/>
+          <rect x="14" y="4" width="6" height="6" rx="1.5"/>
+          <rect x="4" y="14" width="6" height="6" rx="1.5"/>
+          <rect x="14" y="14" width="6" height="6" rx="1.5"/>
+        </svg>
+      </span>
+      <span>Tools</span>
+    </button>
+  </nav>
+
+  <div id="safe-bottom-paint"></div>
+  <div id="toast-container"></div>
+
+  <script type="module" src="sandesha/js/boot-messaging.js?v=9"></script>
+</body>
+</html>

@@ -12,8 +12,8 @@
   <meta name="apple-mobile-web-app-title" content="Isha VJN"/>
   <link rel="manifest" href="manifest.json"/>
   <link rel="icon" type="image/png" href="assets/logo.png"/>
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn"/>
-  <link rel="stylesheet" href="style.css?v=promo-dayboard"/>
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn2"/>
+  <link rel="stylesheet" href="style.css?v=free-offer"/>
 </head>
 <body class="programs-page" data-wait-load="1">
 
@@ -173,7 +173,7 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
-  <script src="protect.js?v=home-nav"></script>
+  <script src="protect.js?v=selectable-v1"></script>
   <script src="site.js?v=home-nav"></script>
   <script src="ptr.js?v=1"></script>
   <script>
@@ -501,10 +501,43 @@
           ${flame}
           <div class="program-card-hero-scrim"></div>
           <div class="program-card-badge-row">
-            <div class="program-card-badge">${SVG_BELL} Program</div>
+            ${buildProgramKindBadge(item)}
             ${buildProgramWhenBadge(item)}
           </div>
         </div>`;
+    }
+
+    /** Titles that are a free offering. Paid programs show no left badge. */
+    const FREE_OFFERINGS = [
+      'sannidhi pooja',
+      'satsang',
+      'devi divya pooja',
+      'daily guru pooja',
+      'guru pooja',
+    ];
+
+    function isYesFlag(raw) {
+      const v = String(raw || '').trim().toLowerCase();
+      return v === 'yes' || v === 'true' || v === '1' || v === 'y';
+    }
+
+    function isNoFlag(raw) {
+      const v = String(raw || '').trim().toLowerCase();
+      return v === 'no' || v === 'false' || v === '0' || v === 'n';
+    }
+
+    function isFreeOffering(item) {
+      const flag = item && (item.free_offering || item.freeoffering || item['free offering']);
+      if (isYesFlag(flag)) return true;
+      if (isNoFlag(flag)) return false;
+      const title = String((item && item.title) || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!title) return false;
+      return FREE_OFFERINGS.some((name) => title === name || title.includes(name));
+    }
+
+    function buildProgramKindBadge(item) {
+      if (!isFreeOffering(item)) return '';
+      return '<div class="program-card-badge program-card-badge-free">Free offering</div>';
     }
 
     function buildProgramWhenBadge(item) {
