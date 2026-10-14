@@ -21,9 +21,10 @@ import {
   disable as pushDisable, syncOnLoad as syncPush, ensureServiceWorker,
 } from './push.js';
 
-const MODES = ['board', 'schedule', 'send', 'server'];
+const MODES = ['board', 'schedule', 'send', 'banner', 'server'];
 const MODE_KEY = 'promo_sandesha_mode';
 let currentMode = 'board';
+let bannerUi = null;
 /** Where the profile icon returns to when tapped a second time. */
 let lastTabMode = 'board';
 /** The board owns #dayTitle, so remember its text before borrowing it. */
@@ -37,6 +38,7 @@ function panelHost(mode) {
   if (mode === 'schedule') return $('sandeshaSchedule');
   if (mode === 'send') return $('sandeshaSend');
   if (mode === 'server') return $('sandeshaServer');
+  if (mode === 'banner') return $('promoBanner');
   return null;
 }
 
@@ -105,6 +107,8 @@ function paintKicker() {
     const cls = !known ? 'wait' : on ? 'live' : 'down';
     const text = !known ? 'Checking WhatsApp…' : on ? 'WhatsApp connected' : 'WhatsApp not connected';
     el.innerHTML = `<span class="kicker-dot ${cls}" aria-hidden="true"></span>${text}`;
+  } else if (currentMode === 'banner') {
+    el.textContent = 'Homepage banner';
   } else if (currentMode === 'server') {
     const user = signedInUser();
     const name = String(user.name || '').trim();
@@ -135,6 +139,7 @@ function setMode(mode) {
   $('sandeshaSchedule')?.classList.toggle('is-active', mode === 'schedule');
   $('sandeshaSend')?.classList.toggle('is-active', mode === 'send');
   $('sandeshaServer')?.classList.toggle('is-active', mode === 'server');
+  $('promoBanner')?.classList.toggle('is-active', mode === 'banner');
 
   const dayTitle = $('dayTitle');
   if (dayTitle) {
@@ -166,6 +171,10 @@ function setMode(mode) {
     showSendPanel().catch((err) => {
       showPanelError('send', err?.message || 'Could not load send');
     });
+  } else if (mode === 'banner') {
+    const host = $('promoBanner');
+    if (host && !bannerUi) bannerUi = window.VjnBanner.mount(host, { token: getVjnToken });
+    else bannerUi?.reload();
   } else if (mode === 'server') {
     const host = $('sandeshaApiHost') || $('sandeshaServer');
     if (host) {

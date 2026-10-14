@@ -217,6 +217,12 @@ const SITE_DEFAULTS = {
   footer_hours: "Mon – Sun\n10:00 AM – 8:00 PM",
   hero_image: "",
   hero_image_mobile: "",
+  // Homepage promo popup (managed in admin > Banner). banner_until is an ISO timestamp.
+  banner_enabled: "",
+  banner_image: "",
+  banner_link: "",
+  banner_until: "",
+  banner_text: "",
 };
 
 const TOKEN_TTL_SECONDS = 21600;
@@ -2208,7 +2214,7 @@ function getSiteContent() {
 }
 
 function adminSaveSite(data) {
-  requireRole_(data.token, ["admin"]);
+  requireRole_(data.token, ["admin", "promotions"]);
   const incoming = data.content || {};
   const sheet = ensureSheet_(SITE_SHEET, ["key", "value"]);
   const keys = Object.keys(SITE_DEFAULTS);
@@ -2219,7 +2225,9 @@ function adminSaveSite(data) {
     if (key) existing[key] = i + 1;
   }
   keys.forEach(function (key) {
-    const value = incoming[key] !== undefined ? String(incoming[key]) : "";
+    // Only touch keys the caller sent, so saving the banner never blanks other site text.
+    if (incoming[key] === undefined) return;
+    const value = String(incoming[key]);
     if (existing[key]) {
       sheet.getRange(existing[key], 2).setValue(value);
     } else {

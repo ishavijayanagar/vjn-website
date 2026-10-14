@@ -1,0 +1,120 @@
+/* Homepage banner editor (banner-form.js). Mobile first; reads the host page's theme vars. */
+.bf {
+  --bf-surface: var(--surface, #fff);
+  --bf-bg: var(--surface-2, #f4f1ea);
+  --bf-ink: var(--ink, #1c1c1e);
+  --bf-ink2: var(--ink-2, var(--ink-soft, #555));
+  --bf-ink3: var(--ink-3, #8a8a8a);
+  --bf-line: var(--line, var(--rule, #e6e0d6));
+  --bf-accent: var(--cta, var(--gold-dark, #a8893e));
+  --bf-on-accent: var(--on-cta, #fff);
+  --bf-ok: var(--green, #2e7d52);
+  --bf-err: var(--red, #b3352a);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 520px;
+  margin: 0 auto;
+  color: var(--bf-ink);
+  font-size: 16px;
+}
+.bf * { box-sizing: border-box; }
+.bf [hidden] { display: none !important; }
+
+.bf-stage { display: flex; flex-direction: column; gap: 8px; }
+.bf-drop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 190px;
+  border: 1.5px dashed var(--bf-line);
+  border-radius: 16px;
+  background: var(--bf-surface);
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bf-img { display: block; width: 100%; max-height: 52vh; object-fit: contain; background: var(--bf-bg); }
+.bf-drop:has(.bf-img:not([hidden])) { border-style: solid; }
+.bf-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 28px 16px; color: var(--bf-ink3); text-align: center; }
+.bf-empty strong { color: var(--bf-ink); font-size: 16px; font-weight: 600; }
+.bf-empty small { font-size: 13px; }
+.bf-replace {
+  position: absolute; right: 10px; bottom: 10px;
+  padding: 7px 14px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.68); color: #fff; font-size: 13px; font-weight: 600;
+}
+.bf-cap {
+  margin: 0; padding: 10px 14px; border-radius: 12px;
+  background: var(--bf-surface); border: 1px solid var(--bf-line);
+  text-align: center; font-size: 15px; font-weight: 600; word-break: break-word;
+}
+
+.bf-card {
+  background: var(--bf-surface);
+  border: 1px solid var(--bf-line);
+  border-radius: 16px;
+  padding: 4px 16px;
+}
+.bf-field { padding: 12px 0; }
+.bf-field + .bf-field { border-top: 1px solid var(--bf-line); }
+.bf-field label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--bf-ink2); }
+.bf-field label em { font-style: normal; font-weight: 400; color: var(--bf-ink3); margin-left: 6px; }
+.bf-field input {
+  width: 100%; min-height: 48px; padding: 0 14px;
+  border: 1px solid var(--bf-line); border-radius: 12px;
+  background: var(--bf-bg); color: var(--bf-ink);
+  font: inherit; font-size: 16px; /* 16px stops iOS zooming on focus */
+  -webkit-appearance: none; appearance: none;
+}
+.bf-field input:focus { outline: 2px solid var(--bf-accent); outline-offset: 1px; background: var(--bf-surface); }
+.bf-count { display: block; min-height: 16px; margin-top: 4px; text-align: right; font-size: 12px; color: var(--bf-ink3); }
+.bf-count:empty { display: none; }
+
+.bf-chips { display: flex; gap: 8px; margin-top: 10px; }
+.bf-chips button {
+  flex: 1 1 0; min-height: 36px; padding: 0 6px; border-radius: 999px;
+  border: 1px solid var(--bf-line); background: var(--bf-surface); color: var(--bf-ink2);
+  font: inherit; font-size: 14px; cursor: pointer;
+}
+.bf-chips button:active { background: var(--bf-bg); }
+
+.bf-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; cursor: pointer; }
+.bf-switch strong { display: block; font-size: 16px; font-weight: 600; }
+.bf-switch small { display: block; margin-top: 2px; font-size: 13px; color: var(--bf-ink3); }
+.is-live .bf-switch small { color: var(--bf-ok); }
+.bf-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.bf-switch i {
+  position: relative; flex: 0 0 auto; width: 51px; height: 31px; border-radius: 999px;
+  background: var(--bf-line); transition: background 0.2s ease;
+}
+.bf-switch i::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25); transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.bf-switch input:checked + i { background: var(--bf-ok); }
+.bf-switch input:checked + i::after { transform: translateX(20px); }
+.bf-switch input:focus-visible + i { outline: 2px solid var(--bf-accent); outline-offset: 2px; }
+
+.bf-err { margin: 0; min-height: 0; color: var(--bf-err); font-size: 14px; }
+.bf-err:empty { display: none; }
+
+/* Save bar sits at the end of the form. */
+.bf-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 4px 0 8px;
+}
+.bf-msg { flex: 1; min-width: 0; font-size: 13px; color: var(--bf-ink2); }
+.bf-save {
+  flex: 0 0 auto; min-height: 50px; padding: 0 28px; border: 0; border-radius: 14px;
+  background: var(--bf-accent); color: var(--bf-on-accent);
+  font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.bf-save:active { transform: scale(0.97); }
+.bf-save:disabled { opacity: 0.6; }
+@media (max-width: 420px) {
+  .bf-bar { flex-direction: column-reverse; align-items: stretch; gap: 6px; }
+  .bf-save { width: 100%; }
+  .bf-msg { text-align: center; }
+}

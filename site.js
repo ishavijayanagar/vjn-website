@@ -48,6 +48,59 @@
     }
   }
 
+  /* ---- Homepage promo banner (set in admin > Homepage banner) ---- */
+  function showPromoBanner(c) {
+    if (!document.body.classList.contains("home-page")) return;
+    if (c.banner_enabled !== "1" || !c.banner_image) return;
+    var until = new Date(c.banner_until);
+    if (isNaN(until) || until.getTime() <= Date.now()) return;
+    var key = "vjn_banner_closed:" + c.banner_image;
+    try {
+      if (sessionStorage.getItem(key)) return;
+    } catch (e) {}
+
+    var id = driveFileId(c.banner_image);
+    var src = id ? "https://drive.google.com/thumbnail?id=" + id + "&sz=w1200" : c.banner_image;
+    var link = /^https?:\/\//i.test(c.banner_link || "") ? c.banner_link : "";
+
+    var text = String(c.banner_text || "").trim();
+    var overlay = document.createElement("div");
+    overlay.className = "promo-banner";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-label", "Promotion");
+    overlay.innerHTML =
+      '<div class="promo-banner-card">' +
+      '<button type="button" class="promo-banner-close" aria-label="Close">&times;</button>' +
+      (link ? '<a class="promo-banner-link" target="_blank" rel="noopener"></a>' : '<span class="promo-banner-link"></span>') +
+      '<p class="promo-banner-text"></p></div>';
+    var holder = overlay.querySelector(".promo-banner-link");
+    if (link) holder.href = link;
+    var line = overlay.querySelector(".promo-banner-text");
+    line.textContent = text;
+    line.hidden = !text;
+    var img = new Image();
+    img.alt = "Promotion flyer";
+    img.referrerPolicy = "no-referrer";
+    img.onload = function () {
+      holder.appendChild(img);
+      document.body.appendChild(overlay);
+      document.documentElement.classList.add("promo-banner-lock");
+      requestAnimationFrame(function () { overlay.classList.add("open"); });
+    };
+    img.src = src;
+
+    function close() {
+      overlay.classList.remove("open");
+      document.documentElement.classList.remove("promo-banner-lock");
+      setTimeout(function () { overlay.remove(); }, 200);
+      try { sessionStorage.setItem(key, "1"); } catch (e) {}
+    }
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay || e.target.closest(".promo-banner-close")) close();
+    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+  }
+
   async function applySiteContent() {
     if (typeof APPS_SCRIPT_URL === "undefined" || !APPS_SCRIPT_URL) return;
     try {
@@ -70,6 +123,8 @@
         const digits = a.textContent.replace(/[^\d+]/g, "");
         if (digits) a.href = "tel:" + digits;
       });
+
+      showPromoBanner(content);
 
       document.querySelectorAll("[data-site-src]").forEach(function (el) {
         const key = el.getAttribute("data-site-src");

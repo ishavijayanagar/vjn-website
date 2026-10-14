@@ -18033,3 +18033,18 @@ html:not(.admin-authed) .admin-report-issue { display: none; }
   .login-head { margin: 0 -18px 18px; padding: 16px 18px 18px; }
   .login-head h1 { font-size: 1.65rem; }
 }
+
+/* Homepage promo banner */
+.promo-banner{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.6);opacity:0;transition:opacity .2s ease}
+html.promo-banner-lock,html.promo-banner-lock body{overflow:hidden;overscroll-behavior:none}
+.promo-banner{touch-action:none}
+.promo-banner.open{opacity:1}
+.promo-banner-card{position:relative;max-width:min(92vw,460px);max-height:88vh;transform:scale(.96);transition:transform .2s ease}
+.promo-banner.open .promo-banner-card{transform:none}
+.promo-banner-link{display:block}
+.promo-banner-link img{display:block;max-width:100%;max-height:88vh;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.45)}
+.promo-banner-text{margin:10px 0 0;padding:10px 14px;border-radius:12px;background:#fff;color:#111;font-weight:600;text-align:center;font-size:15px}
+.promo-banner-text[hidden]{display:none}
+a.promo-banner-link{cursor:pointer}
+.promo-banner-close{position:absolute;top:-14px;right:-14px;z-index:1;width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#111;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+@media (max-width:480px){.promo-banner-close{top:-12px;right:-6px}}

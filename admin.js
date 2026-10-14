@@ -6,9 +6,9 @@
   const QUERY_NOTIFY_KEY = "vjn_query_notify";
   const QUERY_WATCH_MS = 45000;
   const ROLE_PAGES = {
-    admin: ["events", "volunteering", "promotions", "messaging", "queries", "team", "flyerTemplates"],
+    admin: ["events", "volunteering", "promotions", "messaging", "queries", "team", "flyerTemplates", "banner"],
     programs: ["events", "programVolunteers"],
-    promotions: ["promotions"],
+    promotions: ["promotions", "banner"],
     nurturing: ["queries", "volunteering"],
   };
   const ROLE_LABELS = {
@@ -1084,6 +1084,7 @@
     if (page === "promotions") return "Promotions";
     if (page === "messaging") return "Tools";
     if (page === "team") return "Team";
+    if (page === "banner") return "Homepage banner";
     if (page === "volunteering") return "Volunteering";
     if (page === "programVolunteers") return "Program volunteers";
     if (page === "flyerTemplates") return "Flyer templates";
@@ -1134,6 +1135,7 @@
     show($("teamPanel"), isTeam);
     show($("programVolunteersPanel"), isPv);
     show($("flyerTemplatesPanel"), isFlyerImport);
+    show($("bannerPanel"), page === "banner");
     show($("volChooserPanel"), isNurturingVolChooser);
     show($("volProgramDetailPanel"), false);
     show($("volAttendancePanel"), false);
@@ -1167,6 +1169,8 @@
       loadProgramVolunteers();
     } else if (isFlyerImport) {
       loadFlyerImportPage();
+    } else if (page === "banner") {
+      loadBannerPage();
     }
     if (window.endPageLoad) endPageLoad();
   }
@@ -2751,7 +2755,7 @@
 
   function showOnlyPanel(panelId) {
     ["listingsPanel", "inquiriesPanel", "promotionsPanel", "teamPanel", "programVolunteersPanel",
-     "flyerTemplatesPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
+     "flyerTemplatesPanel", "bannerPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
       show($(id), id === panelId);
     });
     show($("backToHubBtn"), role() !== "promotions");
@@ -6367,6 +6371,15 @@ panels +
     });
     if (data.error || !data.url) throw new Error(data.error || "Image upload failed.");
     return data.url;
+  }
+
+  /* ── Homepage promo banner (form lives in banner-form.js) ── */
+
+  let bannerUi = null;
+
+  function loadBannerPage() {
+    if (bannerUi) return bannerUi.reload();
+    bannerUi = window.VjnBanner.mount($("bannerHost"), { token: token });
   }
 
   async function createBulkEvents() {

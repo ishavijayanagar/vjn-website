@@ -3092,3 +3092,6 @@ button.chip {
 @media (prefers-reduced-motion: reduce) {
   .ptr.is-refreshing .ptr-circle svg { animation-duration: 1.1s; }
 }
+
+/* Banner tab: leave room so the save button clears the tab bar. */
+#promoBanner.promo-panel.is-active { padding-bottom: calc(24px + var(--tabbar-h)); }
