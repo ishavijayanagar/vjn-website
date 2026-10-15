@@ -55,6 +55,11 @@ function encodeSubject(subject) {
   return `=?UTF-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`;
 }
 
+/** SANDESHA_NOTIFY_EMAIL may hold several addresses, comma/semicolon separated. */
+function splitRecipients(to) {
+  return String(to || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+}
+
 function buildMimeMessage({ from, to, subject, text, html, attachments }) {
   const stamp = Date.now().toString(36);
   const altBoundary = `sandesha_alt_${stamp}`;
@@ -62,7 +67,7 @@ function buildMimeMessage({ from, to, subject, text, html, attachments }) {
   const hasAtt = Array.isArray(attachments) && attachments.length > 0;
   const headers = [
     `From: ${from}`,
-    `To: ${to}`,
+    `To: ${splitRecipients(to).join(', ')}`,
     `Subject: ${encodeSubject(subject)}`,
     'MIME-Version: 1.0',
     hasAtt
@@ -187,7 +192,9 @@ async function sendMailViaSmtp({ from, to, subject, text, html, attachments }) {
   // Envelope from: strip display name if present
   const mailFrom = (from.match(/<([^>]+)>/) || [, from])[1].trim();
   await smtpCommand(socket, `MAIL FROM:<${mailFrom}>`, [250]);
-  await smtpCommand(socket, `RCPT TO:<${to}>`, [250, 251]);
+  for (const rcpt of splitRecipients(to)) {
+    await smtpCommand(socket, `RCPT TO:<${rcpt}>`, [250, 251]);
+  }
   await smtpCommand(socket, 'DATA', [354]);
 
   const mime = buildMimeMessage({ from, to, subject, text, html, attachments });
