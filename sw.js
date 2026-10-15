@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v161";
+const CACHE_NAME = "isha-vjn-v163";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -7,7 +7,7 @@ const PRECACHE = [
   "./detail.html",
   "./admin-promotions.html",
   "./admin-messaging.html",
-  "./admin-promotions.css?v=promo-cta",
+  "./admin-promotions.css?v=promo-status",
   "./admin-promotions.js?v=promo-search",
   "./admin-messaging.css?v=1",
   "./sandesha/css/embedded.css?v=5",

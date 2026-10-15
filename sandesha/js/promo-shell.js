@@ -15,7 +15,7 @@ import { toast } from './toast.js';
 import { setComposeMode } from './pages/promo-compose.js';
 // Registers window.SandeshaPromo for admin-promotions.js (a classic script).
 import './promo-relay.js';
-import { subscribe, getState, refreshCore } from './store.js';
+import { subscribe, getState, refreshCore, refreshHealth } from './store.js';
 import {
   supported as pushSupported, state as pushState, enable as pushEnable,
   disable as pushDisable, syncOnLoad as syncPush, ensureServiceWorker,
@@ -90,12 +90,28 @@ function signedInUser() {
   return {};
 }
 
-/** WhatsApp link as the header shows it: unknown until the first check settles. */
+/**
+ * WhatsApp link as the header shows it. `tone` picks the dot colour:
+ * live (connected), warn (starting / waiting for a scan), down (offline or
+ * server unreachable), wait (first check still running).
+ */
 function linkStatus() {
-  const health = getState().health;
-  const known = linkSettled || health != null;
-  const on = !!health?.whatsapp?.connected;
-  return { known, on };
+  const { health, healthError } = getState();
+  const known = linkSettled || health != null || healthError;
+  const wa = health?.whatsapp;
+  const on = !!wa?.connected;
+  if (!known) return { known, on, tone: 'wait', text: 'Checking WhatsApp…' };
+  if (healthError && !health) return { known, on: false, tone: 'down', text: 'Server unreachable' };
+  if (on) {
+    const who = String(health?.info?.pushname || '').trim();
+    return { known, on, tone: 'live', text: who ? `WhatsApp connected · ${who}` : 'WhatsApp connected' };
+  }
+  const st = String(wa?.state || '').toLowerCase();
+  if (wa?.needsPairing || st === 'pairing') {
+    return { known, on, tone: 'warn', text: 'Waiting for WhatsApp link — scan QR' };
+  }
+  if (st === 'connecting') return { known, on, tone: 'warn', text: 'WhatsApp starting…' };
+  return { known, on, tone: 'down', text: 'WhatsApp not connected' };
 }
 
 /** Second header line for the Sandesha tabs. Schedule writes its own month range. */
@@ -103,10 +119,9 @@ function paintKicker() {
   const el = $('dayTitle');
   if (!el) return;
   if (currentMode === 'send') {
-    const { known, on } = linkStatus();
-    const cls = !known ? 'wait' : on ? 'live' : 'down';
-    const text = !known ? 'Checking WhatsApp…' : on ? 'WhatsApp connected' : 'WhatsApp not connected';
-    el.innerHTML = `<span class="kicker-dot ${cls}" aria-hidden="true"></span>${text}`;
+    const { tone, text } = linkStatus();
+    el.innerHTML = `<span class="kicker-dot ${tone}" aria-hidden="true"></span>`;
+    el.appendChild(document.createTextNode(text));
   } else if (currentMode === 'banner') {
     el.textContent = 'Homepage banner';
   } else if (currentMode === 'server') {
@@ -239,6 +254,16 @@ async function watchSandeshaLink() {
   }
   linkSettled = true;
   syncSandeshaDot();
+  startHealthPolling();
+}
+
+/** Keep the status honest after a Pi reboot or a dropped link — health only, visible tab only. */
+let healthTimer = null;
+function startHealthPolling() {
+  if (healthTimer) return;
+  const tick = () => { if (!document.hidden) refreshHealth().catch(() => {}); };
+  healthTimer = setInterval(tick, 15000);
+  document.addEventListener('visibilitychange', tick);
 }
 
 async function wirePromoNotifications() {

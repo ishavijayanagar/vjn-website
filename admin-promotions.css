@@ -334,6 +334,10 @@ h1 {
 }
 .kicker-dot.live { background: var(--green); }
 .kicker-dot.down { background: var(--red); }
+.kicker-dot.warn { background: var(--gold); }
+.kicker-dot.wait { animation: kicker-pulse 1.2s ease-in-out infinite; }
+@keyframes kicker-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .kicker-dot.wait { animation: none; } }
 .hdr-row .kicker {
   margin-top: 2px;
   max-height: 22px;
@@ -2892,6 +2896,7 @@ button.chip {
 }
 #sandeshaServer .ios-dot.live { background: var(--green); }
 #sandeshaServer .ios-dot.down { background: var(--red); }
+#sandeshaServer .ios-dot.warn { background: var(--gold); }
 #sandeshaServer .ios-dot.wait { background: var(--ink-3); }
 #sandeshaServer .ios-field {
   display: flex;

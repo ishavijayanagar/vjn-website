@@ -2,6 +2,7 @@ import { api, runWithoutAuthRedirect } from './api.js';
 
 const state = {
   health: null,
+  healthError: false,
   groups: [],
   sets: {},
   contacts: {},
@@ -31,8 +32,12 @@ export async function refreshCore(forceGroups = false) {
   // Activity is admin-only; the promotions shell would just 403 on it.
   const wantActivity = typeof window === 'undefined'
     || window.SANDESHA_EMBEDDED_MODE !== 'promotions';
+  // Publish health as soon as it lands: /groups, /chats and /contacts can take a
+  // long time on a Raspberry Pi, and the status row should not wait on them.
+  const healthPromise = api('/health');
+  healthPromise.then((h) => { state.health = h; state.healthError = false; notify(); }).catch(() => {});
   const settled = await Promise.allSettled([
-    api('/health'),
+    healthPromise,
     api(`/groups${forceGroups ? '?refresh=1' : ''}`),
     api('/sets'),
     api('/contacts'),
@@ -84,6 +89,18 @@ export async function refreshCore(forceGroups = false) {
   }
   return state;
   });
+}
+
+/** Health only — cheap enough to poll. Marks the server unreachable on failure. */
+export async function refreshHealth() {
+  try {
+    state.health = await api('/health');
+    state.healthError = false;
+  } catch {
+    state.healthError = true;
+  }
+  notify();
+  return state.health;
 }
 
 export async function refreshAiStatus() {

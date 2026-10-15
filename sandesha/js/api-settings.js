@@ -32,11 +32,19 @@ function statusBits(health) {
     return { known: false, connected: false, state: '—', label: 'Checking' };
   }
   const connected = !!wa?.connected;
+  const st = String(wa?.state || '').toLowerCase();
+  const warn = !connected && (wa?.needsPairing || st === 'pairing' || st === 'connecting');
+  const label = connected
+    ? 'Connected'
+    : wa?.needsPairing || st === 'pairing' ? 'Scan QR to link'
+    : st === 'connecting' ? 'Starting…'
+    : 'Not connected';
   return {
     known: true,
     connected,
+    warn,
     state: wa?.state || (connected ? 'open' : 'offline'),
-    label: connected ? 'Connected' : 'Not connected',
+    label,
   };
 }
 
@@ -49,7 +57,8 @@ export function updateApiStatus(container, health) {
   if (row) row.textContent = bits.label;
   if (dot) {
     dot.classList.toggle('live', bits.connected);
-    dot.classList.toggle('down', bits.known && !bits.connected);
+    dot.classList.toggle('warn', !!bits.warn);
+    dot.classList.toggle('down', bits.known && !bits.connected && !bits.warn);
     dot.classList.toggle('wait', !bits.known);
   }
 }
