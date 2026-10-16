@@ -6,10 +6,10 @@
   const QUERY_NOTIFY_KEY = "vjn_query_notify";
   const QUERY_WATCH_MS = 45000;
   const ROLE_PAGES = {
-    admin: ["events", "volunteering", "promotions", "messaging", "queries", "team", "flyerTemplates", "banner"],
-    programs: ["events", "programVolunteers"],
+    admin: ["events", "volunteering", "promotions", "messaging", "queries", "team", "flyerTemplates", "newFlyerTemplate", "banner", "settings"],
+    programs: ["events", "programVolunteers", "settings", "generateFlyer"],
     promotions: ["promotions", "banner"],
-    nurturing: ["queries", "volunteering"],
+    nurturing: ["queries", "volunteering", "volunteers", "settings"],
   };
   const ROLE_LABELS = {
     admin: "Admin",
@@ -213,6 +213,12 @@
   function role() {
     const user = currentUser();
     return (user && user.role) || "";
+  }
+
+  /** Hashes are compared lower-cased; map one back to its camelCase page name. */
+  function pageFromHash(hash) {
+    const pages = ROLE_PAGES[role()] || [];
+    return pages.find(function (p) { return p.toLowerCase() === hash; }) || "";
   }
 
   function canAccess(page) {
@@ -698,8 +704,8 @@
       if (!routeVolunteeringHash(hash)) history.replaceState(null, "", "#volunteering");
       // The program detail page reveals itself once its data is in.
       if (!hash.startsWith("volunteering/need/")) endDeepLinkBoot();
-    } else if (hash && canAccess(hash)) {
-      openAdminPage(hash, true);
+    } else if (hash && pageFromHash(hash)) {
+      openAdminPage(pageFromHash(hash), true);
       endDeepLinkBoot();
     } else {
       showAdminHub(true);
@@ -1061,6 +1067,7 @@
     show($("backToHubBtn"), false);
     show($("adminOpenBadge"), false);
     show($("logoutBtn"), true);
+    if ($("settingsBtn")) $("settingsBtn").hidden = !canAccess("settings");
     setAdminTitle("Team");
     setStatus("");
     renderHubIntro();
@@ -1086,8 +1093,12 @@
     if (page === "team") return "Team";
     if (page === "banner") return "Homepage banner";
     if (page === "volunteering") return "Volunteering";
+    if (page === "volunteers") return "Volunteers";
     if (page === "programVolunteers") return "Program volunteers";
     if (page === "flyerTemplates") return "Flyer templates";
+    if (page === "newFlyerTemplate") return "New template";
+    if (page === "settings") return "Settings";
+    if (page === "generateFlyer") return "Generate flyer";
     return "Programs";
   }
 
@@ -1111,7 +1122,8 @@
     }
     const isTeam = page === "team";
     const isPv = page === "programVolunteers";
-    const isFlyerImport = page === "flyerTemplates";
+    const isFlyerImport = page === "newFlyerTemplate";
+    const isFlyerGen = page === "generateFlyer" || page === "flyerTemplates";
     // Nurturing volunteers to a sub-chooser rather than straight to the list
     const isNurturingVolChooser = isVolunteering && role() === "nurturing";
     const app = $("adminApp");
@@ -1129,14 +1141,19 @@
     const promotionsOnly = role() === "promotions";
     show($("backToHubBtn"), !promotionsOnly);
     show($("logoutBtn"), promotionsOnly);
+    if ($("settingsBtn")) $("settingsBtn").hidden = true;
     show($("listingsPanel"), isListings && !isNurturingVolChooser);
     show($("inquiriesPanel"), isQueries);
     show($("promotionsPanel"), isPromos);
     show($("teamPanel"), isTeam);
     show($("programVolunteersPanel"), isPv);
     show($("flyerTemplatesPanel"), isFlyerImport);
+    show($("settingsPanel"), page === "settings");
+    show($("generateFlyerPanel"), isFlyerGen);
+    show($("gfToolbar"), page === "flyerTemplates");
     show($("bannerPanel"), page === "banner");
     show($("volChooserPanel"), isNurturingVolChooser);
+    show($("volRosterPanel"), page === "volunteers");
     show($("volProgramDetailPanel"), false);
     show($("volAttendancePanel"), false);
     show($("volNeedsPanel"), false);
@@ -1154,6 +1171,8 @@
       loadInquiries();
     } else if (isEvents) {
       setTab("programs");
+    } else if (page === "volunteers") {
+      loadRoster();
     } else if (isNurturingVolChooser) {
       // The chooser's counts come from the hub stats; a direct load / reload
       // of #volunteering never visited the hub, so fetch them here.
@@ -1169,6 +1188,8 @@
       loadProgramVolunteers();
     } else if (isFlyerImport) {
       loadFlyerImportPage();
+    } else if (isFlyerGen) {
+      loadGenerateFlyerPage();
     } else if (page === "banner") {
       loadBannerPage();
     }
@@ -2755,7 +2776,7 @@
 
   function showOnlyPanel(panelId) {
     ["listingsPanel", "inquiriesPanel", "promotionsPanel", "teamPanel", "programVolunteersPanel",
-     "flyerTemplatesPanel", "bannerPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
+     "flyerTemplatesPanel", "settingsPanel", "generateFlyerPanel", "bannerPanel", "volRosterPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
       show($(id), id === panelId);
     });
     show($("backToHubBtn"), role() !== "promotions");
@@ -4541,6 +4562,55 @@ panels +
     renderProgramVolunteers();
   }
 
+  /* ── Volunteers roster (Nurturing) — rows come from a linked Google Sheet ── */
+  let rosterData = { headers: [], rows: [] };
+
+  async function loadRoster() {
+    const host = $("rosterList");
+    if (!host) return;
+    host.innerHTML =
+      '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading volunteers…</div>';
+    try {
+      const data = await apiGet("volunteerRoster", true);
+      if (data.error) throw new Error(data.error);
+      if (data.configured === false) {
+        rosterData = { headers: [], rows: [] };
+        host.innerHTML = '<div class="admin-empty">No volunteer sheet linked yet.</div>';
+        return;
+      }
+      rosterData = { headers: data.headers || [], rows: data.rows || [] };
+      setHubStat("roster", rosterData.rows.length);
+      renderRoster();
+    } catch (err) {
+      host.innerHTML =
+        '<div class="admin-empty">' + escapeHtml(friendlyError(err.message) || "Could not load volunteers.") + "</div>";
+    }
+  }
+
+  function renderRoster() {
+    const host = $("rosterList");
+    if (!host) return;
+    const q = (($("rosterSearch") && $("rosterSearch").value) || "").trim().toLowerCase();
+    const rows = rosterData.rows.filter(function (r) {
+      return !q || r.join(" ").toLowerCase().indexOf(q) >= 0;
+    });
+    if ($("rosterMeta")) {
+      $("rosterMeta").textContent = rows.length + " of " + rosterData.rows.length + " volunteers";
+    }
+    if (!rows.length) {
+      host.innerHTML = '<div class="admin-empty">No volunteers found.</div>';
+      return;
+    }
+    const H = rosterData.headers;
+    host.innerHTML = rows.map(function (r) {
+      const details = r.map(function (cell, i) {
+        if (i === 0 || !String(cell).trim()) return "";
+        return '<div class="vnc-meta"><strong>' + escapeHtml(H[i] || "") + ":</strong> " + escapeHtml(cell) + "</div>";
+      }).join("");
+      return '<article class="inquiry-card"><div class="vnc-title">' + escapeHtml(r[0] || "—") + "</div>" + details + "</article>";
+    }).join("");
+  }
+
   async function loadProgramVolunteers() {
     const host = $("pvList");
     if (!host) return;
@@ -5310,21 +5380,32 @@ panels +
     renderFlyerGrid();
   }
 
-  function renderFlyerGrid() {
-    const grid = $("flyerGrid");
+  function renderFlyerGrid(gridId, templates, deletable) {
+    const grid = $(gridId || "flyerGrid");
+    templates = templates || flyerTemplatesCache;
     if (!grid) return;
-    if (!flyerTemplatesCache.length) {
+    if (!templates.length) {
       grid.innerHTML = "";
       show(grid, false);
       return;
     }
-    grid.innerHTML = flyerTemplatesCache
+    grid.innerHTML = templates
       .map(function (t) {
         const slideNote =
           t.slide_index && Number(t.slide_index) > 0
             ? '<span class="admin-flyer-card-meta">Slide ' + escapeHtml(String(t.slide_index)) + "</span>"
             : "";
+        const delBtn = deletable
+          ? '<button type="button" class="admin-flyer-delete" data-flyer-delete="' +
+            escapeHtml(t.template_id) +
+            '" aria-label="Delete ' +
+            escapeHtml(t.label || "flyer") +
+            '" title="Delete template">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>' +
+            "</button>"
+          : "";
         return (
+          (deletable ? '<div class="admin-flyer-item">' : "") +
           '<button type="button" class="admin-flyer-card" data-flyer-id="' +
           escapeHtml(t.template_id) +
           '">' +
@@ -5337,7 +5418,9 @@ panels +
           escapeHtml(t.label || "Flyer") +
           "</span>" +
           slideNote +
-          "</button>"
+          "</button>" +
+          delBtn +
+          (deletable ? "</div>" : "")
         );
       })
       .join("");
@@ -5383,21 +5466,24 @@ panels +
     return "text";
   }
 
-  function renderFlyerFieldsForm(template) {
-    const list = $("flyerFieldsList");
+  function renderFlyerFieldsForm(template, listId, idPrefix) {
+    const list = $(listId || "flyerFieldsList");
+    idPrefix = idPrefix || "flyerField_";
     if (!list) return;
     list.innerHTML = (template.fields || [])
       .map(function (f, idx) {
         return (
           '<div class="form-group admin-flyer-field-group">' +
-          '<label for="flyerField_' +
+          '<label for="' +
+          idPrefix +
           idx +
           '">' +
           escapeHtml(f.label || f.key) +
           "</label>" +
           '<input type="' +
           flyerFieldInputType(f.type) +
-          '" id="flyerField_' +
+          '" id="' +
+          idPrefix +
           idx +
           '" data-flyer-field-key="' +
           escapeHtml(f.key) +
@@ -5407,16 +5493,16 @@ panels +
       .join("");
   }
 
-  function collectFlyerFieldValues() {
+  function collectFlyerFieldValues(listId) {
     const values = {};
-    document.querySelectorAll("#flyerFieldsList [data-flyer-field-key]").forEach(function (input) {
+    document.querySelectorAll("#" + (listId || "flyerFieldsList") + " [data-flyer-field-key]").forEach(function (input) {
       values[input.getAttribute("data-flyer-field-key")] = input.value.trim();
     });
     return values;
   }
 
-  function clearFlyerFieldErrors() {
-    document.querySelectorAll("#flyerFieldsList .form-group.has-error").forEach(function (group) {
+  function clearFlyerFieldErrors(listId) {
+    document.querySelectorAll("#" + (listId || "flyerFieldsList") + " .form-group.has-error").forEach(function (group) {
       group.classList.remove("has-error");
       const note = group.querySelector(".admin-field-err");
       if (note) note.remove();
@@ -5596,6 +5682,154 @@ panels +
       else btn.textContent = idleLabel;
       show(progress, false);
       if (progress) progress.setAttribute("aria-hidden", "true");
+    }
+  }
+
+
+  /* ── Generate flyer page (Settings → Generate flyer) ─────────────────────
+   * Standalone version of the event editor's flyer picker: pick a program,
+   * pick one of its flyer templates, fill the fields, generate. */
+  let gfTemplates = [];
+  let gfSelectedId = "";
+
+  /** Delete is only offered on the admin Flyer templates page. */
+  function gfDeletable() {
+    return role() === "admin" && (location.hash || "").replace(/^#/, "").toLowerCase() === "flyertemplates";
+  }
+
+  function gfTemplateById(id) {
+    return gfTemplates.find(function (t) { return String(t.template_id) === String(id); }) || null;
+  }
+
+  async function loadGenerateFlyerPage() {
+    const select = $("gfProgram");
+    if (!select) return;
+    if (!programTitlesCache.length) {
+      select.innerHTML = '<option value="">Loading programs…</option>';
+      await loadProgramTitles();
+    }
+    const prev = select.value;
+    select.innerHTML = ['<option value="">Select a program</option>']
+      .concat(programTitlesCache.map(function (t) {
+        return '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + "</option>";
+      }))
+      .join("");
+    select.value = programTitlesCache.indexOf(prev) >= 0 ? prev : "";
+    gfLoadTemplates(select.value);
+  }
+
+  function gfResetSelection() {
+    gfSelectedId = "";
+    if ($("gfFieldsList")) $("gfFieldsList").innerHTML = "";
+    show($("gfFieldsWrap"), false);
+    show($("gfFieldsError"), false);
+    show($("gfResultWrap"), false);
+  }
+
+  async function gfLoadTemplates(title) {
+    gfTemplates = [];
+    gfResetSelection();
+    renderFlyerGrid("gfGrid", gfTemplates, gfDeletable());
+    const hint = $("gfHint");
+    if (!title) {
+      hint.textContent = "Choose a program to see its flyers.";
+      show(hint, true);
+      return;
+    }
+    hint.textContent = "Loading flyers…";
+    show(hint, true);
+    try {
+      const data = await apiGet("flyerTemplates", true, { title: title });
+      if ($("gfProgram").value !== title) return;
+      gfTemplates = data.error ? [] : data.templates || [];
+    } catch (e) {
+      gfTemplates = [];
+    }
+    if (gfTemplates.length) {
+      hint.textContent = gfTemplates.length + (gfTemplates.length === 1 ? " flyer" : " flyers") + " — pick one to fill in.";
+    } else {
+      hint.textContent = "No flyers for this program yet.";
+    }
+    renderFlyerGrid("gfGrid", gfTemplates, gfDeletable());
+  }
+
+  async function gfDeleteTemplate(id, btn) {
+    const t = gfTemplateById(id);
+    if (!t) return;
+    if (!window.confirm('Delete the "' + (t.label || "flyer") + '" template? It will no longer appear for any program.')) return;
+    btn.disabled = true;
+    try {
+      const data = await apiPost({ formType: "adminDeleteFlyerTemplate", token: token(), templateId: id });
+      if (data.error) throw new Error(data.error);
+      gfLoadTemplates($("gfProgram").value);
+    } catch (e) {
+      btn.disabled = false;
+      $("gfHint").textContent = friendlyError(e.message) || "Could not delete the template.";
+    }
+  }
+
+  function gfSelectTemplate(id) {
+    gfSelectedId = id || "";
+    document.querySelectorAll("#gfGrid [data-flyer-id]").forEach(function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-flyer-id") === gfSelectedId);
+    });
+    show($("gfFieldsError"), false);
+    show($("gfResultWrap"), false);
+    const template = gfTemplateById(gfSelectedId);
+    if (!template) {
+      show($("gfFieldsWrap"), false);
+      return;
+    }
+    renderFlyerFieldsForm(template, "gfFieldsList", "gfField_");
+    show($("gfFieldsWrap"), true);
+  }
+
+  async function gfGenerate() {
+    const template = gfTemplateById(gfSelectedId);
+    if (!template) return;
+    const fields = collectFlyerFieldValues("gfFieldsList");
+    clearFlyerFieldErrors("gfFieldsList");
+    const errEl = $("gfFieldsError");
+    show(errEl, false);
+    let firstError = null;
+    (template.fields || []).forEach(function (f, idx) {
+      if (!String(fields[f.key] || "").trim()) {
+        const target = setFieldError("gfField_" + idx, "This field is required.");
+        if (!firstError) firstError = target;
+      }
+    });
+    if (firstError) {
+      focusFieldError(firstError);
+      return;
+    }
+    const btn = $("gfGenerateBtn");
+    const label = btn.querySelector("span");
+    const progress = $("gfProgress");
+    btn.disabled = true;
+    label.textContent = "Generating…";
+    show(progress, true);
+    progress.setAttribute("aria-hidden", "false");
+    try {
+      const data = await apiPost({
+        formType: "adminGenerateFlyer",
+        token: token(),
+        templateId: gfSelectedId,
+        fields: fields,
+      });
+      if (data.error) throw new Error(data.error);
+      $("gfResultPreview").src = fixDriveUrl(data.url);
+      $("gfResultPreview").style.display = "block";
+      $("gfDownloadBtn").href = flyerDownloadUrl(data.url);
+      show($("gfResultWrap"), true);
+      $("gfResultWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+      errEl.textContent = friendlyError(e.message);
+      show(errEl, true);
+    } finally {
+      btn.disabled = false;
+      label.textContent = "Generate flyer";
+      show(progress, false);
+      progress.setAttribute("aria-hidden", "true");
     }
   }
 
@@ -9560,6 +9794,23 @@ panels +
       if (token()) startAlertWatch();
     });
     $("logoutBtn").addEventListener("click", openLogoutConfirm);
+    if ($("settingsBtn")) {
+      $("settingsBtn").addEventListener("click", function () {
+        openAdminPage("settings");
+      });
+    }
+    if ($("gfProgram")) {
+      $("gfProgram").addEventListener("change", function () {
+        gfLoadTemplates($("gfProgram").value);
+      });
+      $("gfGrid").addEventListener("click", function (e) {
+        const del = e.target.closest("[data-flyer-delete]");
+        if (del) return gfDeleteTemplate(del.getAttribute("data-flyer-delete"), del);
+        const card = e.target.closest("[data-flyer-id]");
+        if (card) gfSelectTemplate(card.getAttribute("data-flyer-id"));
+      });
+      $("gfGenerateBtn").addEventListener("click", gfGenerate);
+    }
     $("cancelLogoutBtn").addEventListener("click", closeLogoutConfirm);
     $("confirmLogoutBtn").addEventListener("click", logout);
     $("logoutOverlay").addEventListener("click", function (e) {
@@ -9827,6 +10078,9 @@ panels +
       if (sub.startsWith("volunteering/need/")) return openVolNeedsList();
       if (sub.startsWith("volunteering/attendance/")) return openVolAttendance();
       if (sub.startsWith("volunteering/")) return openAdminPage("volunteering");
+      const here = (location.hash || "").replace(/^#/, "");
+      if (here === "generateFlyer") return openAdminPage("settings");
+      if (here === "newFlyerTemplate") return openAdminPage("flyerTemplates");
       showAdminHub(false);
     });
     window.addEventListener("popstate", function () {
@@ -9834,8 +10088,8 @@ panels +
       const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
       // Sub-routes: volunteering/needs, volunteering/need/{id}
       if (routeVolunteeringHash(hash)) {
-      } else if (hash && canAccess(hash)) {
-        openAdminPage(hash, true);
+      } else if (hash && pageFromHash(hash)) {
+        openAdminPage(pageFromHash(hash), true);
       } else {
         showAdminHub(true);
       }
@@ -10011,6 +10265,7 @@ panels +
         else if (e.target.closest("#vpdShareWaBtn")) shareVolFormOnWhatsApp();
       });
     }
+    if ($("rosterSearch")) $("rosterSearch").addEventListener("input", renderRoster);
     if ($("volOppsPanel")) {
       $("oppAddBtn").addEventListener("click", function () {
         openEditor(null);

@@ -482,6 +482,9 @@ function doPost(e) {
     if (formType === "adminImportFlyerTemplate") {
       return json_(adminImportFlyerTemplate(data));
     }
+    if (formType === "adminDeleteFlyerTemplate") {
+      return json_(adminDeleteFlyerTemplate(data));
+    }
     if (formType === "adminSaveSite") {
       return json_(adminSaveSite(data));
     }
@@ -880,6 +883,10 @@ function adminRead_(data) {
     requireRole_(token, ["admin"]);
     return { users: listUsersPublic_() };
   }
+  if (type === "volunteerRoster") {
+    requireRole_(token, ["admin", "nurturing"]);
+    return getVolunteerRoster_();
+  }
   if (type === "volunteerNeeds") {
     requireRole_(token, ["admin", "nurturing", "programs"]);
     return getVolunteerNeeds_();
@@ -910,6 +917,40 @@ function adminRead_(data) {
     return getFlyerImportConfig_();
   }
   throw new Error("Unknown type");
+}
+
+/* ── Volunteer roster (Nurturing) ──────────────────────────────────────
+   Read-only list of volunteers from a SEPARATE Google Sheet. Link it once by
+   running setVolunteerRosterSheet("<sheet URL or ID>", "<tab name, optional>")
+   from the Apps Script editor; the script owner must have access to that sheet.
+   Row 1 is the header; every column is passed through as-is. */
+const ROSTER_ID_PROP = "VOLUNTEER_ROSTER_SHEET_ID";
+const ROSTER_TAB_PROP = "VOLUNTEER_ROSTER_TAB";
+
+function setVolunteerRosterSheet(urlOrId, tabName) {
+  const m = String(urlOrId || "").match(/\/d\/([a-zA-Z0-9_-]+)/);
+  const id = m ? m[1] : String(urlOrId || "").trim();
+  if (!id) throw new Error("Pass the sheet URL or ID.");
+  SpreadsheetApp.openById(id); // fail now if there is no access
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(ROSTER_ID_PROP, id);
+  props.setProperty(ROSTER_TAB_PROP, String(tabName || "").trim());
+}
+
+function getVolunteerRoster_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty(ROSTER_ID_PROP);
+  if (!id) return { configured: false, headers: [], rows: [] };
+  const book = SpreadsheetApp.openById(id);
+  const tab = props.getProperty(ROSTER_TAB_PROP);
+  const sheet = tab ? book.getSheetByName(tab) : book.getSheets()[0];
+  if (!sheet) throw new Error('Tab "' + tab + '" not found in the roster sheet.');
+  const values = sheet.getDataRange().getDisplayValues();
+  const headers = (values.shift() || []).map(function (h) { return String(h).trim(); });
+  const rows = values.filter(function (r) {
+    return r.some(function (c) { return String(c).trim() !== ""; });
+  });
+  return { configured: true, title: book.getName(), headers: headers, rows: rows };
 }
 
 function sheetNameForResource_(resource) {
@@ -2177,6 +2218,33 @@ function adminImportFlyerTemplate(data) {
   } finally {
     trashFileQuiet_(tempId);
   }
+}
+
+/**
+ * Hides a flyer template by setting its row's active column to "no". The
+ * slide stays in the shared master deck: removing it would shift the
+ * slide_index of every template after it.
+ */
+function adminDeleteFlyerTemplate(data) {
+  requireRole_(data.token, ["admin"]);
+  const wanted = String(data.templateId || "").trim();
+  if (!wanted) throw new Error("Missing template id.");
+  ensureSheet_(FLYER_TEMPLATES_SHEET, FLYER_TEMPLATE_HEADERS);
+  const sheet = ss_().getSheetByName(FLYER_TEMPLATES_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  const idCol = headers.indexOf("template_id");
+  const activeCol = headers.indexOf("active");
+  if (idCol < 0 || activeCol < 0) throw new Error("FlyerTemplates sheet is missing its template_id or active column.");
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][idCol] || "").trim() === wanted) {
+      sheet.getRange(i + 1, activeCol + 1).setValue("no");
+      return { success: true, template_id: wanted };
+    }
+  }
+  throw new Error("That template no longer exists.");
 }
 
 function getCentreImagesFolder_() {

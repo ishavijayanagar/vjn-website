@@ -131,6 +131,12 @@
             </svg>
             <span class="admin-notify-dot" id="queryNotifyDot" hidden></span>
           </button>
+          <button type="button" class="admin-icon-btn" id="settingsBtn" hidden aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
           <button type="button" class="admin-icon-btn" id="logoutBtn" aria-label="Log out" title="Log out">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -225,9 +231,9 @@
             <span class="admin-card-head">
               <span class="admin-card-title">Flyer templates</span>
             </span>
-            <span class="admin-card-sub">Upload a Canva PPTX into the square master deck.</span>
+            <span class="admin-card-sub">Generate flyers and add new templates.</span>
             <span class="pg-cta">
-              Import flyer
+              Open flyers
               <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
             </span>
           </button>
@@ -300,6 +306,23 @@
             </span>
             <span class="nr-cta">
               Open volunteering
+              <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+          </button>
+
+          <button type="button" class="admin-card nr-hub-card nr-hub-card--roster hidden" data-admin-page="volunteers" data-nr-card>
+            <span class="admin-card-head">
+              <span class="admin-card-title">Volunteers</span>
+            </span>
+            <span class="admin-card-sub">Everyone on the volunteer list.</span>
+            <span class="admin-card-stats">
+              <span class="admin-card-stat nr-fig">
+                <strong data-stat-value="roster">—</strong>
+                <span>volunteers</span>
+              </span>
+            </span>
+            <span class="nr-cta">
+              Open volunteers
               <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
             </span>
           </button>
@@ -543,6 +566,58 @@
           <div id="teamList" class="inquiry-list admin-list"></div>
         </div>
 
+        <!-- Programs: Settings (opened from the header gear) -->
+        <div id="settingsPanel" class="hidden">
+          <div class="settings-list">
+            <button type="button" class="settings-item" data-admin-page="generateFlyer">
+              <span class="settings-item-text">
+                <span class="settings-item-title">Generate flyer</span>
+                <span class="settings-item-sub">Pick a program and fill in one of its flyers.</span>
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+            <button type="button" class="settings-item" disabled>
+              <span class="settings-item-text">
+                <span class="settings-item-title">Sandesha activities</span>
+                <span class="settings-item-sub">WhatsApp activity.</span>
+              </span>
+              <span class="settings-soon">Soon</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Programs: Settings → Generate flyer -->
+        <div id="generateFlyerPanel" class="hidden">
+          <div class="gf-toolbar hidden" id="gfToolbar">
+            <button type="button" class="btn btn-gold" data-admin-page="newFlyerTemplate">New template</button>
+          </div>
+          <div class="form-group">
+            <label for="gfProgram">Program</label>
+            <select id="gfProgram"></select>
+          </div>
+          <p class="admin-field-hint admin-field-hint-block" id="gfHint">Choose a program to see its flyers.</p>
+          <div class="admin-flyer-grid hidden" id="gfGrid"></div>
+
+          <div class="admin-flyer-fields hidden" id="gfFieldsWrap">
+            <div id="gfFieldsList"></div>
+            <p class="form-err hidden" id="gfFieldsError"></p>
+            <button type="button" class="btn btn-gold admin-flyer-generate-btn" id="gfGenerateBtn">
+              <span>Generate flyer</span>
+            </button>
+            <div class="admin-progress-track hidden" id="gfProgress" role="progressbar" aria-label="Generating flyer" aria-hidden="true">
+              <div class="admin-progress-fill"></div>
+            </div>
+          </div>
+
+          <div class="form-group admin-image-field hidden" id="gfResultWrap">
+            <p class="admin-field-label">Your flyer</p>
+            <img id="gfResultPreview" class="admin-preview" alt="Generated flyer" referrerpolicy="no-referrer"/>
+            <div class="admin-bulk-actions">
+              <a id="gfDownloadBtn" class="btn btn-outline" download target="_blank" rel="noopener">Download</a>
+            </div>
+          </div>
+        </div>
+
         <div id="programVolunteersPanel" class="hidden">
           <div class="inquiry-filters pv-view-filters" id="pvViewFilters" role="tablist" aria-label="Program volunteers view">
             <button type="button" class="inquiry-status-tab active" data-pv-view="open">Open</button>
@@ -550,6 +625,13 @@
           </div>
           <p class="admin-status" id="pvStatus"></p>
           <div id="pvList" class="inquiry-list admin-list"></div>
+        </div>
+
+        <!-- Nurturing: Volunteers roster (from a linked Google Sheet) -->
+        <div id="volRosterPanel" class="hidden">
+          <input type="search" id="rosterSearch" class="admin-search" placeholder="Search volunteers" autocomplete="off"/>
+          <p class="admin-field-hint admin-field-hint-block" id="rosterMeta"></p>
+          <div id="rosterList" class="inquiry-list admin-list"></div>
         </div>
 
         <!-- Nurturing: Volunteering chooser (three actions; the roster one leads) -->

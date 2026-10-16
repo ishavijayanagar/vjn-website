@@ -7,7 +7,10 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzYypTOLbAl-5Ul
 
 // Sandesha WhatsApp API — the funnel URL that sandesha-server/ is reachable on.
 // Used by promotions Schedule/Send and admin Messaging.
-const SANDESHA_API_URL = "https://sandesha-vjn-pi.tail2677db.ts.net";
+// DEV: laptop backend (active while developing locally)
+const SANDESHA_API_URL = "https://prakash-lenovo-ideapad-s340-14iil.tail2677db.ts.net";
+// PROD: Raspberry Pi backend — swap these two lines before pushing to GitHub Pages
+// const SANDESHA_API_URL = "https://sandesha-vjn-pi.tail2677db.ts.net";
 if (typeof window !== "undefined") {
   window.SANDESHA_API_URL = SANDESHA_API_URL;
   window.SANDESHA_CONFIG = window.SANDESHA_CONFIG || { apiUrl: SANDESHA_API_URL };

@@ -13108,6 +13108,12 @@ body.admin-page[data-role="nurturing"] .nr-hub-card--vol {
   box-shadow: none;
 }
 
+body.admin-page[data-role="nurturing"] .nr-hub-card--roster {
+  background: linear-gradient(158deg, #5b7a4a 0%, #3f5a33 46%, #27391f 100%);
+  color: var(--pg-on-primary);
+  box-shadow: none;
+}
+
 .nr-hub-card:hover { transform: translateY(-2px); }
 .nr-hub-card:active { transform: scale(0.99); }
 
@@ -13120,7 +13126,8 @@ body.admin-page[data-role="nurturing"] .nr-hub-card--vol {
 }
 
 body.admin-page[data-role="nurturing"] .nr-hub-card--enquiries .admin-card-title,
-body.admin-page[data-role="nurturing"] .nr-hub-card--vol .admin-card-title {
+body.admin-page[data-role="nurturing"] .nr-hub-card--vol .admin-card-title,
+body.admin-page[data-role="nurturing"] .nr-hub-card--roster .admin-card-title {
   color: var(--pg-on-primary);
 }
 
@@ -13131,7 +13138,8 @@ body.admin-page[data-role="nurturing"] .nr-hub-card--vol .admin-card-title {
 }
 
 body.admin-page[data-role="nurturing"] .nr-hub-card--enquiries .admin-card-sub,
-body.admin-page[data-role="nurturing"] .nr-hub-card--vol .admin-card-sub {
+body.admin-page[data-role="nurturing"] .nr-hub-card--vol .admin-card-sub,
+body.admin-page[data-role="nurturing"] .nr-hub-card--roster .admin-card-sub {
   color: var(--pg-on-primary-dim);
   opacity: 1;
 }
@@ -13156,11 +13164,13 @@ body.admin-page[data-role="nurturing"] .nr-hub-card--vol .admin-card-sub {
 .nr-fig span { font-size: 0.8rem; opacity: 0.7; }
 
 body.admin-page[data-role="nurturing"] .nr-hub-card--enquiries .nr-fig strong,
-body.admin-page[data-role="nurturing"] .nr-hub-card--vol .nr-fig strong {
+body.admin-page[data-role="nurturing"] .nr-hub-card--vol .nr-fig strong,
+body.admin-page[data-role="nurturing"] .nr-hub-card--roster .nr-fig strong {
   color: var(--pg-on-primary);
 }
 body.admin-page[data-role="nurturing"] .nr-hub-card--enquiries .nr-fig span,
-body.admin-page[data-role="nurturing"] .nr-hub-card--vol .nr-fig span {
+body.admin-page[data-role="nurturing"] .nr-hub-card--vol .nr-fig span,
+body.admin-page[data-role="nurturing"] .nr-hub-card--roster .nr-fig span {
   color: var(--pg-on-primary-dim);
   opacity: 1;
 }
@@ -13176,7 +13186,8 @@ body.admin-page[data-role="nurturing"] .nr-hub-card--vol .nr-fig span {
   margin-top: auto;
 }
 body.admin-page[data-role="nurturing"] .nr-hub-card--enquiries .nr-cta,
-body.admin-page[data-role="nurturing"] .nr-hub-card--vol .nr-cta {
+body.admin-page[data-role="nurturing"] .nr-hub-card--vol .nr-cta,
+body.admin-page[data-role="nurturing"] .nr-hub-card--roster .nr-cta {
   color: var(--pg-on-primary-dim);
 }
 .nr-cta svg { width: 20px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; }
@@ -18048,3 +18059,130 @@ html.promo-banner-lock,html.promo-banner-lock body{overflow:hidden;overscroll-be
 a.promo-banner-link{cursor:pointer}
 .promo-banner-close{position:absolute;top:-14px;right:-14px;z-index:1;width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#111;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.35)}
 @media (max-width:480px){.promo-banner-close{top:-12px;right:-6px}}
+
+/* Settings page (Programs) */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #E4DED4;
+  border-radius: 14px;
+  background: var(--white);
+  overflow: hidden;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border: none;
+  border-top: 1px solid #EFEAE1;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: #2B211D;
+  cursor: pointer;
+}
+
+.settings-item:first-child,
+.settings-item.hidden + .settings-item {
+  border-top: none;
+}
+
+.settings-item:hover:not(:disabled) {
+  background: #F7F3EC;
+}
+
+.settings-item:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.settings-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #9A8F7D;
+}
+
+.settings-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-item-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.settings-item-sub {
+  font-size: 0.85rem;
+  color: #6B5F52;
+}
+
+.settings-soon {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #F3EEE5;
+  color: #6B5F52;
+}
+
+.gf-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+#generateFlyerPanel select {
+  width: 100%;
+}
+
+#gfResultWrap .admin-bulk-actions {
+  margin-top: var(--space-3);
+}
+
+/* Admin Flyer templates: delete icon on each card */
+.admin-flyer-item {
+  position: relative;
+  display: flex;
+}
+
+.admin-flyer-item .admin-flyer-card {
+  flex: 1;
+}
+
+.admin-flyer-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #E4DED4;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #a5372a;
+  cursor: pointer;
+}
+
+.admin-flyer-delete:hover {
+  background: #fff1ef;
+  border-color: #e3b5ad;
+}
+
+.admin-flyer-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.admin-flyer-delete svg {
+  width: 15px;
+  height: 15px;
+}
