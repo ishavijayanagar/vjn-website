@@ -118,8 +118,12 @@ export async function bootAdminMessaging() {
   // stale JS (old tabs/behavior) with no way to notice or recover.
   if ('serviceWorker' in navigator) {
     let swRefreshing = false;
+    // Never reload under someone who has started typing — it would wipe the form.
+    let typedSinceLoad = false;
+    document.addEventListener('input', () => { typedSinceLoad = true; }, true);
+    document.addEventListener('change', () => { typedSinceLoad = true; }, true);
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (swRefreshing) return;
+      if (swRefreshing || typedSinceLoad) return;
       swRefreshing = true;
       window.location.reload();
     });

@@ -172,6 +172,7 @@ const PROGRAM_HEADERS = [
   "location",
   "duration",
   "frequency",
+  "language",
   "image",
   "flyer_image",
   "registerlink",
@@ -485,6 +486,9 @@ function doPost(e) {
     if (formType === "adminDeleteFlyerTemplate") {
       return json_(adminDeleteFlyerTemplate(data));
     }
+    if (formType === "adminAddProgramTitle") {
+      return json_(adminAddProgramTitle(data));
+    }
     if (formType === "adminSaveSite") {
       return json_(adminSaveSite(data));
     }
@@ -529,6 +533,15 @@ function doPost(e) {
     }
     if (formType === "adminCreateProgramVolunteerForm") {
       return json_(adminCreateProgramVolunteerForm(data));
+    }
+    if (formType === "adminListVolunteerForms") {
+      return json_(adminListVolunteerForms(data));
+    }
+    if (formType === "adminInspectVolunteerForm") {
+      return json_(adminInspectVolunteerForm(data));
+    }
+    if (formType === "adminConnectProgramVolunteerForm") {
+      return json_(adminConnectProgramVolunteerForm(data));
     }
 
     return json_({
@@ -1442,6 +1455,37 @@ function listProgramTitles_() {
     titles.push(title);
   }
   return titles;
+}
+
+/** Adds a name to ProgramTitles (re-activates it if it was switched off). */
+function adminAddProgramTitle(data) {
+  requireRole_(data.token, ["admin"]);
+  const title = stripInvisibleChars_(String(data.title || "").replace(/\u00a0/g, " ")).replace(/\s+/g, " ").trim();
+  if (!title) throw new Error("Enter a program name.");
+  ensureSheet_(PROGRAM_TITLES_SHEET, PROGRAM_TITLE_HEADERS);
+  const sheet = ss_().getSheetByName(PROGRAM_TITLES_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+  const titleIdx = headers.indexOf("title");
+  const activeIdx = headers.indexOf("active");
+  for (let i = 1; i < rows.length; i++) {
+    if (cellToDisplay_(rows[i][titleIdx]).toLowerCase() !== title.toLowerCase()) continue;
+    if (activeIdx >= 0 && /^no$/i.test(cellToDisplay_(rows[i][activeIdx]))) {
+      sheet.getRange(i + 1, activeIdx + 1).setValue("yes");
+      return { success: true, titles: listProgramTitles_() };
+    }
+    throw new Error("That program name is already in the list.");
+  }
+  sheet.appendRow(
+    headers.map(function (h) {
+      if (h === "title") return title;
+      if (h === "active") return "yes";
+      return "";
+    })
+  );
+  return { success: true, titles: listProgramTitles_() };
 }
 
 function parseFlyerProgramTitles_(raw) {
@@ -4504,6 +4548,315 @@ function adminCreateProgramVolunteerForm(data) {
   return { success: true, formId: formId, shortUrl: shortUrl, formFields: storedFields, templateId: templateId };
 }
 
+/* ── Connect an existing Google Form ─────────────────────────────────────────
+ * For a form someone already made by hand: read its questions, let Nurturing
+ * confirm which question is the name / WhatsApp number / area / IE date /
+ * remarks, then pull in its existing responses and every new one (via the same
+ * onVolunteerFormSubmit trigger generated forms use). The form is not changed.
+ *
+ * The forms live in this script's own Google account, so they can be listed
+ * to pick from; a pasted share link (forms.gle / …/viewform) is matched back
+ * to its form among them.
+ */
+const CONNECT_FORM_FIELDS_ = [
+  { key: "name", re: /\bname\b/i, not: /program|group|father|mother|parent|company|organi[sz]ation|college|school|guardian/i },
+  { key: "phone", re: /whats\s*app|phone|mobile|contact\s*(no|num)|cell/i, not: /emergency|alternate|guardian|parent/i },
+  { key: "area", re: /area|locality|location|stay|reside|address|place|city/i },
+  { key: "ie", re: /inner\s*engineering|\bie\b|shambhavi/i },
+  { key: "remarks", re: /remark|comment|note|anything else|message|suggestion/i },
+];
+const CONNECT_ANSWERABLE_ = ["TEXT", "PARAGRAPH_TEXT", "MULTIPLE_CHOICE", "CHECKBOX", "LIST", "DATE", "DATETIME", "TIME", "SCALE"];
+
+function formIdFromLink_(raw) {
+  let s = String(raw || "").trim();
+  if (!s) throw new Error("Pick a form or paste its link.");
+  // forms.gle short link → the …/forms/d/e/{publishedId}/viewform it points at.
+  if (/forms\.gle\//i.test(s)) {
+    try {
+      const res = UrlFetchApp.fetch(s, { followRedirects: false, muteHttpExceptions: true });
+      const loc = res.getHeaders().Location || res.getHeaders().location || "";
+      if (loc) s = String(loc);
+    } catch (e) { /* fall through to the error below */ }
+  }
+  const pub = s.match(/\/forms\/d\/e\/([a-zA-Z0-9_-]{20,})/);
+  if (pub) return formIdFromPublishedId_(pub[1]);
+  const m = s.match(/\/forms\/d\/([a-zA-Z0-9_-]{20,})/) || s.match(/^([a-zA-Z0-9_-]{25,})$/);
+  if (!m) throw new Error("That doesn't look like a Google Form link.");
+  return m[1];
+}
+
+/** A share link only carries the published id; find which of our forms it is. */
+function formIdFromPublishedId_(publishedId) {
+  const files = DriveApp.searchFiles('mimeType = "' + MimeType.GOOGLE_FORMS + '" and trashed = false');
+  let checked = 0;
+  while (files.hasNext() && checked < 200) {
+    const f = files.next();
+    checked++;
+    try {
+      if (FormApp.openById(f.getId()).getPublishedUrl().indexOf(publishedId) >= 0) return f.getId();
+    } catch (e) { /* not openable — skip */ }
+  }
+  throw new Error("Couldn't find that form in the website's Google account. Pick it from the list instead.");
+}
+
+/** The account's forms, newest first, for the picker. Drive metadata only (fast). */
+function adminListVolunteerForms(data) {
+  requireRole_(data.token, ["admin", "nurturing"]);
+  const linked = {};
+  loadEventVolunteers_().rows.forEach(function (r) {
+    if (r.kind === "need" && r.volunteer_form_id) linked[r.volunteer_form_id] = { eventId: String(r.event_id), title: r.event_title || "" };
+  });
+  const out = [];
+  const files = DriveApp.searchFiles('mimeType = "' + MimeType.GOOGLE_FORMS + '" and trashed = false');
+  while (files.hasNext() && out.length < 300) {
+    const f = files.next();
+    const name = f.getName();
+    if (/^_auth_test/i.test(name)) continue;
+    const link = linked[f.getId()];
+    out.push({
+      formId: f.getId(),
+      title: name,
+      updatedAt: f.getLastUpdated().toISOString(),
+      linkedEventId: link ? link.eventId : "",
+      linkedTitle: link ? link.title : "",
+    });
+  }
+  out.sort(function (a, b) { return a.updatedAt < b.updatedAt ? 1 : -1; });
+  return { success: true, forms: out.slice(0, 150) };
+}
+
+function openConnectableForm_(formId) {
+  try {
+    return FormApp.openById(formId);
+  } catch (e) {
+    let who = "";
+    try { who = Session.getEffectiveUser().getEmail(); } catch (e2) { /* unknown */ }
+    throw new Error(
+      "Can't open that form. Make sure it was created in " + (who || "the website's Google account") +
+      " (or that account is an editor of it)."
+    );
+  }
+}
+
+function connectFormQuestions_(form) {
+  return form.getItems()
+    .filter(function (it) { return CONNECT_ANSWERABLE_.indexOf(String(it.getType())) >= 0; })
+    .map(function (it) { return { id: String(it.getId()), title: it.getTitle() || "(Untitled question)", type: String(it.getType()) }; });
+}
+
+/** Best guess of { name, phone, area, ie, remarks } → question id. */
+function guessConnectMap_(questions) {
+  const map = {};
+  const used = {};
+  CONNECT_FORM_FIELDS_.forEach(function (f) {
+    const hit = questions.filter(function (q) {
+      if (used[q.id]) return false;
+      if (!f.re.test(q.title)) return false;
+      if (f.not && f.not.test(q.title)) return false;
+      // A number lives in a text box, not a choice list.
+      if (f.key === "phone" && q.type !== "TEXT") return false;
+      return true;
+    })[0];
+    if (hit) {
+      map[f.key] = hit.id;
+      used[hit.id] = true;
+    }
+  });
+  return map;
+}
+
+function needUsingForm_(loaded, formId, exceptEventId) {
+  return loaded.rows.filter(function (r) {
+    return r.kind === "need" && r.volunteer_form_id === formId && String(r.event_id) !== String(exceptEventId || "");
+  })[0] || null;
+}
+
+function adminInspectVolunteerForm(data) {
+  requireRole_(data.token, ["admin", "nurturing"]);
+  const formId = formIdFromLink_(data.link);
+  const form = openConnectableForm_(formId);
+  const questions = connectFormQuestions_(form);
+  const other = needUsingForm_(loadEventVolunteers_(), formId, data.eventId);
+  return {
+    success: true,
+    formId: formId,
+    title: form.getTitle() || "Untitled form",
+    responses: form.getResponses().length,
+    acceptingResponses: form.isAcceptingResponses(),
+    questions: questions,
+    guess: guessConnectMap_(questions),
+    usedBy: other ? (other.event_title || "another program") : "",
+  };
+}
+
+/** "Mar-2024", a Date, an array of choices… → one tidy string. */
+function connectAnswerText_(value) {
+  if (Array.isArray(value)) return value.map(connectAnswerText_).filter(Boolean).join(", ");
+  if (value instanceof Date) return Utilities.formatDate(value, "Asia/Kolkata", "MMM-yyyy");
+  return String(value == null ? "" : value).trim();
+}
+
+/** A date question answers "2024-05-01"; the site keeps IE dates as "May-2024". */
+function connectIeText_(text) {
+  const m = String(text || "").match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (!m) return text;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return (months[parseInt(m[2], 10) - 1] || m[2]) + "-" + m[1];
+}
+
+/** One form response → a volunteer row object, or null without a name + number. */
+function connectedVolunteerRow_(needRow, map, response, now) {
+  const byId = {};
+  const order = [];
+  response.getItemResponses().forEach(function (ir) {
+    const id = String(ir.getItem().getId());
+    byId[id] = { title: ir.getItem().getTitle(), text: connectAnswerText_(ir.getResponse()) };
+    order.push(id);
+  });
+  const val = function (key) { return map[key] && byId[map[key]] ? byId[map[key]].text : ""; };
+  const name = val("name");
+  const phone = evDigits_(val("phone"));
+  if (!name || !phone) return null;
+  // Mapped questions have their own columns; "skip" lists other questions the
+  // coordinator chose not to keep. Everything else goes into remarks.
+  const mapped = {};
+  ["name", "phone", "area", "ie", "remarks"].forEach(function (k) { if (map[k]) mapped[map[k]] = true; });
+  (Array.isArray(map.skip) ? map.skip : []).forEach(function (id) { mapped[String(id)] = true; });
+  const extras = order
+    .filter(function (id) { return !mapped[id] && byId[id].text; })
+    .map(function (id) { return byId[id].title + ": " + byId[id].text; });
+  const remarks = [val("remarks")].concat(extras).filter(Boolean).join(" | ").slice(0, 1000);
+  return {
+    row_id: Utilities.getUuid(),
+    kind: "volunteer",
+    event_id: String(needRow.event_id),
+    event_title: needRow.event_title || "",
+    volunteer_name: name,
+    phone: phone,
+    area_of_stay: val("area"),
+    ie_completion: connectIeText_(val("ie")),
+    volunteer_remarks: remarks,
+    added_by: "google-form",
+    attended: "",
+    in_wa_group: "no",
+    invite_sent: "no",
+    updated_at: now,
+  };
+}
+
+function connectedFormMap_(formId) {
+  try {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty("vjn_form_qmap_" + formId) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function installVolunteerFormTrigger_(form) {
+  const has = ScriptApp.getUserTriggers(form).some(function (t) {
+    return t.getEventType() === ScriptApp.EventType.ON_FORM_SUBMIT && t.getHandlerFunction() === "onVolunteerFormSubmit";
+  });
+  if (!has) ScriptApp.newTrigger("onVolunteerFormSubmit").forForm(form).onFormSubmit().create();
+}
+
+function adminConnectProgramVolunteerForm(data) {
+  requireRole_(data.token, ["admin", "nurturing"]);
+  const eventId = String((data && data.eventId) || "").trim();
+  if (!eventId) throw new Error("eventId required.");
+  const snap = evProgramSnapshot_(eventId);
+  if (!snap) throw new Error("Program not found.");
+  const formId = formIdFromLink_(data.link);
+  const form = openConnectableForm_(formId);
+
+  const questions = connectFormQuestions_(form);
+  const ids = {};
+  questions.forEach(function (q) { ids[q.id] = true; });
+  const map = {};
+  ["name", "phone", "area", "ie", "remarks"].forEach(function (k) {
+    const id = String((data.map && data.map[k]) || "");
+    if (id && ids[id]) map[k] = id;
+  });
+  if (!map.name || !map.phone) throw new Error("Pick the questions for the name and the WhatsApp number.");
+  map.skip = (Array.isArray(data.skip) ? data.skip : [])
+    .map(String)
+    .filter(function (id) { return ids[id]; });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const loaded = loadEventVolunteers_();
+    const other = needUsingForm_(loaded, formId, eventId);
+    if (other) throw new Error("This form is already connected to " + (other.event_title || "another program") + ".");
+
+    PropertiesService.getScriptProperties().setProperty("vjn_form_qmap_" + formId, JSON.stringify(map));
+
+    let shortUrl = form.getPublishedUrl();
+    try {
+      const maybe = form.shortenFormUrl(shortUrl);
+      if (maybe && maybe.length < shortUrl.length) shortUrl = maybe;
+    } catch (e) { /* keep the full link */ }
+
+    let need = evFindNeed_(loaded, eventId);
+    if (!need) need = { row_id: Utilities.getUuid(), kind: "need", event_id: eventId, _row: null };
+    need.event_title = snap.title;
+    need.event_date = snap.date;
+    need.needed = String(snap.needed);
+    need.volunteer_form_id = formId;
+    need.volunteer_form_short_url = shortUrl;
+    need.volunteer_form_fields = "connected";
+    need.volunteer_form_template = "";
+    need.updated_at = nowIsoKolkata_();
+    if (need._row) evWriteRow_(loaded, need);
+    else evAppendRow_(loaded, need);
+
+    // Bring in everyone who already answered — once per phone number.
+    const seen = {};
+    loaded.rows.forEach(function (r) {
+      if (r.kind === "volunteer" && String(r.event_id) === eventId) seen[evDigits_(r.phone)] = true;
+    });
+    const now = nowIsoKolkata_();
+    const fresh = [];
+    let skipped = 0;
+    let duplicates = 0;
+    form.getResponses().forEach(function (resp) {
+      const row = connectedVolunteerRow_(need, map, resp, now);
+      if (!row) { skipped++; return; }
+      if (seen[row.phone]) { duplicates++; return; }
+      seen[row.phone] = true;
+      fresh.push(row);
+    });
+    if (fresh.length) {
+      const values = fresh.map(function (obj) {
+        return loaded.headers.map(function (h) { return obj[h] === undefined || obj[h] === null ? "" : String(obj[h]); });
+      });
+      loaded.sheet.getRange(loaded.sheet.getLastRow() + 1, 1, values.length, loaded.headers.length).setValues(values);
+    }
+
+    let liveSync = true;
+    try {
+      installVolunteerFormTrigger_(form);
+    } catch (e) {
+      liveSync = false;
+      Logger.log("Could not install form trigger: " + e.message);
+    }
+
+    return {
+      success: true,
+      formId: formId,
+      shortUrl: shortUrl,
+      formFields: ["connected"],
+      templateId: "",
+      title: form.getTitle() || "",
+      imported: fresh.length,
+      duplicates: duplicates,
+      skipped: skipped,
+      liveSync: liveSync,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /**
  * onFormSubmit trigger — installed automatically when a volunteer form is created.
  * Maps form answers to EventVolunteers rows (kind="volunteer").
@@ -4525,6 +4878,18 @@ function onVolunteerFormSubmit(e) {
       }
     }
     if (!needRows.length) return;
+
+    // A connected (hand-made) form: answers go by the question mapping saved
+    // when it was connected, not by the generated forms' fixed titles.
+    if ((needRows[0].volunteer_form_fields || "") === "connected") {
+      const row = connectedVolunteerRow_(needRows[0], connectedFormMap_(formId), e.response, nowIsoKolkata_());
+      if (!row) return;
+      const dupC = loaded.rows.some(function (r) {
+        return r.kind === "volunteer" && String(r.event_id) === row.event_id && evDigits_(r.phone) === row.phone;
+      });
+      if (!dupC) evAppendRow_(loaded, row);
+      return;
+    }
 
     // Parse responses into a map keyed by question title
     var responses = e.response.getItemResponses();

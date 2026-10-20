@@ -6,10 +6,27 @@
  * `window.VjnVol`: list WhatsApp groups, fire ONE add-members job, poll it, and
  * manage the push subscription. Nothing else in Sandesha is reachable from here.
  * Programs never calls listGroups/addToGroup (no UI path to them) — it only
- * uses the push methods.
+ * uses the push methods. Admin also reads the activity log (Settings →
+ * Sandesha activities); the server refuses /activity for every other role.
  */
 import { ensureSandeshaAuth, getVjnToken } from './auth-bridge.js';
-import { api } from './api.js';
+import { api as rawApi, setToken, runWithoutAuthRedirect } from './api.js';
+
+/**
+ * Sandesha forgets logins when its session store is reset (e.g. a restart
+ * after the file was cleared). Rather than surface "Unauthorized", get a fresh
+ * session from the VJN login once and retry the call.
+ */
+async function api(path, options) {
+  try {
+    return await runWithoutAuthRedirect(() => rawApi(path, options));
+  } catch (err) {
+    if (!/unauthori[sz]ed/i.test(String(err && err.message))) throw err;
+    setToken('');
+    await ensureSandeshaAuth();
+    return rawApi(path, options);
+  }
+}
 import {
   syncOnLoad as syncPush,
   enable as pushEnable,
@@ -65,6 +82,36 @@ window.VjnVol = {
 
   pollJob(jobId) {
     return api(`/volunteers/job/${encodeURIComponent(jobId)}`);
+  },
+
+  /** One WhatsApp message to one person (10-digit Indian number), sent from
+   *  the Sandesha number. Logged in the activity feed under the sender. */
+  async sendMessage(digits, message) {
+    return api('/send', {
+      method: 'POST',
+      body: JSON.stringify({ recipient: `+91${String(digits).replace(/\D/g, '').slice(-10)}`, message }),
+    });
+  },
+
+  /** One message to many people as a paced background job.
+   *  recipients: [{ number, name }]; "{name}" → each first name.
+   *  @returns {Promise<{jobId: string, total: number}>} */
+  bulkMessage(recipients, message) {
+    return api('/messages/bulk', { method: 'POST', body: JSON.stringify({ recipients, message }) });
+  },
+
+  pollMessageJob(jobId) {
+    return api(`/messages/job/${encodeURIComponent(jobId)}`);
+  },
+
+  cancelMessageJob(jobId) {
+    return api(`/messages/job/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+  },
+
+  /** Admin only: every team's Sandesha activity, newest first. */
+  async listActivity(limit = 500) {
+    const data = await api(`/activity?limit=${limit}`);
+    return Array.isArray(data?.activity) ? data.activity : [];
   },
 
   pushSupported,

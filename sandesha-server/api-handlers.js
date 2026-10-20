@@ -15,6 +15,37 @@ const { isWhatsAppSessionError } = require('./wa-session');
 const GROUPS_CACHE_TTL_MS = 5 * 60 * 1000;
 const JOB_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
+// The hourly send cap is 30, so a bigger list would just stop part-way.
+const BULK_MESSAGE_MAX = 30;
+// Fill-in fields a bulk message can use, e.g. "Namaskaram {name}, see you in {area}".
+const MESSAGE_FIELDS = ['name', 'fullname', 'area', 'program', 'ie'];
+const MESSAGE_FIELD_RE = /\{(name|fullname|area|program|ie)\}/gi;
+
+function cleanMessageFields(fields) {
+  const out = {};
+  if (!fields || typeof fields !== 'object') return out;
+  for (const key of MESSAGE_FIELDS) {
+    if (fields[key] != null) out[key] = String(fields[key]).trim().slice(0, 120);
+  }
+  return out;
+}
+
+/**
+ * Swap each {field} for this recipient's value. A missing value leaves no
+ * trace: "Namaskaram {name}," with no name reads "Namaskaram,".
+ */
+function fillMessageFields(message, recipient) {
+  const fullname = String(recipient.name || '').trim();
+  const values = {
+    ...recipient.fields,
+    fullname,
+    name: fullname.split(/\s+/)[0] || '',
+  };
+  return String(message)
+    .replace(MESSAGE_FIELD_RE, (_m, key) => values[key.toLowerCase()] || '')
+    .replace(/ +([,.!?])/g, '$1')
+    .replace(/ {2,}/g, ' ');
+}
 
 function createApiHandlers(deps) {
   const {
@@ -380,12 +411,12 @@ function createApiHandlers(deps) {
    * Paced widely, ordered randomly, and stopped outright when a cap is hit
    * rather than pushed through.
    */
-  async function runBulkSend(numbers, message) {
-    return withSendContext({ via: 'bulk', corrId: `bulk-${Date.now()}` }, () =>
-      runBulkSendInner(numbers, message));
+  async function runBulkSend(numbers, message, actor = null) {
+    return withSendContext({ via: 'bulk', corrId: `bulk-${Date.now()}`, actor }, () =>
+      runBulkSendInner(numbers, message, actor));
   }
 
-  async function runBulkSendInner(numbers, message) {
+  async function runBulkSendInner(numbers, message, actor) {
     const results = [];
     const order = safety.shuffled(numbers);
     for (let i = 0; i < order.length; i++) {
@@ -417,9 +448,97 @@ function createApiHandlers(deps) {
       detail: failed ? `${failed} failed` : '',
       count: ok,
       via: 'bulk',
+      actor,
+      meta: { message, total: results.length, sent: ok, failed, results },
       push: true,
     });
     return results;
+  }
+
+  /**
+   * One message to many people, one chat at a time, as a background job: at
+   * 45–90s apart a list takes far longer than any request can stay open.
+   * Placeholders ({name} first name, {fullname}, {area}, {program}, {ie})
+   * fill from each recipient; a personalised message is already different
+   * per person, so caption variation is only added when there are none.
+   * Stops (rather than pushes on) at quiet hours or a send cap.
+   */
+  async function runBulkMessageJob(jobId, recipients, message) {
+    const job = apiJobs.get(jobId);
+    if (!job) return;
+    const personal = MESSAGE_FIELD_RE.test(message);
+    MESSAGE_FIELD_RE.lastIndex = 0;
+    const rows = [];
+    job.status = 'running';
+    try {
+      await withSendContext({ via: 'bulk', corrId: `dm-${jobId}`, actor: job.actor }, async () => {
+        const order = safety.shuffled(recipients);
+        for (let i = 0; i < order.length; i++) {
+          if (job.cancelled) break;
+          const r = order[i];
+          const verdict = budget ? budget.check() : { ok: true };
+          const quiet = typeof safety.inQuietHours === 'function' && safety.inQuietHours(new Date());
+          if (quiet || !verdict.ok) {
+            job.status = 'stopped';
+            job.stopReason = quiet ? 'quiet hours (no sends 10pm–8am)' : verdict.reason;
+            break;
+          }
+          let text = fillMessageFields(message, r);
+          if (!personal) text = safety.varyCaption(text);
+          try {
+            await resolveAndSend(r.number, text);
+            job.sent += 1;
+            job.results[r.number] = 'sent';
+            rows.push({ number: r.number, name: r.name || '', ok: true });
+          } catch (err) {
+            job.failed += 1;
+            job.results[r.number] = 'failed';
+            job.errors.push(`${r.number}: ${err.message}`);
+            rows.push({ number: r.number, name: r.name || '', ok: false, error: err.message });
+          }
+          job.done += 1;
+          if (i < order.length - 1 && !job.cancelled) await safety.sendGap();
+        }
+      });
+      if (job.status === 'running') job.status = job.cancelled ? 'cancelled' : 'done';
+    } catch (err) {
+      job.status = 'error';
+      job.errors.push(`Job crashed: ${err.message}`);
+    }
+    for (const r of recipients) {
+      if (!job.results[r.number]) {
+        rows.push({ number: r.number, name: r.name || '', ok: false, error: job.stopReason ? `Not sent — ${job.stopReason}` : 'Not sent' });
+      }
+    }
+    try {
+      const notSent = job.total - job.sent;
+      activity.recordEvent({
+        category: 'send',
+        type: job.status === 'error' || !job.sent ? 'err' : notSent ? 'warn' : 'ok',
+        ok: job.status === 'done' && !job.failed,
+        title: `Messaged ${job.sent} of ${job.total} people`,
+        detail: [
+          job.failed ? `${job.failed} failed` : '',
+          job.status === 'stopped' ? `Stopped: ${job.stopReason}` : '',
+          job.status === 'cancelled' ? 'Cancelled' : '',
+        ].filter(Boolean).join(' · '),
+        count: job.sent,
+        via: 'bulk',
+        corrId: `dm-${jobId}`,
+        actor: job.actor,
+        meta: {
+          jobId,
+          message,
+          status: job.status,
+          total: job.total,
+          sent: job.sent,
+          failed: job.failed,
+          stopped: job.stopReason || '',
+          results: rows,
+        },
+        push: true,
+      });
+    } catch { /* logging is best-effort */ }
   }
 
   async function runAddMembersJob(jobId, groupJid, numbers) {
@@ -428,6 +547,7 @@ function createApiHandlers(deps) {
     try {
       job.status = 'running';
       const groupChat = await client.getChatById(groupJid);
+      job.groupName = groupChat?.name || '';
       const { entries, failed: resolveFailed } = await resolveParticipantWids(numbers);
       job.total = entries.length + resolveFailed.length;
       job.done = resolveFailed.length;
@@ -529,6 +649,19 @@ function createApiHandlers(deps) {
         target: groupJid,
         count: added,
         via: 'api',
+        actor: job.actor,
+        meta: {
+          jobId,
+          group: job.groupName || groupJid,
+          status: job.status,
+          total: job.total,
+          added,
+          invited,
+          failed: Object.values(job.results || {}).filter((r) => r === 'failed').length,
+          numbers,
+          results: job.results || {},
+          errors: job.errors,
+        },
         push: true,
       });
     } catch { /* logging is best-effort */ }
@@ -536,6 +669,22 @@ function createApiHandlers(deps) {
 
   function callerRole(req) {
     try { return auth.getRole(req) || 'admin'; } catch { return 'admin'; }
+  }
+  /** The parts of a schedule row worth showing in the activity detail. */
+  function scheduleMeta(s) {
+    return {
+      scheduleId: s.id,
+      message: s.message || '',
+      target: s.target,
+      isSet: !!s.isSet,
+      runAt: s.runAt,
+      createdAt: s.createdAt || '',
+      file: s.filePath ? path.basename(s.filePath) : '',
+    };
+  }
+
+  function callerActor(req) {
+    try { return auth.getActor(req); } catch { return null; }
   }
   function callerTag(req) {
     try {
@@ -650,6 +799,7 @@ function createApiHandlers(deps) {
         const job = {
           id: jobId, status: 'queued', done: 0, total: list.length,
           errors: [], cancelled: false, expiresAt: Date.now() + JOB_TTL_MS,
+          actor: callerActor(req),
         };
         apiJobs.set(jobId, job);
         setImmediate(() => runAddMembersJob(jobId, groupJid, list.slice(0, 50)).catch((err) => {
@@ -663,6 +813,59 @@ function createApiHandlers(deps) {
       } catch (err) {
         jsonResponse(res, 400, { error: err.message });
       }
+      return true;
+    }
+
+    // Queries → "Message all": one message to each person in the filtered list.
+    if (pathname === '/messages/bulk' && req.method === 'POST') {
+      if (!requireAuthFn(req, res, ['admin', 'nurturing'])) return true;
+      try {
+        const body = JSON.parse(await readBody(req) || '{}');
+        const message = String(body.message || '').trim().slice(0, 2000);
+        const seen = new Set();
+        const recipients = (Array.isArray(body.recipients) ? body.recipients : [])
+          .map((r) => ({
+            number: normalizePhoneDigits(String((r && r.number) || '').replace(/\D/g, '')),
+            name: String((r && r.name) || '').trim().slice(0, 80),
+            fields: cleanMessageFields(r && r.fields),
+          }))
+          .filter((r) => /^\d{10,13}$/.test(r.number) && !seen.has(r.number) && seen.add(r.number));
+        if (!message || !recipients.length) {
+          jsonResponse(res, 400, { error: 'message and at least one valid number required' });
+          return true;
+        }
+        if (recipients.length > BULK_MESSAGE_MAX) {
+          jsonResponse(res, 400, { error: `At most ${BULK_MESSAGE_MAX} people per bulk message` });
+          return true;
+        }
+        const jobId = `dm-${Date.now()}`;
+        apiJobs.set(jobId, {
+          id: jobId, kind: 'message', status: 'queued', done: 0, total: recipients.length,
+          sent: 0, failed: 0, errors: [], results: {}, cancelled: false,
+          expiresAt: Date.now() + JOB_TTL_MS, actor: callerActor(req),
+        });
+        setImmediate(() => runBulkMessageJob(jobId, recipients, message).catch(() => {}));
+        jsonResponse(res, 200, { jobId, total: recipients.length });
+      } catch (err) {
+        jsonResponse(res, 400, { error: err.message });
+      }
+      return true;
+    }
+
+    const msgJobMatch = pathname.match(/^\/messages\/job\/([^/]+?)(\/cancel)?$/);
+    if (msgJobMatch) {
+      if (!requireAuthFn(req, res, ['admin', 'nurturing'])) return true;
+      const job = apiJobs.get(msgJobMatch[1]);
+      if (!job || job.kind !== 'message') {
+        jsonResponse(res, 404, { error: 'Job not found' });
+        return true;
+      }
+      if (msgJobMatch[2] && req.method === 'POST') job.cancelled = true;
+      jsonResponse(res, 200, {
+        id: job.id, status: job.status, done: job.done, total: job.total,
+        sent: job.sent, failed: job.failed, stopReason: job.stopReason || '',
+        errors: job.errors.slice(-20), results: job.results,
+      });
       return true;
     }
 
@@ -714,10 +917,19 @@ function createApiHandlers(deps) {
     // that happen while the admin UI is closed still show up. Older scheduled
     // deliveries (before activity.jsonl existed) are back-filled from
     // delivered.json so the feed isn't empty on first upgrade.
+    // Admin sees every team; Nurturing sees only what its own team started.
     if (pathname === '/activity' && req.method === 'GET') {
-      if (!requireAuthFn(req, res, ['admin'])) return true;
+      if (!requireAuthFn(req, res, ['admin', 'nurturing'])) return true;
       const limit = Math.max(1, Math.min(500, parseInt(parsed.query.limit, 10) || 150));
       const sinceIso = String(parsed.query.since || '');
+      const role = callerRole(req);
+      if (role !== 'admin') {
+        const own = activity.loadActivity({ limit: 500, sinceIso })
+          .filter((e) => e.actor && e.actor.role === role)
+          .slice(0, limit);
+        jsonResponse(res, 200, { activity: own });
+        return true;
+      }
       const events = activity.loadActivity({ limit, sinceIso });
       const oldestEventTs = events.length
         ? Date.parse(events[events.length - 1].at)
@@ -796,8 +1008,23 @@ function createApiHandlers(deps) {
         // upload stays in MEDIA_DIR and the row only carries its path.
         if (media) schedule.filePath = media;
         if (sourceId) schedule.sourceId = String(sourceId);
+        // Credit the person who queued it, so the send it turns into later
+        // (by the scheduler, with nobody logged in) still shows who started it.
+        const actor = callerActor(req);
+        if (actor) schedule.createdBy = { role: actor.role, name: actor.name };
         schedules.push(schedule);
         saveSchedules(schedules);
+        activity.recordEvent({
+          category: 'schedule',
+          type: 'info',
+          ok: true,
+          title: `Scheduled a ${media ? 'flyer' : 'message'}`,
+          detail: `For ${new Date(runAtIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}`,
+          target: schedule.target,
+          via: 'api',
+          actor,
+          meta: scheduleMeta(schedule),
+        });
         jsonResponse(res, 200, { ok: true, schedule });
       } catch (err) {
         jsonResponse(res, 400, { error: err.message });
@@ -814,6 +1041,18 @@ function createApiHandlers(deps) {
       const schedules = all.filter((s) => s.id !== id);
       saveSchedules(schedules);
       if (dropped?.filePath) dropScheduleMedia(dropped.filePath, schedules);
+      if (dropped) {
+        activity.recordEvent({
+          category: 'schedule',
+          type: 'info',
+          ok: true,
+          title: 'Cancelled a scheduled message',
+          target: dropped.target,
+          via: 'api',
+          actor: callerActor(req),
+          meta: scheduleMeta(dropped),
+        });
+      }
       jsonResponse(res, 200, { ok: true });
       return true;
     }
@@ -854,6 +1093,7 @@ function createApiHandlers(deps) {
           title: isNew ? `Saved contact "${body.name}"` : `Updated contact "${body.name}"`,
           target: String(body.number),
           via: 'api',
+          actor: callerActor(req),
           push: true,
         });
         jsonResponse(res, 200, { ok: true, contacts: contacts.contacts });
@@ -874,6 +1114,7 @@ function createApiHandlers(deps) {
       if (existed) {
         activity.recordEvent({
           category: 'contact', type: 'ok', title: `Deleted contact "${name}"`, via: 'api', push: true,
+          actor: callerActor(req),
         });
       }
       jsonResponse(res, 200, { ok: true });
@@ -901,6 +1142,7 @@ function createApiHandlers(deps) {
           title: `Created group "${result.title || title}"`,
           target: result.gid._serialized,
           via: 'api',
+          actor: callerActor(req),
           push: true,
         });
         jsonResponse(res, 200, { ok: true, jid: result.gid._serialized, title: result.title });
@@ -991,9 +1233,11 @@ function createApiHandlers(deps) {
         const chats = await client.getChats();
         const groups = safety.shuffled(chats.filter((c) => c.isGroup));
         const corrId = `broadcast-${Date.now()}`;
+        const actor = callerActor(req);
+        const failures = [];
         let sent = 0;
         let stopped = null;
-        await withSendContext({ via: 'broadcast', corrId }, async () => {
+        await withSendContext({ via: 'broadcast', corrId, actor }, async () => {
           for (let i = 0; i < groups.length; i++) {
             const g = groups[i];
             const verdict = budget ? budget.check() : { ok: true };
@@ -1006,6 +1250,7 @@ function createApiHandlers(deps) {
               await resolveAndSend(g.id._serialized, safety.varyCaption(message));
               sent += 1;
             } catch (err) {
+              failures.push({ target: g.name || g.id._serialized, error: err.message });
               log(`[broadcast] ${g.name}: ${err.message}`);
             }
             if (i < groups.length - 1) await safety.broadcastGap();
@@ -1013,13 +1258,16 @@ function createApiHandlers(deps) {
         });
         activity.recordEvent({
           category: 'send',
-          type: stopped ? 'warn' : 'ok',
-          ok: !stopped,
+          type: stopped || failures.length ? 'warn' : 'ok',
+          ok: !stopped && !failures.length,
           title: `Broadcast to ${sent} of ${groups.length} groups`,
-          detail: stopped ? `Stopped: ${stopped}` : '',
+          detail: [stopped ? `Stopped: ${stopped}` : '', failures.length ? `${failures.length} failed` : '']
+            .filter(Boolean).join(' · '),
           count: sent,
           via: 'broadcast',
           corrId,
+          actor,
+          meta: { message, total: groups.length, sent, failures, stopped: stopped || '' },
           push: true,
         });
         jsonResponse(res, 200, { ok: true, sent, total: groups.length, stopped });
@@ -1038,7 +1286,7 @@ function createApiHandlers(deps) {
           jsonResponse(res, 400, { error: 'numbers and message required' });
           return true;
         }
-        const results = await runBulkSend(list.slice(0, 100), message);
+        const results = await runBulkSend(list.slice(0, 100), message, callerActor(req));
         jsonResponse(res, 200, { ok: true, results });
       } catch (err) {
         jsonResponse(res, 500, { error: err.message });
@@ -1102,6 +1350,7 @@ function createApiHandlers(deps) {
           errors: [],
           cancelled: false,
           expiresAt: Date.now() + JOB_TTL_MS,
+          actor: callerActor(req),
         };
         apiJobs.set(jobId, job);
         setImmediate(() => runAddMembersJob(jobId, groupJid, list.slice(0, 50)).catch((err) => {

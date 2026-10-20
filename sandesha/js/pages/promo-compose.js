@@ -56,6 +56,72 @@ const draft = {
   keepFileUrl: '',
 };
 let sending = false;
+
+/*
+ * Android Chrome reloads a tab it threw away in the background, which used to
+ * lose a half-written post. The draft is kept in this tab's sessionStorage
+ * whenever the page is hidden, and picked back up when the module loads.
+ * A picked-but-not-uploaded file can't be kept; the person is told to re-add it.
+ */
+const SAVED_DRAFT_KEY = 'vjn-compose-draft';
+const SAVED_DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+let restoredNotice = '';
+
+function persistDraft() {
+  try {
+    const empty = !draft.message.trim() && !draft.targets.length && !draft.replacingIds.length
+      && !draft.keepFilePath && !draft.file;
+    if (empty) {
+      sessionStorage.removeItem(SAVED_DRAFT_KEY);
+      return;
+    }
+    sessionStorage.setItem(SAVED_DRAFT_KEY, JSON.stringify({
+      at: Date.now(),
+      later: draft.later,
+      targets: draft.targets,
+      message: draft.message,
+      runAt: draft.runAt,
+      replacingIds: draft.replacingIds,
+      keepFilePath: draft.keepFilePath,
+      keepFileName: draft.keepFileName,
+      hadFile: !!draft.file,
+    }));
+  } catch { /* storage off or full */ }
+}
+
+function restoreSavedDraft() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(SAVED_DRAFT_KEY) || 'null'); } catch { saved = null; }
+  if (!saved || Date.now() - (saved.at || 0) > SAVED_DRAFT_MAX_AGE_MS) return;
+  draft.later = !!saved.later;
+  draft.targets = Array.isArray(saved.targets) ? saved.targets : [];
+  draft.message = String(saved.message || '');
+  draft.runAt = String(saved.runAt || '');
+  draft.replacingIds = Array.isArray(saved.replacingIds) ? saved.replacingIds.map(String) : [];
+  draft.keepFilePath = String(saved.keepFilePath || '');
+  draft.keepFileName = String(saved.keepFileName || '');
+  if (draft.keepFilePath) {
+    const wanted = draft.keepFilePath;
+    fetchMedia(wanted)
+      .then(({ blob }) => {
+        if (draft.keepFilePath !== wanted) return;
+        draft.keepFileUrl = URL.createObjectURL(blob);
+        sync();
+      })
+      .catch(() => { /* the name in the field is enough on its own */ });
+  }
+  if (draft.message.trim() || saved.hadFile) {
+    restoredNotice = saved.hadFile
+      ? 'We kept your unfinished post. Please add the picture again.'
+      : 'We kept your unfinished post.';
+  }
+}
+
+restoreSavedDraft();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') persistDraft();
+});
+window.addEventListener('pagehide', persistDraft);
 let delivered = false;
 
 function isEditing() {
@@ -86,6 +152,7 @@ function clearDraft() {
   draft.replacingIds = [];
   forgetKeptFile();
   setFileSilently(null);
+  persistDraft();
 }
 
 /**
@@ -261,6 +328,10 @@ export function renderPromoCompose() {
   const host = panel();
   if (!host) return;
   if (!draft.runAt) draft.runAt = defaultRunAt();
+  if (restoredNotice) {
+    toast(restoredNotice, 'ok');
+    restoredNotice = '';
+  }
 
   host.innerHTML = `
     ${isEditing() ? `
@@ -692,6 +763,7 @@ async function sendNow(text) {
       draft.message = '';
       forgetKeptFile();
       setFileSilently(null);
+      persistDraft();
       window.dispatchEvent(new CustomEvent('promo:board-show'));
     }
   } catch (err) {

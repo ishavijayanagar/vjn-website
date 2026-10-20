@@ -10,6 +10,11 @@ const state = {
   schedules: [],
   activity: [],
   aiAvailable: false,
+  // Whether /groups and /sets have answered at least once, so screens can tell
+  // "still loading" apart from "there are none". loadError: why they couldn't.
+  groupsLoaded: false,
+  setsLoaded: false,
+  loadError: '',
 };
 
 const listeners = new Set();
@@ -45,6 +50,12 @@ export async function refreshCore(forceGroups = false) {
     api('/chats?limit=200'),
     wantActivity ? api('/activity?limit=150') : Promise.resolve(null),
   ]);
+
+  if (settled[1].status === 'fulfilled') state.groupsLoaded = true;
+  if (settled[2].status === 'fulfilled') state.setsLoaded = true;
+  const firstFail = settled.slice(0, 3).find((r) => r.status === 'rejected');
+  state.loadError = firstFail ? String(firstFail.reason?.message || 'Could not reach Sandesha') : '';
+  notify();
 
   const health = settled[0].status === 'fulfilled' ? settled[0].value : null;
   if (!health) {

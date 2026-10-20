@@ -6,10 +6,10 @@
   const QUERY_NOTIFY_KEY = "vjn_query_notify";
   const QUERY_WATCH_MS = 45000;
   const ROLE_PAGES = {
-    admin: ["events", "volunteering", "promotions", "messaging", "queries", "team", "flyerTemplates", "newFlyerTemplate", "banner", "settings"],
+    admin: ["events", "volunteering", "promotions", "messaging", "queries", "team", "flyerTemplates", "newFlyerTemplate", "banner", "settings", "programTitles", "sandeshaActivity"],
     programs: ["events", "programVolunteers", "settings", "generateFlyer"],
     promotions: ["promotions", "banner"],
-    nurturing: ["queries", "volunteering", "volunteers", "settings"],
+    nurturing: ["queries", "volunteering", "volunteers", "settings", "sandeshaActivity"],
   };
   const ROLE_LABELS = {
     admin: "Admin",
@@ -77,6 +77,8 @@
   let items = [];
   let listingFilter = "open";
   let editingId = "";
+  /** Which resource the listing last finished loading — drafts wait on it. */
+  let listLoadedFor = "";
   let pendingImage = null;
   let editorMode = "single";
   let bulkPreviewRows = [];
@@ -713,6 +715,7 @@
       if (window.endPageLoad) endPageLoad();
     }
     startAlertWatch();
+    watchDrafts();
   }
 
   /** Opens a volunteering sub-page from its hash (also used to restore the page on refresh). */
@@ -1098,6 +1101,8 @@
     if (page === "flyerTemplates") return "Flyer templates";
     if (page === "newFlyerTemplate") return "New template";
     if (page === "settings") return "Settings";
+    if (page === "programTitles") return "Program names";
+    if (page === "sandeshaActivity") return "Sandesha activities";
     if (page === "generateFlyer") return "Generate flyer";
     return "Programs";
   }
@@ -1149,6 +1154,8 @@
     show($("programVolunteersPanel"), isPv);
     show($("flyerTemplatesPanel"), isFlyerImport);
     show($("settingsPanel"), page === "settings");
+    show($("programTitlesPanel"), page === "programTitles");
+    show($("sandeshaActivityPanel"), page === "sandeshaActivity");
     show($("generateFlyerPanel"), isFlyerGen);
     show($("gfToolbar"), page === "flyerTemplates");
     show($("bannerPanel"), page === "banner");
@@ -1164,35 +1171,58 @@
     const hash = "#" + page;
     if (replaceHash) history.replaceState(null, "", hash);
     else if (location.hash !== hash) history.pushState(null, "", hash);
+    // Whatever the page loads, its panel stays busy (controls disabled) until
+    // that data is in; the header and back button stay usable throughout.
+    let pending = null;
+    let pendingPanel = null;
     if (isQueries) {
       inquiryScope = "queries";
       inquiryShowLimit = 12;
       resetInquirySearch();
-      loadInquiries();
+      pending = loadInquiries();
+      pendingPanel = $("inquiriesPanel");
     } else if (isEvents) {
       setTab("programs");
     } else if (page === "volunteers") {
-      loadRoster();
+      pending = loadRoster();
+      pendingPanel = $("volRosterPanel");
     } else if (isNurturingVolChooser) {
       // The chooser's counts come from the hub stats; a direct load / reload
       // of #volunteering never visited the hub, so fetch them here.
-      loadHubStats();
+      pending = loadHubStats();
+      pendingPanel = $("volChooserPanel");
     } else if (isVolunteering) {
       setTab("volunteering");
     } else if (isPromos) {
       setPromoView("today");
-      loadPromotions();
+      pending = loadPromotions();
+      pendingPanel = $("promotionsPanel");
     } else if (isTeam) {
-      loadTeam();
+      pending = loadTeam();
+      pendingPanel = $("teamPanel");
     } else if (isPv) {
-      loadProgramVolunteers();
+      pending = loadProgramVolunteers();
+      pendingPanel = $("programVolunteersPanel");
     } else if (isFlyerImport) {
-      loadFlyerImportPage();
+      pending = loadFlyerImportPage();
+      pendingPanel = $("flyerTemplatesPanel");
     } else if (isFlyerGen) {
-      loadGenerateFlyerPage();
+      pending = loadGenerateFlyerPage();
+      pendingPanel = $("generateFlyerPanel");
+    } else if (page === "programTitles") {
+      pending = loadProgramTitlesPage();
+      pendingPanel = $("programTitlesPanel");
+    } else if (page === "sandeshaActivity") {
+      pending = loadSandeshaActivity();
+      pendingPanel = $("sandeshaActivityPanel");
     } else if (page === "banner") {
       loadBannerPage();
+    } else if (page === "settings") {
+      updateSettingsEmpty();
+      startSandeshaStatus();
     }
+    if (page !== "settings") stopSandeshaStatus();
+    if (pending && window.sectionLoading) window.sectionLoading(pendingPanel, pending);
     if (window.endPageLoad) endPageLoad();
   }
 
@@ -1868,6 +1898,7 @@
     setListingImagePreview(defaults.image);
     setImageFileLabel(defaults.image ? "Replace " + photoWord() : "");
     setFrequencySelect(defaults.frequency);
+    $("fLanguage").value = "English";
     $("fStatus").value = currentResource === "programs" ? "Open" : "active";
     clearFieldErrors();
     setTemplateActive("sannidhi");
@@ -1887,6 +1918,7 @@
     loadSlotsIntoForm(null);
     $("fLocation").value = DEFAULT_LOCATION;
     setFrequencySelect("");
+    $("fLanguage").value = "";
     $("fRegister").value = "";
     setNoRegister(false);
     setFreeOfferingChecked(false);
@@ -2128,6 +2160,7 @@
       }
       if (data.error) throw new Error(data.error);
       items = data.items || [];
+      listLoadedFor = currentResource;
       renderList();
     } catch (err) {
       items = [];
@@ -2613,16 +2646,38 @@
   function vpdRowHtml(item, v, index) {
     const at = v.attended || "";
     const closed = !item.open;
-    const sub = [formatInquiryPhone(v.phone || ""), v.area || ""].filter(Boolean).map(escapeHtml).join(" · ");
     const rid = escapeHtml(v.rowId);
     const digits = String(v.phone || "").replace(/\D/g, "").slice(-10);
     const waUrl = waMeUrl(digits);
+    const phone = formatInquiryPhone(v.phone || "");
+    // Collapsed: who + where. Everything else waits behind a tap.
+    const details =
+      (phone ? '<span class="vpr-detail"><b>WhatsApp</b> ' + escapeHtml(phone) + "</span>" : "") +
+      (v.ieCompletion ? '<span class="vpr-detail"><b>IE completed</b> ' + escapeHtml(v.ieCompletion) + "</span>" : "") +
+      (v.addedBy ? '<span class="vpr-detail"><b>Added by</b> ' + escapeHtml(v.addedBy === "google-form" ? "Google form" : v.addedBy) + "</span>" : "") +
+      (v.remarks ? volunteerRemarksHtml(v.remarks, "vpr-remarks") : "") +
+      (closed
+        ? '<span class="vpr-chips">' +
+          '<button type="button" class="vn-chip ' + (v.inGroup ? "is-on" : "") + '" data-vn-flag="' + rid + '" data-field="inGroup">In WA group</button>' +
+          '<button type="button" class="vn-chip ' + (v.inviteSent ? "is-on" : "") + '" data-vn-flag="' + rid + '" data-field="inviteSent">Invite sent</button>' +
+          "</span>"
+        : "");
     return (
-      '<div class="vpr-row">' +
+      '<div class="vpr-row" data-vpr-row>' +
       '<span class="inquiry-avatar" aria-hidden="true" style="background:' +
       AVATAR_COLORS_[index % AVATAR_COLORS_.length] + '">' + escapeHtml((v.name || "?").trim().charAt(0).toUpperCase()) + "</span>" +
       '<span class="vpr-main">' +
-      '<span class="vpr-top"><span class="vpr-name">' + escapeHtml(v.name || "(No name)") + "</span>" +
+      '<span class="vpr-top" data-vpr-toggle role="button" tabindex="0" aria-expanded="false">' +
+      '<span class="vpr-head"><span class="vpr-name">' + escapeHtml(v.name || "(No name)") + "</span>" +
+      ((v.area || closed)
+        ? '<span class="vpr-sub">' + escapeHtml(v.area || "") +
+          (closed
+            ? '<span class="vat-tag' + (at === "yes" ? "" : at === "no" ? " is-no" : " is-idle") + '">' +
+              (at === "yes" ? "Present" : at === "no" ? "Absent" : "Not marked") + "</span>"
+            : "") +
+          "</span>"
+        : "") +
+      "</span>" +
       (digits
         ? '<a class="vpr-wa vpr-call" href="tel:+91' + digits + '" aria-label="Call ' + escapeHtml(v.name || "volunteer") + '">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></a>'
@@ -2631,24 +2686,21 @@
         ? '<a class="vpr-wa" href="' + escapeHtml(waUrl) + '" target="_blank" rel="noopener noreferrer" aria-label="Message ' +
           escapeHtml(v.name || "volunteer") + ' on WhatsApp">' + waIconSvg() + "</a>"
         : "") +
+      (details ? '<svg class="vpr-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>' : "") +
       "</span>" +
-      (sub || closed
-        ? '<span class="vpr-sub">' + sub +
-          (closed
-            ? '<span class="vat-tag' + (at === "yes" ? "" : at === "no" ? " is-no" : " is-idle") + '">' +
-              (at === "yes" ? "Present" : at === "no" ? "Absent" : "Not marked") + "</span>"
-            : "") +
-          "</span>"
-        : "") +
-      (v.remarks ? '<span class="vpr-remarks">' + escapeHtml(v.remarks) + "</span>" : "") +
-      '<span class="vpr-chips">' +
-      (closed
-        ? '<button type="button" class="vn-chip ' + (v.inGroup ? "is-on" : "") + '" data-vn-flag="' + rid + '" data-field="inGroup">In WA group</button>' +
-          '<button type="button" class="vn-chip ' + (v.inviteSent ? "is-on" : "") + '" data-vn-flag="' + rid + '" data-field="inviteSent">Invite sent</button>'
-        : "") +
-      '<button type="button" class="vn-chip vn-chip-del" data-vn-del="' + rid + '">Remove</button>' +
-      "</span></span></div>"
+      (details ? '<span class="vpr-body" hidden>' + details + "</span>" : "") +
+      "</span></div>"
     );
+  }
+
+  function vprToggleRow(toggle) {
+    const row = toggle.closest("[data-vpr-row]");
+    const body = row && row.querySelector(".vpr-body");
+    if (!body) return;
+    const open = body.hidden;
+    body.hidden = !open;
+    row.classList.toggle("is-open", open);
+    toggle.setAttribute("aria-expanded", String(open));
   }
 
   function vnVolunteerRowHtml(item, v) {
@@ -2672,7 +2724,6 @@
           '<button type="button" class="vn-chip ' + (v.inviteSent ? "is-on" : "") +
           '" data-vn-flag="' + escapeHtml(v.rowId) + '" data-field="inviteSent">Invite sent</button>'
         : "") +
-      '<button type="button" class="vn-chip vn-chip-del" data-vn-del="' + escapeHtml(v.rowId) + '">Remove</button>' +
       "</div></div>"
     );
   }
@@ -2776,7 +2827,7 @@
 
   function showOnlyPanel(panelId) {
     ["listingsPanel", "inquiriesPanel", "promotionsPanel", "teamPanel", "programVolunteersPanel",
-     "flyerTemplatesPanel", "settingsPanel", "generateFlyerPanel", "bannerPanel", "volRosterPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
+     "flyerTemplatesPanel", "settingsPanel", "programTitlesPanel", "sandeshaActivityPanel", "generateFlyerPanel", "bannerPanel", "volRosterPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
       show($(id), id === panelId);
     });
     show($("backToHubBtn"), role() !== "promotions");
@@ -4027,6 +4078,231 @@ panels +
     }
   }
 
+  /* ── Connect existing Google form ─────────────────────────────────────
+   * Step 1: pick one of the site account's forms (or paste its link).
+   * Step 2: confirm which question is the name / WhatsApp / area / IE /
+   * remarks. Connecting imports existing answers and keeps syncing new ones. */
+  const CF_FIELDS = [
+    { key: "name", label: "Name", required: true },
+    { key: "phone", label: "WhatsApp number", required: true },
+    { key: "area", label: "Area of stay" },
+    { key: "ie", label: "IE completion date" },
+    { key: "remarks", label: "Remarks" },
+  ];
+  let cfForms = null;
+  let cfInspect = null; // { formId, title, responses, questions, guess, usedBy, acceptingResponses }
+
+  function cfSetError(msg) {
+    const el = $("cfError");
+    el.textContent = msg || "";
+    el.classList.toggle("hidden", !msg);
+  }
+
+  function cfStep(step) {
+    show($("cfPickStep"), step === "pick");
+    show($("cfMapStep"), step === "map");
+    show($("cfConnect"), step === "map");
+    $("cfBack").textContent = step === "map" ? "Back" : "Close";
+    cfSetError("");
+  }
+
+  async function openConnectFormSheet() {
+    const item = vnFindItem(currentVolNeedId);
+    if (!item) return;
+    $("cfTitle").textContent = item.title || "Program";
+    const note = $("cfReplaceNote");
+    note.textContent = item.formId
+      ? "This program already has a form. Connecting another replaces its link here; volunteers already added stay."
+      : "";
+    note.classList.toggle("hidden", !item.formId);
+    $("cfSearch").value = "";
+    $("cfLink").value = "";
+    cfInspect = null;
+    cfStep("pick");
+    openBSheet("cfSheet");
+    if (cfForms) {
+      renderCfList();
+      return;
+    }
+    $("cfList").innerHTML = '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading forms…</div>';
+    try {
+      const data = await apiPost({ formType: "adminListVolunteerForms", token: token() });
+      if (data.error) throw new Error(data.error);
+      cfForms = data.forms || [];
+      renderCfList();
+    } catch (err) {
+      $("cfList").innerHTML = '<div class="admin-empty">' + escapeHtml(friendlyError(err.message)) + "</div>";
+    }
+  }
+
+  function renderCfList() {
+    const q = $("cfSearch").value.trim().toLowerCase();
+    const rows = (cfForms || []).filter(function (f) { return !q || f.title.toLowerCase().indexOf(q) >= 0; });
+    if (!rows.length) {
+      $("cfList").innerHTML = '<div class="admin-empty">' + (cfForms && cfForms.length ? "No forms match." : "No forms in the website's Google account yet.") + "</div>";
+      return;
+    }
+    $("cfList").innerHTML = rows.map(function (f) {
+      const here = f.linkedEventId && String(f.linkedEventId) === String(currentVolNeedId);
+      const elsewhere = f.linkedEventId && !here;
+      const when = new Date(f.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+      return '<button type="button" class="cf-item" data-cf-form="' + escapeHtml(f.formId) + '"' + (elsewhere || here ? " disabled" : "") + ">" +
+        '<span class="cf-item-main"><b>' + escapeHtml(f.title) + "</b><span>Edited " + escapeHtml(when) + "</span></span>" +
+        (here ? '<span class="cf-tag cf-tag--here">Connected here</span>'
+          : elsewhere ? '<span class="cf-tag">Used by ' + escapeHtml(f.linkedTitle || "another program") + "</span>" : "") +
+        "</button>";
+    }).join("");
+  }
+
+  async function cfInspectForm(link, btn) {
+    cfSetError("");
+    // A list row has rich content, so it only dims; the link button says "Checking…".
+    const isRow = !!(btn && btn.classList.contains("cf-item"));
+    const sub = isRow ? btn.querySelector(".cf-item-main span") : null;
+    const subText = sub ? sub.textContent : "";
+    if (isRow) {
+      btn.classList.add("is-loading");
+      btn.disabled = true;
+      btn.insertAdjacentHTML("beforeend", '<span class="admin-spinner cf-item-spin" aria-hidden="true"></span>');
+      if (sub) sub.textContent = "Reading questions and responses…";
+    } else {
+      setButtonBusy(btn, true, "Checking…");
+    }
+    try {
+      const request = apiPost({ formType: "adminInspectVolunteerForm", token: token(), link: link, eventId: currentVolNeedId });
+      // The rest of the picker waits too, so nothing else can be started meanwhile.
+      if (window.sectionLoading) window.sectionLoading($("cfPickStep"), request);
+      const data = await request;
+      if (data.error) throw new Error(data.error);
+      if (data.usedBy) throw new Error("That form is already connected to " + data.usedBy + ".");
+      cfInspect = data;
+      renderCfMap();
+      cfStep("map");
+    } catch (err) {
+      cfSetError(friendlyError(err.message));
+    } finally {
+      if (isRow) {
+        btn.classList.remove("is-loading");
+        btn.disabled = false;
+        const spin = btn.querySelector(".cf-item-spin");
+        if (spin) spin.remove();
+        if (sub) sub.textContent = subText;
+      } else {
+        setButtonBusy(btn, false);
+      }
+    }
+  }
+
+  function renderCfMap() {
+    const d = cfInspect;
+    $("cfFormName").textContent = d.title;
+    $("cfFormMeta").textContent = d.responses + (d.responses === 1 ? " response so far" : " responses so far") +
+      (d.acceptingResponses ? "" : " · not accepting responses");
+    const options = function (selected) {
+      return '<option value="">— Not in this form —</option>' + d.questions.map(function (q) {
+        return '<option value="' + escapeHtml(q.id) + '"' + (q.id === selected ? " selected" : "") + ">" + escapeHtml(q.title) + "</option>";
+      }).join("");
+    };
+    $("cfMapFields").innerHTML = CF_FIELDS.map(function (f) {
+      return '<div class="form-group cf-map-row"><label for="cfMap_' + f.key + '">' + escapeHtml(f.label) + (f.required ? " *" : "") + "</label>" +
+        '<select id="cfMap_' + f.key + '" data-cf-map="' + f.key + '">' + options((d.guess || {})[f.key] || "") + "</select></div>";
+    }).join("");
+    cfSkipped = {};
+    renderCfExtras();
+  }
+
+  let cfSkipped = {}; // question id → true when unticked
+
+  /** Questions not picked above: listed by name, ticked = kept in remarks. */
+  function renderCfExtras() {
+    const used = {};
+    document.querySelectorAll("[data-cf-map]").forEach(function (sel) { if (sel.value) used[sel.value] = true; });
+    const rest = (cfInspect.questions || []).filter(function (q) { return !used[q.id]; });
+    $("cfExtras").innerHTML = rest.map(function (q) {
+      return '<label class="cf-extra"><input type="checkbox" data-cf-extra="' + escapeHtml(q.id) + '"' +
+        (cfSkipped[q.id] ? "" : " checked") + "/><span>" + escapeHtml(q.title) + "</span></label>";
+    }).join("");
+    show($("cfExtrasWrap"), rest.length > 0);
+  }
+
+  async function cfConnect() {
+    const map = {};
+    document.querySelectorAll("[data-cf-map]").forEach(function (sel) {
+      if (sel.value) map[sel.getAttribute("data-cf-map")] = sel.value;
+    });
+    if (!map.name || !map.phone) {
+      cfSetError("Pick the questions for the name and the WhatsApp number.");
+      return;
+    }
+    const btn = $("cfConnect");
+    setButtonBusy(btn, true, "Importing…");
+    cfSetError("");
+    try {
+      const skip = [];
+      document.querySelectorAll("[data-cf-extra]").forEach(function (cb) {
+        if (!cb.checked) skip.push(cb.getAttribute("data-cf-extra"));
+      });
+      const data = await apiPost({
+        formType: "adminConnectProgramVolunteerForm", token: token(),
+        eventId: currentVolNeedId, link: cfInspect.formId, map: map, skip: skip,
+      });
+      if (data.error) throw new Error(data.error);
+      cfForms = null; // "Connected here" tags changed
+      closeBSheet("cfSheet");
+      const bits = [data.imported + (data.imported === 1 ? " volunteer" : " volunteers") + " imported"];
+      if (data.duplicates) bits.push(data.duplicates + " already here");
+      if (data.skipped) bits.push(data.skipped + " without a name or number skipped");
+      toastMsg("Form connected — " + bits.join(", ") + "." +
+        (data.liveSync === false ? " New answers won't sync automatically; reconnect later." : " New answers will come in automatically."));
+      const fresh = await apiGet("volunteerNeeds", true);
+      if (!fresh.error) volunteerNeeds = fresh.items || volunteerNeeds;
+      renderVolProgramDetail();
+    } catch (err) {
+      cfSetError(friendlyError(err.message));
+    } finally {
+      setButtonBusy(btn, false);
+    }
+  }
+
+  function initConnectForm() {
+    if (!$("cfSheet")) return;
+    $("cfSearch").addEventListener("input", renderCfList);
+    $("cfList").addEventListener("click", function (e) {
+      const btn = e.target.closest("[data-cf-form]");
+      if (btn && !btn.disabled) cfInspectForm(btn.getAttribute("data-cf-form"), btn);
+    });
+    $("cfLinkGo").addEventListener("click", function () {
+      cfInspectForm($("cfLink").value.trim(), $("cfLinkGo"));
+    });
+    $("cfLink").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") cfInspectForm($("cfLink").value.trim(), $("cfLinkGo"));
+    });
+    $("cfBack").addEventListener("click", function () {
+      if (!$("cfMapStep").classList.contains("hidden")) cfStep("pick");
+      else closeBSheet("cfSheet");
+    });
+    $("cfConnect").addEventListener("click", cfConnect);
+    $("cfMapFields").addEventListener("change", function (e) {
+      if (e.target.closest("[data-cf-map]")) renderCfExtras();
+    });
+    $("cfExtras").addEventListener("change", function (e) {
+      const cb = e.target.closest("[data-cf-extra]");
+      if (cb) cfSkipped[cb.getAttribute("data-cf-extra")] = !cb.checked;
+    });
+  }
+
+  /** Remarks from a form read "Q: A | Q: A"; show one answer per line, question in bold. */
+  function volunteerRemarksHtml(text, cls) {
+    const parts = String(text || "").split(" | ").map(function (p) { return p.trim(); }).filter(Boolean);
+    if (!parts.length) return "";
+    return '<span class="' + cls + ' vol-remarks-list">' + parts.map(function (p) {
+      const m = p.match(/^([^:]{2,140}):\s+([\s\S]+)$/);
+      return '<span class="vol-remark">' + (m
+        ? "<b>" + escapeHtml(m[1]) + ":</b> " + escapeHtml(m[2])
+        : escapeHtml(p)) + "</span>";
+    }).join("") + "</span>";
+  }
+
   function openVolFormSheet() {
     const item = vnFindItem(currentVolNeedId);
     if (!item) return;
@@ -4854,6 +5130,7 @@ panels +
 
   function closePvAdd() {
     closeSheet("pvAddOverlay");
+    if (window.DraftKeeper) DraftKeeper.clear("pvAdd");
   }
 
   async function savePvAdd() {
@@ -5686,6 +5963,493 @@ panels +
   }
 
 
+  /* ── Program names (Admin → Settings) — the list Programs picks from ── */
+  function renderProgramTitlesList() {
+    const host = $("ptList");
+    if (!host) return;
+    if ($("ptMeta")) $("ptMeta").textContent = programTitlesCache.length + (programTitlesCache.length === 1 ? " program" : " programs");
+    host.innerHTML = programTitlesCache.length
+      ? programTitlesCache.map(function (t) {
+          return '<li class="pt-item">' + escapeHtml(t) + "</li>";
+        }).join("")
+      : '<li class="admin-empty">No program names yet.</li>';
+  }
+
+  /* ── Settings → Sandesha activities (admin) ──────────────────────────────
+   * Every team's WhatsApp activity from Sandesha's server-side log: who started
+   * it, when, whether it worked and why not. Rows sharing a corrId (one
+   * broadcast's or schedule's per-chat sends) collapse into one entry; opening
+   * it shows the full record plus every related step.
+   */
+  const SA_TEAM_LABEL = { admin: "Admin", promotions: "Promotions", nurturing: "Nurturing", programs: "Programs", system: "System" };
+  const SA_CATEGORY_LABEL = {
+    send: "Message send", schedule: "Scheduled message", members: "Add members to group",
+    group: "Group", set: "Group set", contact: "Contact", system: "System", auth: "Login",
+  };
+  const SA_VIA_LABEL = {
+    manual: "Sent by hand", bulk: "Bulk send", broadcast: "Broadcast to all groups",
+    scheduled: "Sent automatically on schedule", api: "Sandesha app",
+  };
+  const SA_STATUS = {
+    ok: { label: "Success", cls: "ok" },
+    info: { label: "Done", cls: "ok" },
+    warn: { label: "Partly failed", cls: "warn" },
+    err: { label: "Failed", cls: "err" },
+  };
+  let saEntries = [];
+  let saTeam = "all";
+  let saStatus = "all";
+  let saGroupNames = null;
+
+  function saTeamOf(row) {
+    const r = row.actor && row.actor.role;
+    return SA_TEAM_LABEL[r] ? r : "system";
+  }
+
+  function saWho(row) {
+    if (row.actor && row.actor.name) return row.actor.name;
+    return row.via === "scheduled" ? "Scheduler (creator not recorded)" : "System / WhatsApp bot";
+  }
+
+  function saTargetName(target) {
+    if (!target) return "";
+    if (saGroupNames && saGroupNames[target]) return saGroupNames[target];
+    const m = String(target).match(/^(\d{10,13})@(c\.us|s\.whatsapp\.net)$/);
+    if (m) return "+" + m[1];
+    return String(target);
+  }
+
+  function saFmtDate(iso, withSeconds) {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleString("en-IN", {
+      weekday: "short", day: "numeric", month: "short", year: "numeric",
+      hour: "numeric", minute: "2-digit", second: withSeconds ? "2-digit" : undefined,
+    });
+  }
+
+  function saDayLabel(iso) {
+    const d = new Date(iso);
+    const today = new Date();
+    const yst = new Date();
+    yst.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return "Today";
+    if (d.toDateString() === yst.toDateString()) return "Yesterday";
+    return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  }
+
+  /** One Sandesha action fans out into a row per chat; show it once. */
+  function saCollapse(rows) {
+    const out = [];
+    const byCorr = {};
+    rows.forEach(function (r, i) {
+      r._key = r.id || (r.at + "-" + i);
+      if (!r.corrId) { out.push(r); return; }
+      (byCorr[r.corrId] = byCorr[r.corrId] || []).push(r);
+    });
+    Object.keys(byCorr).forEach(function (k) {
+      const group = byCorr[k].sort(function (a, b) { return Date.parse(b.at) - Date.parse(a.at); });
+      const isPerChat = function (r) { return r.category === "send" && r.meta && "chars" in r.meta; };
+      const head = group.find(function (r) { return !isPerChat(r); }) || group[0];
+      const entry = Object.assign({}, head, { _related: group.length > 1 ? group : null });
+      if (!entry.actor) {
+        const withActor = group.find(function (r) { return r.actor; });
+        if (withActor) entry.actor = withActor.actor;
+      }
+      out.push(entry);
+    });
+    return out.sort(function (a, b) { return Date.parse(b.at) - Date.parse(a.at); });
+  }
+
+  function saMatches(row, q) {
+    if (saTeam !== "all" && saTeamOf(row) !== saTeam) return false;
+    if (saStatus === "ok" && (row.type === "err" || row.type === "warn")) return false;
+    if (saStatus === "fail" && row.type !== "err" && row.type !== "warn") return false;
+    if (!q) return true;
+    const m = row.meta || {};
+    const hay = [row.title, row.detail, saWho(row), saTargetName(row.target), m.message, m.caption, m.group, m.set]
+      .join(" ").toLowerCase();
+    return hay.indexOf(q) >= 0;
+  }
+
+  function renderSandeshaActivity() {
+    const list = $("saList");
+    if (!list) return;
+    const q = ($("saSearch") && $("saSearch").value || "").trim().toLowerCase();
+    const rows = saEntries.filter(function (r) { return saMatches(r, q); });
+    const failed = rows.filter(function (r) { return r.type === "err" || r.type === "warn"; }).length;
+    if ($("saMeta")) {
+      $("saMeta").textContent = saEntries.length
+        ? rows.length + (rows.length === 1 ? " activity" : " activities") + (failed ? " · " + failed + " with failures" : "")
+        : "";
+    }
+    if (!rows.length) {
+      list.innerHTML = '<div class="admin-empty">' + (saEntries.length ? "Nothing matches these filters." : "No Sandesha activity yet.") + "</div>";
+      return;
+    }
+    let lastDay = "";
+    list.innerHTML = rows.map(function (r) {
+      const st = SA_STATUS[r.type] || SA_STATUS.ok;
+      const day = saDayLabel(r.at);
+      const head = day !== lastDay ? '<div class="sa-day">' + escapeHtml(day) + "</div>" : "";
+      lastDay = day;
+      const target = r.meta && r.meta.group ? r.meta.group : saTargetName(r.target);
+      const time = new Date(r.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+      return head +
+        '<button type="button" class="sa-row" data-sa-key="' + escapeHtml(r._key) + '">' +
+          '<span class="sa-dot ' + st.cls + '" aria-hidden="true"></span>' +
+          '<span class="sa-row-main">' +
+            '<span class="sa-row-title">' + escapeHtml(r.title || SA_CATEGORY_LABEL[r.category] || "Activity") + "</span>" +
+            (target ? '<span class="sa-row-target">' + escapeHtml(target) + "</span>" : "") +
+            (r.detail ? '<span class="sa-row-detail">' + escapeHtml(r.detail) + "</span>" : "") +
+            '<span class="sa-row-meta">' + escapeHtml(saWho(r)) + " · " +
+              '<span class="sa-team sa-team-' + saTeamOf(r) + '">' + escapeHtml(SA_TEAM_LABEL[saTeamOf(r)]) + "</span> · " +
+              escapeHtml(time) + "</span>" +
+          "</span>" +
+          '<span class="sa-status ' + st.cls + '">' + escapeHtml(st.label) + "</span>" +
+        "</button>";
+    }).join("");
+  }
+
+  async function loadSandeshaActivity() {
+    const list = $("saList");
+    if (!list) return;
+    // Only admin sees every team; other teams get just their own rows (the
+    // server filters), so the team chips would be noise.
+    const isAdmin = role() === "admin";
+    show($("saTeamFilters"), isAdmin);
+    if (!isAdmin) saTeam = "all";
+    list.innerHTML = '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading…</div>';
+    if ($("saMeta")) $("saMeta").textContent = "";
+    try {
+      if (!window.VjnVol) throw new Error("Messaging is unavailable right now.");
+      await window.VjnVol.ready;
+      if (!vnBridgeReady()) throw new Error("Could not connect to the Sandesha server.");
+      const results = await Promise.all([
+        window.VjnVol.listActivity(500),
+        saGroupNames ? Promise.resolve(null) : window.VjnVol.listGroups().catch(function () { return null; }),
+      ]);
+      if (results[1]) {
+        saGroupNames = {};
+        results[1].forEach(function (g) { saGroupNames[g.jid] = g.name; });
+      }
+      saEntries = saCollapse(results[0]);
+      renderSandeshaActivity();
+    } catch (err) {
+      list.innerHTML = '<div class="admin-empty">' + escapeHtml(err.message || "Could not load activity.") + "</div>";
+    }
+  }
+
+  function saField(label, value, cls) {
+    if (value === undefined || value === null || value === "") return "";
+    return '<div class="sa-field' + (cls ? " " + cls : "") + '"><dt>' + escapeHtml(label) + "</dt><dd>" + value + "</dd></div>";
+  }
+
+  function saText(v) {
+    return escapeHtml(String(v));
+  }
+
+  /** Per-recipient outcome, whatever shape the action recorded it in. */
+  function saResultsTable(m) {
+    let rows = [];
+    if (Array.isArray(m.results)) {
+      rows = m.results.map(function (r) {
+        return { who: "+" + String(r.number).replace(/^\+/, ""), ok: !!r.ok, text: r.ok ? "Sent" : (r.error || "Failed") };
+      });
+    } else if (m.results && typeof m.results === "object") {
+      const errs = Array.isArray(m.errors) ? m.errors : [];
+      rows = Object.keys(m.results).map(function (num) {
+        const res = m.results[num];
+        const why = errs.find(function (e) { return String(e).indexOf(num + ":") === 0; });
+        const text = res === "added" ? "Added" : res === "invited" ? "Sent a join link" : "Failed" + (why ? " — " + String(why).slice(num.length + 1).trim() : "");
+        return { who: "+" + num, ok: res !== "failed", text: text };
+      });
+    }
+    if (Array.isArray(m.failures)) {
+      m.failures.forEach(function (f) {
+        rows.push({ who: saTargetName(f.target), ok: false, text: f.error || "Failed" });
+      });
+    }
+    if (!rows.length) return "";
+    rows.sort(function (a, b) { return Number(a.ok) - Number(b.ok); });
+    return '<h3 class="sa-sub">Recipients</h3><ul class="sa-results">' + rows.map(function (r) {
+      return '<li class="' + (r.ok ? "ok" : "err") + '"><span>' + escapeHtml(r.who) + "</span><span>" + escapeHtml(r.text) + "</span></li>";
+    }).join("") + "</ul>";
+  }
+
+  function openSandeshaActivity(key) {
+    const r = saEntries.find(function (e) { return e._key === key; });
+    if (!r) return;
+    const m = r.meta || {};
+    const st = SA_STATUS[r.type] || SA_STATUS.ok;
+    const hasPerRecipient = !!(m.results || (Array.isArray(m.failures) && m.failures.length));
+    const reason = m.error || m.reason || (m.stopped ? "Stopped: " + m.stopped : "") ||
+      ((r.type === "err" || r.type === "warn") && !hasPerRecipient ? r.detail : "");
+    const generalErrors = Array.isArray(m.errors)
+      ? m.errors.filter(function (e) { return !/^\d{6,}:/.test(String(e)); })
+      : [];
+    const target = m.group || m.set || saTargetName(r.target || m.target);
+
+    $("saDetailTitle").textContent = r.title || SA_CATEGORY_LABEL[r.category] || "Activity";
+    let html = '<dl class="sa-fields">' +
+      saField("Result", '<span class="sa-status ' + st.cls + '">' + escapeHtml(st.label) + "</span>") +
+      saField("Date & time", saText(saFmtDate(r.at, true))) +
+      saField("Team", saText(SA_TEAM_LABEL[saTeamOf(r)])) +
+      saField("Started by", saText(saWho(r))) +
+      saField("Activity", saText(SA_CATEGORY_LABEL[r.category] || r.category)) +
+      saField("How", r.via ? saText(SA_VIA_LABEL[r.via] || r.via) : "") +
+      saField("To", target ? saText(target) : "") +
+      saField("Failure reason", reason ? saText(reason) : "", "sa-field-err") +
+      saField("Summary", r.detail && r.detail !== reason ? saText(r.detail) : "") +
+      saField("Total", m.total != null ? saText(m.total) : "") +
+      saField("Succeeded", m.sent != null ? saText(m.sent) : (m.added != null ? saText(m.added) : "")) +
+      saField("Join link sent", m.invited ? saText(m.invited) : "") +
+      saField("Failed", m.failed ? saText(m.failed) : (Array.isArray(m.failures) && m.failures.length ? saText(m.failures.length) : "")) +
+      saField("Scheduled for", m.runAt ? saText(saFmtDate(m.runAt)) : "") +
+      saField("Scheduled on", m.createdAt ? saText(saFmtDate(m.createdAt)) : "") +
+      saField("Attachment", m.file ? saText(m.file) : "") +
+      saField("Already sent to", Array.isArray(m.sentTo) && m.sentTo.length
+        ? saText(m.sentTo.map(saTargetName).join(", ")) : "") +
+      "</dl>";
+    const message = m.message || m.caption;
+    if (message) html += '<h3 class="sa-sub">Message</h3><div class="sa-message">' + escapeHtml(message) + "</div>";
+    if (generalErrors.length) {
+      html += '<h3 class="sa-sub">Errors</h3><ul class="sa-errors">' + generalErrors.map(function (e) {
+        return "<li>" + escapeHtml(e) + "</li>";
+      }).join("") + "</ul>";
+    }
+    html += saResultsTable(m);
+    if (r._related) {
+      html += '<h3 class="sa-sub">Every step (' + r._related.length + ')</h3><ul class="sa-steps">' +
+        r._related.slice().reverse().map(function (s) {
+          const sst = SA_STATUS[s.type] || SA_STATUS.ok;
+          return '<li><span class="sa-dot ' + sst.cls + '" aria-hidden="true"></span><span>' +
+            escapeHtml(s.title) + (s.detail ? " — " + escapeHtml(s.detail) : "") +
+            '<small>' + escapeHtml(saFmtDate(s.at, true)) + "</small></span></li>";
+        }).join("") + "</ul>";
+    }
+    html += '<details class="sa-raw"><summary>Technical details</summary><pre>' +
+      escapeHtml(JSON.stringify(Object.assign({}, r, { _related: undefined, _key: undefined }), null, 2)) +
+      "</pre></details>";
+    $("saDetailBody").innerHTML = html;
+    $("saDetailOverlay").classList.add("open");
+  }
+
+  function closeSandeshaActivity() {
+    $("saDetailOverlay").classList.remove("open");
+  }
+
+  function initSandeshaActivity() {
+    if (!$("sandeshaActivityPanel")) return;
+    function bindChips(attr, set) {
+      document.querySelectorAll("[" + attr + "]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          set(btn.getAttribute(attr));
+          document.querySelectorAll("[" + attr + "]").forEach(function (b) {
+            b.classList.toggle("active", b === btn);
+          });
+          renderSandeshaActivity();
+        });
+      });
+    }
+    bindChips("data-sa-team", function (v) { saTeam = v; });
+    bindChips("data-sa-status", function (v) { saStatus = v; });
+    $("saSearch").addEventListener("input", renderSandeshaActivity);
+    $("saRefresh").addEventListener("click", function () {
+      if (window.sectionLoading) window.sectionLoading($("sandeshaActivityPanel"), loadSandeshaActivity());
+      else loadSandeshaActivity();
+    });
+    $("saList").addEventListener("click", function (e) {
+      const row = e.target.closest("[data-sa-key]");
+      if (row) openSandeshaActivity(row.getAttribute("data-sa-key"));
+    });
+    $("saDetailClose").addEventListener("click", closeSandeshaActivity);
+    $("saDetailOverlay").addEventListener("click", function (e) {
+      if (e.target === $("saDetailOverlay")) closeSandeshaActivity();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && $("saDetailOverlay").classList.contains("open")) closeSandeshaActivity();
+    });
+  }
+
+  /* ── Settings → Sandesha WhatsApp status (admin + nurturing) ─────────────
+   * Reads Sandesha's public /health, so it works before any login exchange,
+   * and re-checks every 20s while Settings is open. */
+  let sxTimer = null;
+
+  function sandeshaBase() {
+    let base = "";
+    try { base = localStorage.getItem("sandesha_api") || ""; } catch (e) {}
+    return String(base || window.SANDESHA_API_URL || "").replace(/\/$/, "");
+  }
+
+  function sandeshaStatusView(health) {
+    const wa = (health && health.whatsapp) || {};
+    const state = String(wa.state || "");
+    const since = wa.updatedAt
+      ? "Since " + new Date(wa.updatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+      : "";
+    if (wa.connected) {
+      return { tone: "ok", line: "Connected — messages and group adds will go out", sub: since };
+    }
+    if (wa.pairingCode || wa.qrAvailable || wa.needsPairing || state === "pairing") {
+      return {
+        tone: "err",
+        line: "Logged out — WhatsApp needs to be linked again",
+        sub: role() === "admin" ? "Open Tools to link it." : "Ask the admin to relink Sandesha. Nothing can be sent until then.",
+      };
+    }
+    if (/connecting|authenticated|loading|starting/.test(state)) {
+      return { tone: "warn", line: "Connecting…", sub: "Usually ready within a minute." };
+    }
+    const why = String(wa.reason || "").split(":")[0].replace(/_/g, " ");
+    return {
+      tone: "err",
+      line: "Disconnected — nothing can be sent right now",
+      sub: [since, role() === "admin" ? (why ? "Reason: " + why : "") : "Let the admin know."].filter(Boolean).join(" · "),
+    };
+  }
+
+  function renderSandeshaStatus(view) {
+    const card = $("sandeshaStatus");
+    if (!card) return;
+    card.setAttribute("data-tone", view.tone);
+    $("sandeshaStatusLine").textContent = view.line;
+    const checked = "Checked " + new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    $("sandeshaStatusSub").textContent = [view.sub, checked].filter(Boolean).join(" · ");
+    show($("sandeshaStatusSub"), true);
+  }
+
+  /** Manual ↻: spin for at least a beat and flash the card, so a quick
+   * answer (or an unchanged one) still visibly registers. */
+  async function refreshSandeshaStatus() {
+    const btn = $("sandeshaStatusRefresh");
+    const card = $("sandeshaStatus");
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    card.classList.add("is-checking");
+    $("sandeshaStatusLine").textContent = "Checking…";
+    try {
+      const results = await Promise.all([checkSandeshaStatus(true), new Promise(function (r) { setTimeout(r, 700); })]);
+      renderSandeshaStatus(results[0]);
+    } finally {
+      card.classList.remove("is-checking");
+      btn.disabled = false;
+      card.classList.remove("is-refreshed");
+      void card.offsetWidth; // restart the flash animation
+      card.classList.add("is-refreshed");
+    }
+  }
+
+  /** Fetches and shows the status; with `manual`, returns the view instead
+   * so the caller can show it once its spinner has had its moment. */
+  async function checkSandeshaStatus(manual) {
+    const base = sandeshaBase();
+    let view;
+    if (!base) {
+      view = { tone: "err", line: "Sandesha server not set", sub: "" };
+      if (manual) return view;
+      renderSandeshaStatus(view);
+      return;
+    }
+    const card = $("sandeshaStatus");
+    if (card && !manual) card.classList.add("is-checking");
+    try {
+      const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const t = ctrl ? setTimeout(function () { ctrl.abort(); }, 10000) : null;
+      const res = await fetch(base + "/health", { cache: "no-store", signal: ctrl ? ctrl.signal : undefined });
+      if (t) clearTimeout(t);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      view = sandeshaStatusView(await res.json());
+    } catch (e) {
+      view = {
+        tone: "err",
+        line: "Can't reach the Sandesha server",
+        sub: role() === "admin" ? "The laptop or Pi running it may be off or offline." : "Let the admin know. Nothing can be sent until it's back.",
+      };
+    } finally {
+      if (card && !manual) card.classList.remove("is-checking");
+    }
+    if (manual) return view;
+    renderSandeshaStatus(view);
+  }
+
+  function startSandeshaStatus() {
+    const card = $("sandeshaStatus");
+    const r = role();
+    const allowed = r === "admin" || r === "nurturing";
+    show(card, allowed);
+    stopSandeshaStatus();
+    if (!allowed) return;
+    checkSandeshaStatus();
+    sxTimer = setInterval(function () {
+      if (document.hidden) return;
+      checkSandeshaStatus();
+    }, 20000);
+  }
+
+  function stopSandeshaStatus() {
+    if (sxTimer) clearInterval(sxTimer);
+    sxTimer = null;
+  }
+
+  /** Settings lists only what the role may open; say so when that's nothing. */
+  function updateSettingsEmpty() {
+    const saSub = document.querySelector("[data-sa-sub]");
+    if (saSub) {
+      saSub.textContent = role() === "admin"
+        ? "Everything every team did on WhatsApp: sends, schedules and member adds."
+        : "Everything your team did on WhatsApp: messages and group adds.";
+    }
+    const list = document.querySelector("#settingsPanel .settings-list");
+    const empty = $("settingsEmpty");
+    if (!list || !empty) return;
+    const any = Array.prototype.some.call(list.querySelectorAll(".settings-item"), function (el) {
+      return !el.classList.contains("hidden");
+    });
+    show(list, any);
+    show(empty, !any);
+  }
+
+  async function loadProgramTitlesPage() {
+    if ($("ptList")) {
+      $("ptList").innerHTML =
+        '<li class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading…</li>';
+    }
+    await loadProgramTitles();
+    renderProgramTitlesList();
+  }
+
+  async function submitProgramTitle(ev) {
+    ev.preventDefault();
+    const input = $("ptInput");
+    const err = $("ptError");
+    const btn = $("ptAddBtn");
+    const title = input.value.replace(/\s+/g, " ").trim();
+    err.textContent = "";
+    err.style.display = "none";
+    if (!title) {
+      err.textContent = "Enter a program name.";
+      err.style.display = "block";
+      input.focus();
+      return;
+    }
+    setButtonBusy(btn, true);
+    try {
+      const data = await apiPost({ formType: "adminAddProgramTitle", token: token(), title: title });
+      if (data.error) throw new Error(data.error);
+      programTitlesCache = data.titles || programTitlesCache;
+      input.value = "";
+      renderProgramTitlesList();
+      $("ptMeta").textContent = "Added “" + title + "”. " + $("ptMeta").textContent;
+    } catch (e) {
+      err.textContent = friendlyError(e.message) || "Could not add the program name.";
+      err.style.display = "block";
+    } finally {
+      setButtonBusy(btn, false);
+    }
+  }
+
   /* ── Generate flyer page (Settings → Generate flyer) ─────────────────────
    * Standalone version of the event editor's flyer picker: pick a program,
    * pick one of its flyer templates, fill the fields, generate. */
@@ -6440,14 +7204,7 @@ panels +
       const attachedFlyerUrl = (item && item.flyer_image) || "";
       const galleryPromise = titleValue ? loadFlyerGalleryForTitle(titleValue) : Promise.resolve();
       if (attachedFlyerUrl) {
-        generatedFlyerUrl = attachedFlyerUrl;
-        setFlyerResultPreview(attachedFlyerUrl);
-        $("downloadFlyerBtn").href = flyerDownloadUrl(attachedFlyerUrl);
-        show($("downloadFlyerBtn"), true);
-        $("flyerResultHint").textContent = "This flyer will be attached to the event when you save.";
-        show($("flyerPickHint"), false);
-        show($("selectFlyerBtn"), false);
-        show($("flyerResultWrap"), true);
+        showAttachedFlyer(attachedFlyerUrl);
         galleryPromise.then(function () {
           show($("selectFlyerBtn"), false);
         });
@@ -6463,6 +7220,7 @@ panels +
     loadSlotsIntoForm(item);
     $("fLocation").value = (item && item.location) || DEFAULT_LOCATION;
     setFrequencySelect(item && item.frequency);
+    $("fLanguage").value = (item && item.language) || "";
     const registerValue = (item && (item.registerlink || item.registerLink)) || "";
     $("fRegister").value = registerValue;
     setNoRegister(!!item && !String(registerValue).trim());
@@ -6550,8 +7308,83 @@ panels +
     select.value = value;
   }
 
-  function closeEditor() {
+  /** Show an already-uploaded flyer as the one this event will save with. */
+  function showAttachedFlyer(url) {
+    generatedFlyerUrl = url;
+    setFlyerResultPreview(url);
+    $("downloadFlyerBtn").href = flyerDownloadUrl(url);
+    show($("downloadFlyerBtn"), true);
+    $("flyerResultHint").textContent = "This flyer will be attached to the event when you save.";
+    show($("flyerPickHint"), false);
+    show($("selectFlyerBtn"), false);
+    show($("flyerResultWrap"), true);
+  }
+
+  /** keepDraft: true when the editor closes for a reason other than the person
+   * finishing with it (signed out), so their typing comes back after login. */
+  function closeEditor(keepDraft) {
     $("editorOverlay").classList.remove("open");
+    if (keepDraft !== true && window.DraftKeeper) DraftKeeper.clear("editor");
+  }
+
+  function waitMs(ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
+  }
+
+  /**
+   * Android Chrome reloads a tab it discarded in the background, which used to
+   * empty a half-filled editor. drafts.js keeps the fields; these say how to
+   * reopen the pop-up they live in.
+   */
+  function watchDrafts() {
+    if (!window.DraftKeeper) return;
+    DraftKeeper.watch("editor", {
+      root: function () { return $("editorOverlay"); },
+      isOpen: function () { return $("editorOverlay").classList.contains("open"); },
+      meta: function () {
+        return {
+          resource: currentResource,
+          id: editingId,
+          hash: location.hash,
+          mode: editorMode,
+          slots: visibleSlotCount(),
+          flyer: generatedFlyerUrl || "",
+          hadFile: !!(pendingManualFlyer || pendingImage),
+        };
+      },
+      reopen: async function (meta) {
+        if (!meta || !meta.resource) return false;
+        const page = pageFromHash(String(meta.hash || "").replace(/^#/, "").toLowerCase());
+        if (meta.hash && location.hash !== meta.hash && page) openAdminPage(page, true);
+        const deadline = Date.now() + 20000;
+        while (Date.now() < deadline && !(listLoadedFor === meta.resource && currentResource === meta.resource)) {
+          await waitMs(250);
+        }
+        if (currentResource !== meta.resource || listLoadedFor !== meta.resource) return false;
+        const item = meta.id
+          ? items.find(function (it) { return String(it.id) === String(meta.id); })
+          : null;
+        if (meta.id && !item) return false;
+        openEditor(item);
+        if (meta.mode === "bulk" && !meta.id) setEditorMode("bulk");
+        setVisibleSlotCount(meta.slots || 1);
+        return true;
+      },
+      restored: function (meta) {
+        // Picking the title reloads its flyer gallery, so put the flyer back last.
+        if (meta && meta.flyer) showAttachedFlyer(meta.flyer);
+      },
+    });
+    DraftKeeper.watch("pvAdd", {
+      root: function () { return $("pvAddOverlay"); },
+      isOpen: function () { return $("pvAddOverlay") && $("pvAddOverlay").classList.contains("open"); },
+      meta: function () { return { eventId: $("pvAddEventId").value, hash: location.hash }; },
+      reopen: async function (meta) {
+        if (!meta || !meta.eventId || location.hash !== meta.hash || !$("pvAddOverlay")) return false;
+        openPvAdd(meta.eventId);
+        return true;
+      },
+    });
   }
 
   function readFileAsImagePayload(file) {
@@ -6692,6 +7525,7 @@ panels +
         if (currentResource === "programs") {
           item.frequency = (row.frequency || "Scheduled").trim() || "Scheduled";
           item.registerlink = (row.registerlink || "").trim();
+          item.language = "English";
           item.free_offering = titleLooksFreeOffering(row.title) ? "yes" : "no";
         }
         const data = await apiPost({
@@ -6709,7 +7543,7 @@ panels +
       setStatus(created === 1 ? "1 event created." : created + " events created.");
     } catch (err) {
       if (/Unauthorized/i.test(err.message || "")) {
-        closeEditor();
+        closeEditor(true);
         logout();
         loginError(err.message);
         return;
@@ -6742,6 +7576,7 @@ panels +
     const status = $("fStatus").value.trim();
     const imageUrl = $("fImageUrl").value.trim();
     const frequency = $("fFrequency").value.trim();
+    const language = $("fLanguage").value.trim();
     const noRegister = isNoRegister();
     const registerlink = noRegister ? "" : $("fRegister").value.trim();
     const problems = [];
@@ -6757,6 +7592,7 @@ panels +
     if (currentResource === "programs") {
       if (!generatedFlyerUrl && !pendingManualFlyer) problems.push(["selectFlyerBtn", "Add a flyer."]);
       if (!frequency) problems.push(["fFrequency", "Choose how often this repeats."]);
+      if (!language) problems.push(["fLanguage", "Choose a language."]);
       if (!noRegister && !registerlink && !/^sannidhi pooja$/i.test(title)) {
         problems.push(["fRegister", "Add a register link, or tick “Registration not required”."]);
       }
@@ -6802,6 +7638,7 @@ panels +
       if (currentResource === "programs") {
         item.image = savedFlyer;
         item.frequency = frequency;
+        item.language = language;
         item.registerlink = registerlink;
         item.flyer_image = savedFlyer;
         item.free_offering = $("fFreeOffering") && $("fFreeOffering").checked ? "yes" : "no";
@@ -6828,7 +7665,7 @@ panels +
       setStatus("Saved.");
     } catch (err) {
       if (/Unauthorized/i.test(err.message || "")) {
-        closeEditor();
+        closeEditor(true);
         logout();
         loginError(err.message);
         return;
@@ -6969,6 +7806,18 @@ panels +
     return (item[key] || "").toString().trim();
   }
 
+  /** "Mar-2024" as typed on the form. Sheets sometimes stores it as a date,
+   * which comes back as a long date string — turn that back into "Mar 2024". */
+  function inquiryIeCompletion(item) {
+    const raw = inquiryField(item, "ie completion");
+    if (!raw) return "";
+    const typed = raw.match(/^([A-Za-z]{3})[-\s](\d{4})$/);
+    if (typed) return typed[1] + " " + typed[2];
+    const d = new Date(raw);
+    if (!isNaN(d)) return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+    return raw;
+  }
+
   function formatInquiryTime(raw) {
     const s = (raw || "").toString().trim();
     if (!s) return "";
@@ -7099,6 +7948,7 @@ panels +
     add("Program", inquiryField(item, "program name"));
     add("Search", inquiryField(item, "search keyword"));
     add("Opportunity", inquiryField(item, "opportunity name"));
+    add("IE completed", inquiryIeCompletion(item));
     add("Received", formatInquiryTime(inquiryField(item, "timestamp")));
     add("CTA", inquiryField(item, "remarks"));
     return lines.join("\n");
@@ -7137,6 +7987,8 @@ panels +
           : escapeHtml(phoneLabel)
       );
     }
+    const ieDone = inquiryIeCompletion(item);
+    if (ieDone) cell("IE completed", escapeHtml(ieDone));
     const received = formatInquiryTime(inquiryField(item, "timestamp"));
     if (received) cell("Received", escapeHtml(received));
     if (!cells.length) return "";
@@ -7350,6 +8202,7 @@ panels +
       (canGroup && !groupIsPrimary
         ? '<button type="button" class="inq-menu-item" data-inq-group>' + INQ_ICON.group + (inGroup ? "Add to another group" : "Add to group") + "</button>"
         : "") +
+      (digits ? '<button type="button" class="inq-menu-item" data-inq-msg>Send message</button>' : "") +
       (digits ? '<a class="inq-menu-item" href="tel:+91' + digits + '">Call ' + escapeHtml(formatInquiryPhone(digits)) + "</a>" : "") +
       (digits ? '<button type="button" class="inq-menu-item" data-inq-copy="' + digits + '">Copy number</button>' : "") +
       (forwardUrl ? '<a class="inq-menu-item" href="' + escapeHtml(forwardUrl) + '" target="_blank" rel="noopener noreferrer">Forward on WhatsApp</a>' : "");
@@ -7372,6 +8225,7 @@ panels +
     const remarks = inquiryField(item, "remarks");
     const invited = !!inquiryField(item, "invite sent");
     const inGroup = inquiryField(item, "in group");
+    const ieDone = inquiryIeCompletion(item);
     const actions = inquiryActionsHtml(group, item, resolved, invited, inGroup);
     const avatarColor = AVATAR_COLORS_[index % AVATAR_COLORS_.length];
     const detailGrid = inquiryDetailRows(item);
@@ -7418,6 +8272,9 @@ panels +
         : "") +
       (area
         ? '<span class="inquiry-topic">' + areaIconSvg() + "<span>" + escapeHtml(area) + "</span></span>"
+        : "") +
+      (ieDone
+        ? '<span class="inquiry-topic inquiry-ie" title="Inner Engineering completed"><span>IE · ' + escapeHtml(ieDone) + "</span></span>"
         : "") +
       (invited
         ? '<span class="inquiry-topic inquiry-invited"><span>&#10003; Invite sent</span></span>'
@@ -7530,6 +8387,8 @@ panels +
     if ($("inquiryTypePillLabel")) $("inquiryTypePillLabel").textContent = inquiryTypeFilter && active ? active.label : "";
   }
 
+  let inqViewPairs = []; // everything the current tab + type + search shows (all pages)
+
   function renderInquiries() {
     const host = $("inquiryList");
     if (!host) return;
@@ -7550,6 +8409,7 @@ panels +
     const pairs = searched.filter(function (p) {
       return inquiryMatchesFilter(p.item);
     });
+    inqViewPairs = pairs;
     if (!pairs.length) {
       host.innerHTML =
         '<div class="admin-empty">' +
@@ -7660,6 +8520,326 @@ panels +
     return null;
   }
 
+  /* ── Queries → More → Send message ──────────────────────────────────
+   * Sends one WhatsApp message to the person from the Sandesha number (not
+   * the admin's own phone — that's the WhatsApp icon). */
+  let inqMsgItem = null;
+  let inqMsgBulk = null; // [{ name, digits }] when messaging everyone in view
+  const INQ_MSG_MAX = 30; // Sandesha's hourly send cap
+  const INQ_MSG_JOB_KEY = "vjn_inq_msg_job";
+  let inqMsgJob = null; // { jobId, total, done }
+  let inqMsgTimer = null;
+
+  function inqMsgLoadJob() {
+    try {
+      const raw = localStorage.getItem(INQ_MSG_JOB_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function inqMsgSaveJob(job) {
+    try {
+      if (job) localStorage.setItem(INQ_MSG_JOB_KEY, JSON.stringify(job));
+      else localStorage.removeItem(INQ_MSG_JOB_KEY);
+    } catch (e) {}
+  }
+
+  function openInqBulkMessage(list) {
+    if (inqMsgJob) {
+      showToast("Wait for the current bulk message to finish.");
+      return;
+    }
+    if (!list.length) return;
+    const capped = list.slice(0, INQ_MSG_MAX);
+    inqMsgItem = null;
+    inqMsgBulk = capped;
+    const names = capped.map(function (c) { return c.name || formatInquiryPhone(c.digits); });
+    $("inqMsgTitle").textContent = "Message " + capped.length + " people";
+    $("inqMsgTo").textContent = "To " + names.slice(0, 3).join(", ") +
+      (names.length > 3 ? " and " + (names.length - 3) + " more" : "") + ", from the Sandesha WhatsApp number.";
+    const hint = $("inqMsgHint");
+    hint.textContent = "Fields like {name} or {area} fill in for each person. Sent about one a minute, so you can leave this page." +
+      (list.length > capped.length ? " Only the newest " + INQ_MSG_MAX + " of " + list.length + " are included — Sandesha sends at most " + INQ_MSG_MAX + " an hour." : "");
+    hint.classList.remove("hidden");
+    $("inqMsgText").value = "Namaskaram {name},\n\n";
+    updateInqMsgFieldWarning();
+    setInqMsgError("");
+    $("inqMsgSend").disabled = false;
+    $("inqMsgSend").textContent = "Send";
+    $("inqMsgOverlay").classList.add("open");
+    const ta = $("inqMsgText");
+    setTimeout(function () {
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }, 50);
+  }
+
+  async function startInqMsgJob(text) {
+    const list = inqMsgBulk;
+    const res = await window.VjnVol.bulkMessage(list.map(function (c) {
+      return { number: "91" + c.digits, name: c.name, fields: c.fields };
+    }), text);
+    inqMsgJob = {
+      jobId: res.jobId, total: res.total || list.length, done: 0,
+      targets: list.map(function (c) { return { digits: c.digits, refs: c.refs || [] }; }),
+    };
+    inqMsgSaveJob(inqMsgJob);
+    closeInqMessage();
+    showToast("Sending to " + inqMsgJob.total + " people — about a minute each.");
+    refreshInqGroupBar();
+    pollInqMsgJob();
+  }
+
+  function pollInqMsgJob() {
+    clearTimeout(inqMsgTimer);
+    if (!inqMsgJob) return;
+    inqMsgTimer = setTimeout(async function () {
+      if (!inqMsgJob) return;
+      let job;
+      try {
+        await window.VjnVol.ready;
+        if (!vnBridgeReady()) throw new Error("offline");
+        job = await window.VjnVol.pollMessageJob(inqMsgJob.jobId);
+      } catch (err) {
+        if (/not found|404/i.test(String(err && err.message))) {
+          finishInqMsgJob(null);
+          return;
+        }
+        inqMsgTimer = setTimeout(pollInqMsgJob, 15000);
+        return;
+      }
+      inqMsgJob.done = job.done || 0;
+      inqMsgJob.total = job.total || inqMsgJob.total;
+      inqMsgSaveJob(inqMsgJob);
+      if (["done", "cancelled", "error", "stopped"].indexOf(job.status) < 0) {
+        refreshInqGroupBar();
+        pollInqMsgJob();
+        return;
+      }
+      finishInqMsgJob(job);
+    }, 8000);
+  }
+
+  function finishInqMsgJob(job) {
+    clearTimeout(inqMsgTimer);
+    const finishedTargets = inqMsgJob && inqMsgJob.targets;
+    inqMsgJob = null;
+    inqMsgSaveJob(null);
+    refreshInqGroupBar();
+    if (!job) {
+      showToast("Check Settings → Sandesha activities for who got it.", { tone: "warn", title: "Bulk message interrupted" });
+      return;
+    }
+    const reached = [];
+    (finishedTargets || []).forEach(function (t) {
+      if ((job.results || {})["91" + t.digits] === "sent") reached.push.apply(reached, t.refs || []);
+    });
+    if (reached.length) noteInquiriesContacted(reached);
+    const notSent = (job.total || 0) - (job.sent || 0);
+    const why = job.status === "stopped" ? " Stopped: " + job.stopReason + "." : job.status === "cancelled" ? " Stopped by you." : "";
+    showToast(
+      "Sent to " + job.sent + " of " + job.total + "." + (notSent ? " " + notSent + " not sent." : "") + why,
+      notSent ? { tone: "warn", title: "Bulk message finished" } : { title: "Bulk message sent" }
+    );
+  }
+
+  async function cancelInqMsgJob() {
+    if (!inqMsgJob) return;
+    try {
+      await window.VjnVol.cancelMessageJob(inqMsgJob.jobId);
+      showToast("Stopping after the current message…");
+    } catch (e) {
+      showToast((e && e.message) || "Could not stop it.");
+    }
+  }
+
+  /** Per-person values for {area}, {program}, {ie} (name comes separately). */
+  function inqMsgFieldValues(item) {
+    return {
+      area: inquiryField(item, "area"),
+      program: inquiryField(item, "program name") || inquiryField(item, "opportunity name"),
+      ie: inquiryIeCompletion(item),
+    };
+  }
+
+  /** Same fill as Sandesha's bulk job, for a single message sent from here. */
+  function fillInqMsgFields(text, item) {
+    const full = inquiryField(item, "name");
+    const values = Object.assign(inqMsgFieldValues(item), { fullname: full, name: full.split(/\s+/)[0] || "" });
+    return text
+      .replace(/\{(name|fullname|area|program|ie)\}/gi, function (_m, key) { return values[key.toLowerCase()] || ""; })
+      .replace(/ +([,.!?])/g, "$1")
+      .replace(/ {2,}/g, " ");
+  }
+
+  /** In bulk mode, say how many people lack a field the message uses. */
+  function updateInqMsgFieldWarning() {
+    const el = $("inqMsgMissing");
+    if (!el) return;
+    const list = inqMsgBulk;
+    if (!list) { el.textContent = ""; el.classList.add("hidden"); return; }
+    const used = {};
+    ($("inqMsgText").value.match(/\{(name|fullname|area|program|ie)\}/gi) || []).forEach(function (t) {
+      used[t.slice(1, -1).toLowerCase()] = true;
+    });
+    const labels = { name: "a name", fullname: "a name", area: "an area", program: "a program", ie: "an IE date" };
+    const notes = [];
+    ["name", "area", "program", "ie"].forEach(function (key) {
+      if (!used[key] && !(key === "name" && used.fullname)) return;
+      const missing = list.filter(function (c) {
+        return key === "name" ? !c.name : !(c.fields && c.fields[key]);
+      }).length;
+      if (missing) notes.push(missing + " of " + list.length + " have no " + labels[key].replace(/^an? /, ""));
+    });
+    el.textContent = notes.length ? notes.join(" · ") + " — that part will be left blank for them." : "";
+    el.classList.toggle("hidden", !notes.length);
+  }
+
+  function insertInqMsgField(key) {
+    const ta = $("inqMsgText");
+    const token = "{" + key + "}";
+    const start = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+    const end = ta.selectionEnd != null ? ta.selectionEnd : start;
+    ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+    ta.focus();
+    ta.setSelectionRange(start + token.length, start + token.length);
+    updateInqMsgFieldWarning();
+  }
+
+  /** "Contacted via WhatsApp (20 Oct)" in the query's Call to action, saved to the
+   * sheet. Other notes stay; an earlier "Contacted via WhatsApp" just gets the new date.
+   * Status is left as it is. Runs in the background, one save at a time. */
+  async function noteInquiriesContacted(refs) {
+    const stamp = "Contacted via WhatsApp (" +
+      new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + ")";
+    let failed = 0;
+    for (let i = 0; i < refs.length; i++) {
+      const item = findInquiry(refs[i].sheet, refs[i].id);
+      if (!item) continue;
+      const prev = inquiryField(item, "remarks");
+      const next = /Contacted via WhatsApp( \([^)]*\))?/.test(prev)
+        ? prev.replace(/Contacted via WhatsApp( \([^)]*\))?/, stamp)
+        : (prev ? prev + " · " : "") + stamp;
+      try {
+        const data = await apiPost({
+          formType: "adminUpdateInquiry",
+          token: token(),
+          sheet: refs[i].sheet,
+          id: item.id,
+          status: inquiryField(item, "status") || "Open",
+          remarks: next,
+        });
+        if (data.error) throw new Error(data.error);
+        item.remarks = next;
+        // Patch just this card (no full re-render), so open cards and half-typed notes elsewhere survive.
+        const card = document.querySelector('.inquiry-card[data-sheet="' + refs[i].sheet + '"][data-id="' + item.id + '"]');
+        if (card) {
+          const ta = card.querySelector("[data-inquiry-remarks]");
+          if (ta && document.activeElement !== ta) ta.value = next;
+          let preview = card.querySelector(".inquiry-remarks-preview");
+          if (!preview) {
+            const copy = card.querySelector(".inquiry-ticket-copy");
+            if (copy) {
+              copy.insertAdjacentHTML("beforeend", '<span class="inquiry-remarks-preview"></span>');
+              preview = copy.querySelector(".inquiry-remarks-preview");
+            }
+          }
+          if (preview) preview.textContent = next;
+        }
+      } catch (e) {
+        failed += 1;
+      }
+    }
+    if (failed) showToast("Couldn't note \"Contacted via WhatsApp\" on " + failed + (failed === 1 ? " query." : " queries."), { tone: "warn" });
+  }
+
+  function setInqMsgError(text) {
+    const el = $("inqMsgError");
+    el.textContent = text || "";
+    el.style.display = text ? "block" : "none";
+  }
+
+  function openInqMessage(item) {
+    inqMsgItem = item;
+    inqMsgBulk = null;
+    $("inqMsgTitle").textContent = "Send WhatsApp message";
+    $("inqMsgHint").classList.add("hidden");
+    updateInqMsgFieldWarning();
+    const name = inquiryField(item, "name");
+    const digits = inquiryWhatsAppDigits(item);
+    $("inqMsgTo").textContent = "To " + (name ? name + " · " : "") + formatInquiryPhone(digits) + ", from the Sandesha WhatsApp number.";
+    $("inqMsgText").value = name ? "Namaskaram " + name.split(" ")[0] + ",\n\n" : "Namaskaram,\n\n";
+    setInqMsgError("");
+    $("inqMsgSend").disabled = false;
+    $("inqMsgSend").textContent = "Send";
+    $("inqMsgOverlay").classList.add("open");
+    const ta = $("inqMsgText");
+    setTimeout(function () {
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }, 50);
+  }
+
+  function closeInqMessage() {
+    $("inqMsgOverlay").classList.remove("open");
+    inqMsgItem = null;
+    inqMsgBulk = null;
+  }
+
+  async function sendInqMessage() {
+    const item = inqMsgItem;
+    if (!item && !inqMsgBulk) return;
+    const text = $("inqMsgText").value.trim();
+    if (!text || /^Namaskaram[^,]*,$/.test(text)) {
+      setInqMsgError("Please write a message.");
+      return;
+    }
+    const btn = $("inqMsgSend");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    setInqMsgError("");
+    try {
+      if (!window.VjnVol) throw new Error("Messaging is unavailable right now.");
+      await window.VjnVol.ready;
+      if (!vnBridgeReady()) throw new Error("Could not connect to the messaging server.");
+      if (inqMsgBulk) {
+        await startInqMsgJob(text);
+        return;
+      }
+      await window.VjnVol.sendMessage(inquiryWhatsAppDigits(item), fillInqMsgFields(text, item));
+      noteInquiriesContacted([{ sheet: item.sheet, id: String(item.id) }]);
+      closeInqMessage();
+      showToast("Message sent to " + (inquiryField(item, "name") || "them"));
+    } catch (e) {
+      setInqMsgError((e && e.message) || "Could not send the message.");
+      btn.disabled = false;
+      btn.textContent = "Send";
+    }
+  }
+
+  function initInqMessage() {
+    if (!$("inqMsgOverlay")) return;
+    $("inqMsgCancel").addEventListener("click", closeInqMessage);
+    $("inqMsgText").addEventListener("input", updateInqMsgFieldWarning);
+    $("inqMsgFields").addEventListener("mousedown", function (e) {
+      // Keep the textarea's cursor where it is while the button is pressed.
+      if (e.target.closest("[data-msg-field]")) e.preventDefault();
+    });
+    $("inqMsgFields").addEventListener("click", function (e) {
+      const btn = e.target.closest("[data-msg-field]");
+      if (btn) insertInqMsgField(btn.getAttribute("data-msg-field"));
+    });
+    $("inqMsgSend").addEventListener("click", sendInqMessage);
+    $("inqMsgOverlay").addEventListener("click", function (e) {
+      if (e.target === $("inqMsgOverlay")) closeInqMessage();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && $("inqMsgOverlay").classList.contains("open")) closeInqMessage();
+    });
+  }
+
   /* ── Enquiries → WhatsApp group (via the Sandesha bridge) ────────────
    * One card ("Add to group") or every open volunteer enquiry in view
    * (bulk bar). Sandesha paces adds ~75–150s apart and caps a job at 50, so
@@ -7709,26 +8889,68 @@ panels +
       });
   }
 
-  /** Bar above the list: bulk entry point, or the running job's progress. */
+  /** Everyone in the current view with a WhatsApp number, once each. */
+  function inqMessageCandidates() {
+    const seen = {};
+    const out = [];
+    inqViewPairs.forEach(function (p) {
+      const digits = inquiryWhatsAppDigits(p.item);
+      if (!digits) return;
+      const ref = { sheet: p.group.key, id: String(p.item.id) };
+      if (seen[digits]) {
+        seen[digits].refs.push(ref); // same person, several queries: note it on each
+        return;
+      }
+      seen[digits] = { name: inquiryField(p.item, "name"), digits: digits, fields: inqMsgFieldValues(p.item), refs: [ref] };
+      out.push(seen[digits]);
+    });
+    return out;
+  }
+
+  /** Bars above the list: bulk entry points, or running jobs' progress. */
   function inqGroupBarHtml() {
-    if (inqGroupJob) {
-      const total = inqGroupJob.total || inqGroupJob.targets.length;
-      const done = Math.min(inqGroupJob.done || 0, total);
-      const pct = total ? Math.round((done / total) * 100) : 0;
-      return (
-        '<div class="inq-bulk is-running">' +
-        '<span class="inq-bulk-text"><b>Adding to ' + escapeHtml(inqGroupJob.group) + "</b>" +
-        "<span>" + done + " of " + total + " · about 2 min each, you can leave this page</span></span>" +
-        '<span class="inq-bulk-meter" aria-hidden="true"><span style="width:' + pct + '%"></span></span>' +
-        "</div>"
-      );
-    }
-    const list = inqBulkCandidates().filter(function (c) { return c.digits; });
-    if (list.length < 2) return "";
+    const bars = [inqGroupJob ? inqGroupJobBarHtml() : "", inqMsgJob ? inqMsgJobBarHtml() : ""].join("");
+    if (bars) return '<div class="inq-bulk-wrap">' + bars + "</div>";
+    const groupList = inqBulkCandidates().filter(function (c) { return c.digits; });
+    const msgList = inqMessageCandidates();
+    const canGroup = groupList.length >= 2;
+    const canMsg = msgList.length >= 2;
+    if (!canGroup && !canMsg) return "";
+    const n = canGroup ? groupList.length : msgList.length;
     return (
-      '<div class="inq-bulk">' +
-      '<span class="inq-bulk-text"><b>' + list.length + " open</b><span>Add them all to a WhatsApp group</span></span>" +
-      '<button type="button" class="inq-bulk-btn" data-inq-bulk>' + INQ_ICON.group + "Add all</button>" +
+      '<div class="inq-bulk-wrap"><div class="inq-bulk">' +
+      '<span class="inq-bulk-text"><b>' + n + (canGroup ? " open" : " in this view") + "</b><span>" +
+      (canGroup ? "Add them to a group or message them" : "Send them all a WhatsApp message") + "</span></span>" +
+      '<span class="inq-bulk-actions">' +
+      (canMsg ? '<button type="button" class="inq-bulk-btn inq-bulk-btn--ghost" data-inq-bulk-msg>' + INQ_ICON.send + "Message all</button>" : "") +
+      (canGroup ? '<button type="button" class="inq-bulk-btn" data-inq-bulk>' + INQ_ICON.group + "Add all</button>" : "") +
+      "</span></div></div>"
+    );
+  }
+
+  function inqMsgJobBarHtml() {
+    const total = inqMsgJob.total || 0;
+    const done = Math.min(inqMsgJob.done || 0, total);
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    return (
+      '<div class="inq-bulk is-running">' +
+      '<span class="inq-bulk-text"><b>Messaging ' + total + " " + (total === 1 ? "person" : "people") + "</b>" +
+      "<span>" + done + " of " + total + " sent · about a minute each, you can leave this page</span></span>" +
+      '<button type="button" class="inq-bulk-btn inq-bulk-btn--ghost" data-inq-msg-cancel>Stop</button>' +
+      '<span class="inq-bulk-meter" aria-hidden="true"><span style="width:' + pct + '%"></span></span>' +
+      "</div>"
+    );
+  }
+
+  function inqGroupJobBarHtml() {
+    const total = inqGroupJob.total || inqGroupJob.targets.length;
+    const done = Math.min(inqGroupJob.done || 0, total);
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    return (
+      '<div class="inq-bulk is-running">' +
+      '<span class="inq-bulk-text"><b>Adding to ' + escapeHtml(inqGroupJob.group) + "</b>" +
+      "<span>" + done + " of " + total + " · about 2 min each, you can leave this page</span></span>" +
+      '<span class="inq-bulk-meter" aria-hidden="true"><span style="width:' + pct + '%"></span></span>' +
       "</div>"
     );
   }
@@ -7738,7 +8960,7 @@ panels +
     const host = $("inquiryList");
     if (!host || !$("inquiriesPanel") || $("inquiriesPanel").classList.contains("hidden")) return;
     const html = inqGroupBarHtml();
-    const bar = host.querySelector(".inq-bulk");
+    const bar = host.querySelector(".inq-bulk-wrap");
     if (bar) {
       if (html) bar.outerHTML = html;
       else bar.remove();
@@ -8106,6 +9328,8 @@ panels +
     // Resume a job that was running before a reload.
     inqGroupJob = inqGroupLoadJob();
     if (inqGroupJob) pollInqGroupJob();
+    inqMsgJob = inqMsgLoadJob();
+    if (inqMsgJob) pollInqMsgJob();
   }
 
   /* ── Attendance → WhatsApp group (bottom drawer) ─────────────────────
@@ -9799,6 +11023,11 @@ panels +
         openAdminPage("settings");
       });
     }
+    if ($("ptForm")) $("ptForm").addEventListener("submit", submitProgramTitle);
+    initSandeshaActivity();
+    initInqMessage();
+    initConnectForm();
+    if ($("sandeshaStatusRefresh")) $("sandeshaStatusRefresh").addEventListener("click", refreshSandeshaStatus);
     if ($("gfProgram")) {
       $("gfProgram").addEventListener("change", function () {
         gfLoadTemplates($("gfProgram").value);
@@ -10079,7 +11308,7 @@ panels +
       if (sub.startsWith("volunteering/attendance/")) return openVolAttendance();
       if (sub.startsWith("volunteering/")) return openAdminPage("volunteering");
       const here = (location.hash || "").replace(/^#/, "");
-      if (here === "generateFlyer") return openAdminPage("settings");
+      if (here === "generateFlyer" || here === "programTitles") return openAdminPage("settings");
       if (here === "newFlyerTemplate") return openAdminPage("flyerTemplates");
       showAdminHub(false);
     });
@@ -10397,6 +11626,10 @@ panels +
           openVolFormSheet();
           return;
         }
+        if (e.target.closest("#vpdConnectFormBtn")) {
+          openConnectFormSheet();
+          return;
+        }
         // Attendance chips
         const attendBtn = e.target.closest("[data-vn-attend]");
         if (attendBtn) {
@@ -10407,6 +11640,12 @@ panels +
         const flagBtn = e.target.closest("[data-vn-flag]");
         if (flagBtn) {
           vpdToggleFlag(flagBtn.getAttribute("data-vn-flag"), flagBtn.getAttribute("data-field"));
+          return;
+        }
+        // Volunteer row: tap to show / hide its details (call + WhatsApp links act on their own)
+        const vprToggle = e.target.closest("[data-vpr-toggle]");
+        if (vprToggle && !e.target.closest("a")) {
+          vprToggleRow(vprToggle);
           return;
         }
         // Delete volunteer
@@ -10550,6 +11789,14 @@ panels +
         renderInquiries();
         return;
       }
+      if (e.target.closest("[data-inq-bulk-msg]")) {
+        openInqBulkMessage(inqMessageCandidates());
+        return;
+      }
+      if (e.target.closest("[data-inq-msg-cancel]")) {
+        cancelInqMsgJob();
+        return;
+      }
       if (e.target.closest("[data-inq-bulk]")) {
         openInqGroupSheet(inqBulkCandidates());
         return;
@@ -10569,6 +11816,14 @@ panels +
         copyBtn.closest(".inq-menu").hidden = true;
         if (navigator.clipboard) navigator.clipboard.writeText(num).then(function () { showToast("Number copied"); }, function () { showToast(num); });
         else showToast(num);
+        return;
+      }
+      const msgBtn = e.target.closest("[data-inq-msg]");
+      if (msgBtn) {
+        const card = msgBtn.closest(".inquiry-card");
+        msgBtn.closest(".inq-menu").hidden = true;
+        const item = findInquiry(card.getAttribute("data-sheet"), card.getAttribute("data-id"));
+        if (item) openInqMessage(item);
         return;
       }
       const groupBtn = e.target.closest("[data-inq-group]");

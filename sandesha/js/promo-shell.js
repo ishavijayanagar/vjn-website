@@ -1,5 +1,5 @@
 /**
- * Mode switcher for admin-promotions.html (Board | Schedule | Send).
+ * Mode switcher for admin-promotions.html (Board | Schedule | Send | Banner | Reach).
  */
 import {
   showSchedulePanel,
@@ -10,9 +10,11 @@ import {
 } from './boot-promotions.js';
 import { installUnauthorizedRedirect, getVjnToken, ensureSandeshaAuth } from './auth-bridge.js';
 import { renderApiSettings, updateApiStatus } from './api-settings.js';
+import { renderPromoSets } from './pages/promo-sets.js?v=3';
 import { toast } from './toast.js';
 
 import { setComposeMode } from './pages/promo-compose.js';
+import { renderPromoReach } from './pages/promo-reach.js';
 // Registers window.SandeshaPromo for admin-promotions.js (a classic script).
 import './promo-relay.js';
 import { subscribe, getState, refreshCore, refreshHealth } from './store.js';
@@ -21,11 +23,11 @@ import {
   disable as pushDisable, syncOnLoad as syncPush, ensureServiceWorker,
 } from './push.js';
 
-const MODES = ['board', 'schedule', 'send', 'banner', 'server'];
+const MODES = ['board', 'schedule', 'send', 'banner', 'reach', 'server'];
 const MODE_KEY = 'promo_sandesha_mode';
 let currentMode = 'board';
 let bannerUi = null;
-/** Where the profile icon returns to when tapped a second time. */
+/** Where the settings icon returns to when tapped a second time. */
 let lastTabMode = 'board';
 /** The board owns #dayTitle, so remember its text before borrowing it. */
 let boardKicker = '';
@@ -39,13 +41,14 @@ function panelHost(mode) {
   if (mode === 'send') return $('sandeshaSend');
   if (mode === 'server') return $('sandeshaServer');
   if (mode === 'banner') return $('promoBanner');
+  if (mode === 'reach') return $('sandeshaReach');
   return null;
 }
 
 function showPanelError(mode, message) {
   const host = panelHost(mode);
   if (!host) return;
-  host.innerHTML = `<div class="sandesha-auth-err" role="alert"><p>${message}</p><p class="hint">Try signing out and back in from the profile icon.</p></div>`;
+  host.innerHTML = `<div class="sandesha-auth-err" role="alert"><p>${message}</p><p class="hint">Try signing out and back in from Settings (gear icon).</p></div>`;
 }
 
 function clearPanelError(mode) {
@@ -124,6 +127,8 @@ function paintKicker() {
     el.appendChild(document.createTextNode(text));
   } else if (currentMode === 'banner') {
     el.textContent = 'Homepage banner';
+  } else if (currentMode === 'reach') {
+    el.textContent = 'How far your posts went';
   } else if (currentMode === 'server') {
     const user = signedInUser();
     const name = String(user.name || '').trim();
@@ -155,6 +160,7 @@ function setMode(mode) {
   $('sandeshaSend')?.classList.toggle('is-active', mode === 'send');
   $('sandeshaServer')?.classList.toggle('is-active', mode === 'server');
   $('promoBanner')?.classList.toggle('is-active', mode === 'banner');
+  $('sandeshaReach')?.classList.toggle('is-active', mode === 'reach');
 
   const dayTitle = $('dayTitle');
   if (dayTitle) {
@@ -190,7 +196,11 @@ function setMode(mode) {
     const host = $('promoBanner');
     if (host && !bannerUi) bannerUi = window.VjnBanner.mount(host, { token: getVjnToken });
     else bannerUi?.reload();
+  } else if (mode === 'reach') {
+    const host = $('sandeshaReach');
+    if (host) renderPromoReach(host);
   } else if (mode === 'server') {
+    renderPromoSets($('promoSetsHost'));
     const host = $('sandeshaApiHost') || $('sandeshaServer');
     if (host) {
       renderApiSettings(host, {
@@ -214,7 +224,7 @@ function bindModeBar() {
   document.querySelectorAll('[data-promo-mode]').forEach((btn) => {
     btn.addEventListener('click', () => setMode(btn.dataset.promoMode || 'board'));
   });
-  // A second tap on the profile icon goes back to the tab it was opened from.
+  // A second tap on the settings icon goes back to the tab it was opened from.
   $('serverUrlBtn')?.addEventListener('click', () => {
     setMode(currentMode === 'server' ? lastTabMode : 'server');
   });

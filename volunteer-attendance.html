@@ -296,7 +296,7 @@
             </div>
           </div>
 
-          <form id="attendanceForm" hidden>
+          <form id="attendanceForm" data-draft="manual" hidden>
             <p class="attendance-step-label">Select a program *</p>
             <div class="attendance-program-list" id="attendanceProgramList"></div>
 
@@ -377,8 +377,9 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=footer-1"></script>
+  <script src="site.js?v=drafts-1"></script>
   <script src="ptr.js?v=1"></script>
+  <script src="drafts.js?v=1"></script>
   <script>
     let openPrograms = [];
     let selectedProgram = null;
@@ -507,6 +508,7 @@
             timestamp: new Date().toISOString()
           })
         });
+        if (window.DraftKeeper) DraftKeeper.clear('attendance');
         document.getElementById('attendanceForm').hidden = true;
         document.getElementById('attFormSuccess').style.display = 'block';
       } catch (e) {
@@ -550,6 +552,13 @@
         state.innerHTML = '';
         renderProgramList();
         form.hidden = false;
+        // The program choices exist now, so a sign-in lost to a tab reload can come back.
+        if (window.DraftKeeper) {
+          DraftKeeper.watch('attendance', {
+            root: () => document.getElementById('attendanceForm'),
+            isOpen: () => !document.getElementById('attendanceForm').hidden,
+          });
+        }
       } catch (err) {
         form.hidden = true;
         state.innerHTML = `<div class="state-box"><div class="icon">🙏</div><h3>Could not load</h3><p>Please try again later.</p></div>`;

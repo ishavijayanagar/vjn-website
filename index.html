@@ -134,7 +134,7 @@
 
       <div class="query-err" id="homeQueryErr">Please fill in all required fields.</div>
 
-      <form id="homeQueryForm" onsubmit="return false;">
+      <form id="homeQueryForm" data-draft="manual" onsubmit="return false;">
         <div id="homeQueryFields">
           <div class="form-group">
             <label for="hqName">Full Name *</label>
@@ -205,8 +205,9 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=banner-3"></script>
+  <script src="site.js?v=drafts-1"></script>
   <script src="ptr.js?v=1"></script>
+  <script src="drafts.js?v=1"></script>
   <script>
     (function () {
       var nav = document.querySelector('.navbar');
@@ -248,7 +249,19 @@
     function closeQueryModal() {
       const btn = document.getElementById('homeQueryBtn');
       if (btn && btn.classList.contains('is-loading')) return;
+      if (window.DraftKeeper) DraftKeeper.clear('query');
       document.getElementById('queryModalOverlay').classList.remove('open');
+    }
+
+    /* Android Chrome may reload this tab while someone is away from it; drafts.js
+       keeps what they typed and this reopens the query form for it. */
+    if (window.DraftKeeper) {
+      DraftKeeper.watch('query', {
+        root: () => document.getElementById('queryModalOverlay'),
+        isOpen: () => document.getElementById('queryModalOverlay').classList.contains('open')
+          && document.getElementById('homeQueryFields').style.display !== 'none',
+        reopen: () => { openQueryModal(); return true; },
+      });
     }
 
     document.getElementById('queryModalOverlay').addEventListener('click', function (e) {
@@ -297,6 +310,7 @@
           })
         });
         document.getElementById('homeQueryFields').style.display = 'none';
+        if (window.DraftKeeper) DraftKeeper.clear('query');
         document.getElementById('homeQuerySuccess').style.display = 'block';
         document.getElementById('homeQueryErr').style.display = 'none';
         setHomeQueryLoading(false);

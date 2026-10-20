@@ -7,6 +7,7 @@ const { createBulkAddMembersWizard } = require('./bulk-add-members');
 const { isNotifyConfigured, formatPairingCode, sendPairingCodeEmail, sendQrEmail } = require('./notify-email');
 const safety = require('./send-safety');
 const activity = require('./activity');
+const reach = require('./reach');
 const push = require('./push');
 // Summary activity events (job results, scheduled sends) also go out as Web Push.
 activity.setPushSender((audience, payload) => push.notify(audience, payload));
@@ -496,21 +497,37 @@ async function announcePairingCode(code) {
   }
 }
 
-let lastQrEmailAt = 0;
-const QR_EMAIL_INTERVAL_MS = 5 * 60 * 1000;
+// 'idle' → 'sending' → 'sent'. Back to 'idle' only if the send fails,
+// and only for a few attempts so a broken SMTP setup can't loop all day.
+let qrEmailState = 'idle';
+let qrEmailAttempts = 0;
+const QR_EMAIL_MAX_ATTEMPTS = 3;
 
-/** Email the QR once per interval — WhatsApp re-emits a new QR every ~20s. */
+/**
+ * Email the QR once per server start. WhatsApp re-emits a new QR every ~20s;
+ * the rest are on the dashboard, so only the first one goes out by email.
+ * A failed send is retried with the next QR (up to QR_EMAIL_MAX_ATTEMPTS),
+ * since nothing reached the inbox.
+ */
 function emailQrThrottled() {
-  if (!isNotifyConfigured()) return;
-  const now = Date.now();
-  if (now - lastQrEmailAt < QR_EMAIL_INTERVAL_MS) return;
-  lastQrEmailAt = now;
+  if (!isNotifyConfigured() || qrEmailState !== 'idle') return;
+  if (qrEmailAttempts >= QR_EMAIL_MAX_ATTEMPTS) return;
+  qrEmailAttempts += 1;
+  qrEmailState = 'sending';
   sendQrEmail(QR_PATH)
     .then((r) => {
-      if (r.sent) log('QR emailed to', process.env.SANDESHA_NOTIFY_EMAIL);
-      else if (r.error) log('Failed to email QR:', r.error);
+      if (r.sent) {
+        qrEmailState = 'sent';
+        log('QR emailed to', process.env.SANDESHA_NOTIFY_EMAIL, '(once per start — later QRs are on the dashboard)');
+      } else {
+        qrEmailState = 'idle';
+        if (r.error) log('Failed to email QR:', r.error);
+      }
     })
-    .catch((err) => log('QR email error:', err.message));
+    .catch((err) => {
+      qrEmailState = 'idle';
+      log('QR email error:', err.message);
+    });
 }
 
 let readyWatchdogTimer = null;
@@ -648,6 +665,7 @@ function wireClientEvents(c) {
         startMessagePoller();
         log('Starting scheduler...');
         startScheduler();
+        reach.start();
         setupDone = true;
       }
 
@@ -685,6 +703,9 @@ function wireClientEvents(c) {
   });
 
   c.on('message_create', (msg) => { handleIncomingMessage(msg); });
+  c.on('message_create', (msg) => reach.onMessage(msg));
+  c.on('message_ack', (msg, ack) => reach.onAck(msg, ack));
+  c.on('message_reaction', (r) => reach.onReaction(r));
 }
 
 async function handleWhatsAppDisconnected(reason) {
@@ -755,6 +776,33 @@ function whatsAppUnavailableResponse(res, authed = true) {
   });
 }
 
+/**
+ * End any Chrome still using the WhatsApp profile: SIGTERM first (lets it
+ * flush the session to disk), SIGKILL only if it is still there after 5s.
+ * No-op where pkill is unavailable (Windows).
+ */
+async function stopStaleSessionBrowser() {
+  const marker = `user-data-dir=${path.join(SESSION_PATH, 'session')}`;
+  const { execFileSync } = require('child_process');
+  const running = () => {
+    try {
+      execFileSync('pgrep', ['-f', marker], { stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    if (!running()) return;
+    log('Stopping a leftover WhatsApp browser before reconnecting');
+    execFileSync('pkill', ['-TERM', '-f', marker], { stdio: 'ignore' });
+    for (let i = 0; i < 10 && running(); i++) await delay(500);
+    if (running()) execFileSync('pkill', ['-KILL', '-f', marker], { stdio: 'ignore' });
+  } catch (err) {
+    log('Could not stop leftover browser:', err.message);
+  }
+}
+
 async function reconnectWhatsApp(reason) {
   if (shuttingDown) return;
   if (isInitializing) return;
@@ -775,6 +823,10 @@ async function reconnectWhatsApp(reason) {
       }
       client = null;
     }
+    // A crashed page ("detached Frame") can leave its Chrome alive and holding
+    // the profile lock, so every new launch fails with "browser is already
+    // running". Clear it the same way start.sh does before relaunching.
+    await stopStaleSessionBrowser();
 
     // LOGOUT / unpaired / broken phone pairing: clear LocalAuth for fresh QR/code
     if (
@@ -1311,6 +1363,17 @@ function withSendContext(ctx, fn) {
     .then(fn)
     .finally(() => { sendContext = prev; });
 }
+
+// Reach tracking reads these lazily — the client is replaced on reconnect.
+reach.init({
+  getClient: () => client,
+  getContext: () => sendContext,
+  // A send in progress has right of way over reach checks.
+  isBusy: () => sendContext !== null,
+  ignoreChat: (jid) => jid === commandsGroupJid || jid === COMMANDS_GROUP_JID || jid === 'status@broadcast',
+  myId: () => myNumber,
+  log,
+});
 function logSend(jid, { kind, chars }) {
   try {
     const raw = String(jid || '');
@@ -1327,6 +1390,8 @@ function logSend(jid, { kind, chars }) {
       detail: chars ? `${chars} chars` : '',
       via: sendContext?.via || 'api',
       corrId: sendContext?.corrId || '',
+      actor: sendContext?.actor || null,
+      meta: { kind, chars, ...(sendContext?.message ? { message: sendContext.message } : {}) },
     });
   } catch { /* logging is best-effort */ }
 }
@@ -1336,7 +1401,8 @@ async function resolveAndSendMedia(target, media, caption) {
   const chat = await client.getChatById(jid);
   if (!chat) throw new Error(`Chat not found`);
   await safety.withTypingPresence(chat, caption);
-  await chat.sendMessage(media, { caption: caption || '' });
+  const sent = await chat.sendMessage(media, { caption: caption || '' });
+  reach.track(sent, { jid, content: media, caption });
   sendBudget.record();
   safety.auditSend({ kind: 'media', target: jid, chars: String(caption || '').length });
   logSend(jid, { kind: 'media', chars: String(caption || '').length });
@@ -1954,7 +2020,8 @@ Example: Hello !schedule to family at 9am`;
       );
       
       if (group) {
-        await group.sendMessage(message);
+        const sent = await group.sendMessage(message);
+        reach.track(sent, { jid: group.id._serialized, content: message, context: { via: 'bot' } });
         await botReply(msg, `✅ Forwarded to ${group.name}`);
       } else {
         await botReply(msg, `Group "${targetGroup}" not found`);
@@ -2799,6 +2866,7 @@ async function sendMessageToJid(jid, content, options = {}) {
         waitUntilMsgSent,
       });
       log(`[SEND] ✅ via ${attemptJid}${waitUntilMsgSent ? '' : ' (queued)'}`);
+      reach.track(result, { jid: attemptJid, content, caption: options.caption });
       return result;
     } catch (err) {
       lastErr = err;
@@ -3118,7 +3186,8 @@ function startSendServer() {
     }
 
     if (req.method === 'POST' && parsed.pathname === '/sets') {
-      if (!requireAuth(req, res, ['admin'])) return;
+      // Promotions builds its own sets (Settings → Sets) to post to.
+      if (!requireAuth(req, res, ['admin', 'promotions'])) return;
       let body = '';
       req.on('data', c => body += c);
       req.on('end', () => {
@@ -3148,6 +3217,8 @@ function startSendServer() {
                 : `Saved set "${(added[0] || after[after.length - 1] || 'set')}"`,
               detail: `${after.length} set${after.length === 1 ? '' : 's'} total`,
               via: 'api',
+              actor: auth.getActor(req),
+              meta: { added, removed },
               push: true,
             });
           }
@@ -3166,6 +3237,7 @@ function startSendServer() {
           const { recipient, message, jid } = JSON.parse(body);
           let target = jid || recipient;
           if (!target || !message) { res.writeHead(400); res.end('{}'); return; }
+          const actor = auth.getActor(req);
           const sets = loadSets();
           const setGroups = sets[target.toLowerCase()];
           if (setGroups) {
@@ -3173,18 +3245,48 @@ function startSendServer() {
             // longer than any client is willing to hold the socket open.
             res.writeHead(200);
             res.end(JSON.stringify({ ok: true, count: setGroups.length, paced: true }));
+            const corrId = `set-${Date.now()}`;
             const members = safety.shuffled(setGroups);
-            for (let i = 0; i < members.length; i++) {
-              try {
-                await resolveAndSend(members[i], safety.varyCaption(message));
-              } catch (err) {
-                log(`[SEND] set "${target}" → ${members[i]}: ${err.message}`);
+            const failures = [];
+            await withSendContext({ via: 'manual', corrId, actor }, async () => {
+              for (let i = 0; i < members.length; i++) {
+                try {
+                  await resolveAndSend(members[i], safety.varyCaption(message));
+                } catch (err) {
+                  failures.push({ target: members[i], error: err.message });
+                  log(`[SEND] set "${target}" → ${members[i]}: ${err.message}`);
+                }
+                if (i < members.length - 1) await safety.sendGap();
               }
-              if (i < members.length - 1) await safety.sendGap();
-            }
+            });
+            const sent = members.length - failures.length;
+            activity.recordEvent({
+              category: 'send',
+              type: failures.length ? (sent ? 'warn' : 'err') : 'ok',
+              ok: !failures.length,
+              title: `Sent to ${sent} of ${members.length} groups in "${target}"`,
+              detail: failures.length ? `${failures.length} failed` : '',
+              target,
+              count: sent,
+              via: 'manual',
+              corrId,
+              actor,
+              meta: { message, set: target, total: members.length, sent, failures },
+              push: true,
+            });
             return;
           }
-          await resolveAndSend(target, message);
+          try {
+            await withSendContext({ via: 'manual', actor, message }, () => resolveAndSend(target, message));
+          } catch (err) {
+            activity.recordEvent({
+              category: 'send', type: 'err', ok: false,
+              title: 'Message failed to send',
+              detail: err.message, target, via: 'manual', actor,
+              meta: { message, error: err.message },
+            });
+            throw err;
+          }
           res.writeHead(200); res.end(JSON.stringify({ ok: true }));
         } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
       });
@@ -3205,10 +3307,30 @@ function startSendServer() {
             const group = chats.find(c => c.isGroup && c.name.toLowerCase() === target.toLowerCase());
             if (group) target = group.id._serialized;
           }
-          const chat = await client.getChatById(target);
-          if (!chat) { res.writeHead(404); res.end('{}'); return; }
-          const media = MessageMedia.fromFilePath(filePath);
-          await chat.sendMessage(media, { caption: caption || '' });
+          const actor = auth.getActor(req);
+          const mediaMeta = { caption: caption || '', file: path.basename(String(filePath)) };
+          try {
+            const chat = await client.getChatById(target);
+            if (!chat) throw new Error('Chat not found');
+            const media = MessageMedia.fromFilePath(filePath);
+            const sent = await chat.sendMessage(media, { caption: caption || '' });
+            reach.track(sent, { jid: target, content: media, caption, context: { via: 'manual', actor } });
+            activity.recordEvent({
+              category: 'send', type: 'ok', ok: true,
+              title: `Sent media to ${chat.name || target}`,
+              target, count: 1, via: 'manual', actor, meta: mediaMeta,
+            });
+          } catch (err) {
+            activity.recordEvent({
+              category: 'send', type: 'err', ok: false,
+              title: 'Media failed to send',
+              detail: err.message, target, via: 'manual', actor,
+              meta: { ...mediaMeta, error: err.message },
+            });
+            const status = err.message === 'Chat not found' ? 404 : 500;
+            res.writeHead(status); res.end(JSON.stringify(status === 404 ? {} : { error: err.message }));
+            return;
+          }
           res.writeHead(200); res.end(JSON.stringify({ ok: true }));
         } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
       });
@@ -3292,6 +3414,8 @@ function startSendServer() {
       }
       return;
     }
+
+    if (reach.handleRequest(req, res, parsed, requireAuth)) return;
 
     if (apiHandlers) {
       const handled = await apiHandlers.handleRequest(req, res, parsed, requireAuth);
@@ -3609,6 +3733,20 @@ function formatTimeUntil(date) {
   return `in ${minutes} min`;
 }
 
+/** Schedule fields + outcome, for the activity detail view. */
+function scheduleActivityMeta(schedule, extra = {}) {
+  return {
+    scheduleId: schedule.id,
+    message: schedule.message || '',
+    target: schedule.target,
+    isSet: !!schedule.isSet,
+    runAt: schedule.runAt,
+    createdAt: schedule.createdAt || '',
+    file: schedule.filePath ? path.basename(schedule.filePath) : '',
+    ...extra,
+  };
+}
+
 let sentScheduleIds = new Set();
 let schedulerRunning = false;
 
@@ -3649,7 +3787,7 @@ async function deliverSchedule(target, schedule, { varyText = false } = {}) {
  */
 function fanOutSchedule(schedule) {
   return withSendContext(
-    { via: 'scheduled', corrId: String(schedule.sourceId || schedule.id || '') },
+    { via: 'scheduled', corrId: String(schedule.sourceId || schedule.id || ''), actor: schedule.createdBy || null },
     () => fanOutScheduleInner(schedule),
   );
 }
@@ -3846,6 +3984,8 @@ async function runSchedulerCheck() {
                 title: `Scheduled message delivered to ${label}`,
                 detail: preview, target: schedule.target, corrId,
                 via: 'scheduled', push: true,
+                actor: schedule.createdBy || null,
+                meta: scheduleActivityMeta(schedule, { sentTo: result.sentTo }),
               });
             } else {
               // Partly delivered: keep the rest queued with a record of who has
@@ -3859,6 +3999,8 @@ async function runSchedulerCheck() {
                 title: `Scheduled send to ${label} paused`,
                 detail: `${result.reason} — ${result.sentTo.length} done, rest will retry`,
                 target: schedule.target, corrId, via: 'scheduled', push: true,
+                actor: schedule.createdBy || null,
+                meta: scheduleActivityMeta(schedule, { sentTo: result.sentTo, reason: result.reason }),
               });
             }
           } catch (err) {
@@ -3871,6 +4013,8 @@ async function runSchedulerCheck() {
               title: `Scheduled send to ${label} failed`,
               detail: `${err.message.split('\n')[0]} — post it by hand if needed`,
               target: schedule.target, corrId, via: 'scheduled', push: true,
+              actor: schedule.createdBy || null,
+              meta: scheduleActivityMeta(schedule, { error: err.message }),
             });
           }
         } else {

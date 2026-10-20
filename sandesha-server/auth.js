@@ -8,7 +8,8 @@ const http = require('http');
 const { URL } = require('url');
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-const SESSIONS_FILE = path.join(__dirname, '.sandesha-sessions.json');
+// Tests point this at a temp file: clearing sessions must never log out real users.
+const SESSIONS_FILE = process.env.SANDESHA_SESSIONS_FILE || path.join(__dirname, '.sandesha-sessions.json');
 // 'nurturing' has a deliberately tiny surface (list groups + one add-members
 // job + poll) enforced per-route in api-handlers.js; it can still exchange a
 // VJN login for a Sandesha session so those routes are reachable.
@@ -50,7 +51,9 @@ function loadSessionsFromDisk() {
       const expiresAt = Number(meta?.expiresAt);
       if (!token || !Number.isFinite(expiresAt) || expiresAt <= now) continue;
       const role = normalizeRole(meta?.role) || 'admin';
-      sessions.set(token, { expiresAt, role, source: meta?.source || 'password' });
+      sessions.set(token, {
+        expiresAt, role, source: meta?.source || 'password', user: cleanUser(meta?.user),
+      });
     }
   } catch {
     // corrupt file — start fresh
@@ -67,6 +70,7 @@ function saveSessionsToDisk() {
           expiresAt: meta.expiresAt,
           role: meta.role || 'admin',
           source: meta.source || 'password',
+          user: meta.user || null,
         };
       }
     }
@@ -105,7 +109,15 @@ function createToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function issueSession(role, source) {
+/** Keep only the identity fields the activity log needs. */
+function cleanUser(user) {
+  if (!user || typeof user !== 'object') return null;
+  const username = String(user.username || '').slice(0, 80);
+  const displayName = String(user.displayName || '').slice(0, 80);
+  return username || displayName ? { username, displayName } : null;
+}
+
+function issueSession(role, source, user) {
   const token = createToken();
   const expiresAt = Date.now() + SESSION_TTL_MS;
   const normalized = normalizeRole(role) || 'admin';
@@ -113,6 +125,7 @@ function issueSession(role, source) {
     expiresAt,
     role: normalized,
     source: source || 'password',
+    user: cleanUser(user),
   });
   saveSessionsToDisk();
   return {
@@ -165,6 +178,21 @@ function getRole(req) {
   if (!isAuthRequired()) return 'admin';
   const session = getSession(getBearerToken(req));
   return session?.role || null;
+}
+
+/**
+ * Who made this request, for the activity log: { role, name, username }.
+ * Sessions issued before names were stored fall back to the team label.
+ */
+function getActor(req) {
+  if (!isAuthRequired()) return { role: 'admin', name: 'Admin', username: '' };
+  const session = getSession(getBearerToken(req));
+  if (!session) return null;
+  const role = session.role || 'admin';
+  const user = session.user || {};
+  const name = user.displayName || user.username
+    || (session.source === 'password' ? 'Admin (password login)' : `${role[0].toUpperCase()}${role.slice(1)} team`);
+  return { role, name, username: user.username || '' };
 }
 
 function logout(token) {
@@ -302,7 +330,7 @@ async function exchangeVjnToken(vjnToken) {
     };
   }
 
-  const issued = issueSession(role, 'vjn');
+  const issued = issueSession(role, 'vjn', user);
   return {
     ok: true,
     token: issued.token,
@@ -345,6 +373,7 @@ module.exports = {
   getBearerToken,
   getSession,
   getRole,
+  getActor,
   logout,
   isAuthRequired,
   isAuthDisabled,

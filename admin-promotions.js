@@ -2025,6 +2025,7 @@
   }
 
   function closeCompose() {
+    if (window.DraftKeeper) DraftKeeper.clear("boardCompose");
     setComposeOpen(false);
     editingId = "";
     pendingFlyer = null;
@@ -2357,6 +2358,7 @@
     }
     try {
       await load(true);
+      watchComposeDraft();
     } catch (e) {
       listEl.removeAttribute("aria-busy");
       listEl.innerHTML = emptyHtml(
@@ -2365,6 +2367,44 @@
         esc(e.message || "Try again") + '<br/><a href="admin.html">Return to Admin</a>',
       );
     }
+  }
+
+  /**
+   * Android Chrome reloads a tab it discarded in the background, which used to
+   * empty a half-written post. drafts.js keeps the fields; this reopens the
+   * post they belong to and puts back the audience and chosen flyer.
+   */
+  function watchComposeDraft() {
+    if (!window.DraftKeeper) return;
+    DraftKeeper.watch("boardCompose", {
+      root: function () { return $("compose"); },
+      isOpen: function () { return !!$("compose") && $("compose").classList.contains("open"); },
+      meta: function () {
+        return { id: editingId, targets: composeTargets, flyer: flyerOverride, hadFile: !!pendingFlyer };
+      },
+      reopen: function (meta) {
+        const item = meta && find(meta.id);
+        if (!item) return false;
+        openCompose(item);
+        return true;
+      },
+      restored: function (meta) {
+        if (!meta || String(editingId) !== String(meta.id)) return;
+        if (Array.isArray(meta.targets) && meta.targets.length) {
+          composeTargets = meta.targets;
+          syncComposeAudience();
+        }
+        if (meta.flyer) {
+          flyerOverride = meta.flyer;
+          $("composeFlyerName").textContent = "Chosen flyer";
+          setFlyerPreview(meta.flyer);
+          syncFlyerReset(find(editingId));
+        }
+        syncComposeCount();
+        syncComposeDays();
+        syncComposeWhen();
+      },
+    });
   }
 
   boot();

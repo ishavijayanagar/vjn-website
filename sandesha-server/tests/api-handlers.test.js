@@ -4,6 +4,12 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+
+// Keep test events and sessions out of the live files (set before they load).
+const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sandesha-test-'));
+process.env.SANDESHA_ACTIVITY_FILE = path.join(testDir, 'activity.jsonl');
+process.env.SANDESHA_SESSIONS_FILE = path.join(testDir, 'sessions.json');
+
 const { createApiHandlers } = require('../api-handlers');
 
 function makeDeps(overrides = {}) {

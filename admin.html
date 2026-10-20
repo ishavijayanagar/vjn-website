@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=banner-2"/>
+  <link rel="stylesheet" href="style.css?v=vpr-1"/>
   <link rel="stylesheet" href="banner-form.css?v=2"/>
   <link rel="stylesheet" href="sandesha/css/embedded.css?v=6"/>
   <script>
@@ -568,6 +568,17 @@
 
         <!-- Programs: Settings (opened from the header gear) -->
         <div id="settingsPanel" class="hidden">
+          <div class="sx-status hidden" id="sandeshaStatus" role="status" aria-live="polite">
+            <span class="sx-dot" aria-hidden="true"></span>
+            <span class="sx-text">
+              <span class="sx-title">Sandesha WhatsApp</span>
+              <span class="sx-line" id="sandeshaStatusLine">Checking…</span>
+              <span class="sx-sub" id="sandeshaStatusSub"></span>
+            </span>
+            <button type="button" class="sx-refresh" id="sandeshaStatusRefresh" aria-label="Check again" title="Check again">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+          </div>
           <div class="settings-list">
             <button type="button" class="settings-item" data-admin-page="generateFlyer">
               <span class="settings-item-text">
@@ -576,14 +587,60 @@
               </span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
             </button>
-            <button type="button" class="settings-item" disabled>
+            <button type="button" class="settings-item" data-admin-page="programTitles">
+              <span class="settings-item-text">
+                <span class="settings-item-title">Program names</span>
+                <span class="settings-item-sub">The list Programs picks from when creating an event.</span>
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+            <button type="button" class="settings-item" data-admin-page="sandeshaActivity">
               <span class="settings-item-text">
                 <span class="settings-item-title">Sandesha activities</span>
-                <span class="settings-item-sub">WhatsApp activity.</span>
+                <span class="settings-item-sub" data-sa-sub>Everything every team did on WhatsApp: sends, schedules and member adds.</span>
               </span>
-              <span class="settings-soon">Soon</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
             </button>
           </div>
+          <p class="admin-empty hidden" id="settingsEmpty">Nothing to set up for your team here yet.</p>
+        </div>
+
+        <!-- Admin: Settings → Program names -->
+        <div id="programTitlesPanel" class="hidden">
+          <form class="team-add-form" id="ptForm">
+            <h2 class="admin-form-section-title">Add a program name</h2>
+            <div class="form-group">
+              <label for="ptInput">Program name *</label>
+              <input type="text" id="ptInput" autocomplete="off" placeholder="e.g. Inner Engineering"/>
+            </div>
+            <p class="form-err" id="ptError"></p>
+            <button type="submit" class="btn btn-gold" id="ptAddBtn">Add program</button>
+          </form>
+          <p class="admin-field-hint admin-field-hint-block" id="ptMeta"></p>
+          <ul class="pt-list" id="ptList"></ul>
+        </div>
+
+        <!-- Admin: Settings → Sandesha activities -->
+        <div id="sandeshaActivityPanel" class="hidden">
+          <div class="inquiry-filters" id="saTeamFilters" role="tablist" aria-label="Team">
+            <button type="button" class="inquiry-status-tab active" data-sa-team="all">All teams</button>
+            <button type="button" class="inquiry-status-tab" data-sa-team="admin">Admin</button>
+            <button type="button" class="inquiry-status-tab" data-sa-team="promotions">Promotions</button>
+            <button type="button" class="inquiry-status-tab" data-sa-team="nurturing">Nurturing</button>
+            <button type="button" class="inquiry-status-tab" data-sa-team="programs">Programs</button>
+            <button type="button" class="inquiry-status-tab" data-sa-team="system">System</button>
+          </div>
+          <div class="inquiry-filters" id="saStatusFilters" role="tablist" aria-label="Result">
+            <button type="button" class="inquiry-status-tab active" data-sa-status="all">All</button>
+            <button type="button" class="inquiry-status-tab" data-sa-status="ok">Success</button>
+            <button type="button" class="inquiry-status-tab" data-sa-status="fail">Failed</button>
+          </div>
+          <div class="sa-toolbar">
+            <input type="search" id="saSearch" class="sa-search" placeholder="Search activity" aria-label="Search activity, person, group or message" autocomplete="off"/>
+            <button type="button" class="btn btn-outline" id="saRefresh">Refresh</button>
+          </div>
+          <p class="admin-field-hint admin-field-hint-block" id="saMeta"></p>
+          <div id="saList" class="sa-list"></div>
         </div>
 
         <!-- Programs: Settings → Generate flyer -->
@@ -766,6 +823,15 @@
                   </span>
                   <span class="vpd-cta-text">
                     <b id="vpdFormBtnTitle">Create Google form</b>
+                  </span>
+                  <svg class="vpd-cta-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+                </button>
+                <button type="button" class="vpd-cta vpd-cta--form" id="vpdConnectFormBtn">
+                  <span class="vpd-cta-ico" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  </span>
+                  <span class="vpd-cta-text">
+                    <b>Connect existing Google form</b>
                   </span>
                   <svg class="vpd-cta-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
                 </button>
@@ -986,6 +1052,18 @@
               <option value="Scheduled">Scheduled</option>
             </select>
           </div>
+          <div class="form-group" data-program-only>
+            <label for="fLanguage">Language</label>
+            <select id="fLanguage">
+              <option value="">Select language</option>
+              <option value="English">English</option>
+              <option value="Kannada">Kannada</option>
+              <option value="Hindi">Hindi</option>
+              <option value="Tamil">Tamil</option>
+              <option value="Telugu">Telugu</option>
+              <option value="Malayalam">Malayalam</option>
+            </select>
+          </div>
           <div class="form-group admin-image-field" data-volunteer-only>
             <p class="admin-field-label" id="fPhotoLabel">Photo <span class="admin-optional">Optional</span></p>
             <input type="file" id="fImageFile" accept="image/*" class="admin-upload-input" aria-label="Photo"/>
@@ -1191,6 +1269,44 @@
     </div>
   </div>
 
+  <!-- Queries → More → Send message (sent from the Sandesha WhatsApp number) -->
+  <div class="modal-overlay" id="inqMsgOverlay">
+    <div class="query-modal" role="dialog" aria-modal="true" aria-labelledby="inqMsgTitle">
+      <h2 id="inqMsgTitle">Send WhatsApp message</h2>
+      <p class="admin-confirm-lead" id="inqMsgTo"></p>
+      <div class="form-group">
+        <label for="inqMsgText">Message</label>
+        <textarea id="inqMsgText" rows="6" maxlength="2000"></textarea>
+        <div class="inq-msg-fields" id="inqMsgFields" aria-label="Insert a field">
+          <span class="inq-msg-fields-label">Insert</span>
+          <button type="button" data-msg-field="name">First name</button>
+          <button type="button" data-msg-field="fullname">Full name</button>
+          <button type="button" data-msg-field="area">Area</button>
+          <button type="button" data-msg-field="program">Program</button>
+          <button type="button" data-msg-field="ie">IE date</button>
+        </div>
+        <p class="admin-field-hint hidden" id="inqMsgHint"></p>
+        <p class="inq-msg-missing hidden" id="inqMsgMissing"></p>
+      </div>
+      <p class="form-err" id="inqMsgError"></p>
+      <div class="admin-editor-actions">
+        <button type="button" class="btn btn-outline" id="inqMsgCancel">Cancel</button>
+        <button type="button" class="btn btn-gold" id="inqMsgSend">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sandesha activity: everything about one activity -->
+  <div class="modal-overlay" id="saDetailOverlay">
+    <div class="query-modal sa-detail" role="dialog" aria-modal="true" aria-labelledby="saDetailTitle">
+      <h2 id="saDetailTitle"></h2>
+      <div id="saDetailBody"></div>
+      <div class="admin-editor-actions">
+        <button type="button" class="btn btn-outline" id="saDetailClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="inviteOverlay">
     <div class="query-modal" role="dialog" aria-modal="true" aria-labelledby="inviteTitle">
       <h2 id="inviteTitle">Send invite</h2>
@@ -1302,6 +1418,56 @@
         <p class="vg-note hidden" id="vgNote"></p>
         <p class="form-err" id="vgError"></p>
         <button type="button" class="vg-next" id="vgNext"></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Connect a Google form that was made by hand to this program -->
+  <div class="bsheet-overlay" id="cfSheet" aria-hidden="true">
+    <div class="bsheet" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+      <span class="bsheet-grip" aria-hidden="true"></span>
+      <header class="bsheet-head">
+        <div class="bsheet-titles">
+          <p class="bsheet-eyebrow" id="cfEyebrow">Connect existing Google form</p>
+          <h2 id="cfTitle">Program</h2>
+        </div>
+        <button type="button" class="admin-editor-close" data-bsheet-close aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
+      <div class="bsheet-body" id="cfPickStep">
+        <p class="cf-note hidden" id="cfReplaceNote"></p>
+        <label class="vg-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="search" id="cfSearch" placeholder="Search forms" aria-label="Search forms" autocomplete="off" enterkeyhint="search"/>
+        </label>
+        <div class="cf-list" id="cfList"></div>
+        <div class="cf-paste">
+          <label class="gf-label" for="cfLink">Or paste the form's link</label>
+          <div class="cf-paste-row">
+            <input type="url" class="admin-input" id="cfLink" placeholder="https://forms.gle/…" autocomplete="off"/>
+            <button type="button" class="btn btn-outline" id="cfLinkGo">Use link</button>
+          </div>
+        </div>
+      </div>
+      <div class="bsheet-body hidden" id="cfMapStep">
+        <div class="cf-form-head">
+          <b id="cfFormName"></b>
+          <span id="cfFormMeta"></span>
+        </div>
+        <p class="cf-lead">Which question asks for each detail? We matched what we could.</p>
+        <div id="cfMapFields"></div>
+        <div class="cf-extras hidden" id="cfExtrasWrap">
+          <p class="cf-extras-title">Other questions</p>
+          <p class="cf-hint">Ticked answers are saved with each volunteer and shown under their name.</p>
+          <div id="cfExtras"></div>
+        </div>
+        <p class="cf-hint">The form itself isn't changed.</p>
+      </div>
+      <footer class="bsheet-foot">
+        <p class="form-err hidden" id="cfError"></p>
+        <button type="button" class="btn btn-outline" id="cfBack">Close</button>
+        <button type="button" class="btn btn-gold hidden" id="cfConnect">Connect &amp; import</button>
       </footer>
     </div>
   </div>
@@ -1575,11 +1741,12 @@
   <script src="liquid-glass.js?v=2"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=banner-2"></script>
+  <script src="site.js?v=drafts-1"></script>
   <script src="ptr.js?v=2"></script>
+  <script src="drafts.js?v=1"></script>
   <script src="banner-form.js?v=1"></script>
-  <script src="admin.js?v=banner-2"></script>
+  <script src="admin.js?v=drafts-1"></script>
   <script type="module" src="sandesha/js/boot-admin-hub.js?v=2"></script>
-  <script type="module" src="sandesha/js/boot-nurturing-bridge.js?v=2"></script>
+  <script type="module" src="sandesha/js/boot-nurturing-bridge.js?v=6"></script>
 </body>
 </html>

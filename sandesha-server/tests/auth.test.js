@@ -1,6 +1,9 @@
 'use strict';
 
 process.env.SANDESHA_ADMIN_PASSWORD = 'test-secret';
+// Never touch the live session file — clearAllSessions() below deletes it.
+process.env.SANDESHA_SESSIONS_FILE = require('path').join(
+  require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'sandesha-auth-')), 'sessions.json');
 process.env.SANDESHA_AUTH_DISABLED = '';
 
 delete require.cache[require.resolve('../auth')];

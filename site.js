@@ -548,11 +548,15 @@
       navigator.serviceWorker.register("sw.js").catch(function () {});
       // When a new service worker takes over (a fresh deploy activated), the
       // page already loaded is still running on old, possibly-stale logic.
-      // Reload once so it picks up the new one immediately instead of a
-      // visitor seeing outdated behaviour until their next visit.
+      // Reload once so it picks up the new one — but never under someone who
+      // has started typing: that would wipe a half-filled form. They get the
+      // new version on their next page load instead.
       var swRefreshing = false;
+      var typedSinceLoad = false;
+      document.addEventListener("input", function () { typedSinceLoad = true; }, true);
+      document.addEventListener("change", function () { typedSinceLoad = true; }, true);
       navigator.serviceWorker.addEventListener("controllerchange", function () {
-        if (swRefreshing) return;
+        if (swRefreshing || typedSinceLoad) return;
         swRefreshing = true;
         window.location.reload();
       });
@@ -644,6 +648,27 @@
   window.endPageLoad = function () {
     document.documentElement.classList.remove("is-page-loading");
     document.documentElement.removeAttribute("aria-busy");
+  };
+
+  /**
+   * Section-level loading, for pages that fill in piece by piece: while
+   * `work` (a promise) runs, `el` is marked busy and its controls are greyed
+   * out and unclickable (style.css `[data-loading]`); everything outside it
+   * stays usable. Overlapping loads on the same section: the latest wins.
+   */
+  window.sectionLoading = function (el, work) {
+    if (!el || !work || typeof work.then !== "function") return work;
+    const seq = (el._loadSeq || 0) + 1;
+    el._loadSeq = seq;
+    el.setAttribute("data-loading", "");
+    el.setAttribute("aria-busy", "true");
+    const done = function () {
+      if (el._loadSeq !== seq) return;
+      el.removeAttribute("data-loading");
+      el.removeAttribute("aria-busy");
+    };
+    work.then(done, done);
+    return work;
   };
 
   async function boot() {

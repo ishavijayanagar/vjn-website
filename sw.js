@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v163";
+const CACHE_NAME = "isha-vjn-v166";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -7,12 +7,12 @@ const PRECACHE = [
   "./detail.html",
   "./admin-promotions.html",
   "./admin-messaging.html",
-  "./admin-promotions.css?v=promo-status",
-  "./admin-promotions.js?v=promo-search",
+  "./admin-promotions.css?v=reach-1",
+  "./admin-promotions.js?v=drafts-1",
   "./admin-messaging.css?v=1",
   "./sandesha/css/embedded.css?v=5",
   "./style.css?v=inquiry-card-redesign-v1",
-  "./site.js?v=home-nav",
+  "./site.js?v=drafts-1",
   "./config.js",
   "./protect.js?v=selectable-v1",
   "./whatsapp-validate.js",

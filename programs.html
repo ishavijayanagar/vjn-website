@@ -132,6 +132,7 @@
           <label for="fProgram">Program *</label>
           <select id="fProgram" aria-label="Program"></select>
         </div>
+        <p class="quiz-consent-note">We may establish contact with you through phone calls, WhatsApp messages and email to provide support regarding programs, practices and processes that you have registered for. We do not sell any data to third parties for marketing or any other purpose.</p>
         <button class="submit-btn" id="submitBtn" onclick="submitInterest()">Submit</button>
       </div>
       <div class="form-success-msg" id="formSuccess" style="display:none">
@@ -184,7 +185,7 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=share-1"></script>
+  <script src="site.js?v=drafts-1"></script>
   <script src="ptr.js?v=1"></script>
   <script>
     let allPrograms = [];
@@ -461,11 +462,13 @@
         card.className = 'program-card';
 
         const frequency = item.frequency ? String(item.frequency).trim() : '';
+        const language = item.language ? String(item.language).trim() : '';
 
         const metaHtml = [
           buildProgramMetaItem(SVG_CALENDAR, listingDateLabel(item)),
           buildProgramMetaItem(SVG_CLOCK, typeof formatEventSlots === 'function' ? formatEventSlots(item) : item.timings),
           buildProgramMetaItem(SVG_PIN, item.location),
+          /^english$/i.test(language) ? '' : buildProgramMetaItem(SVG_GLOBE, language),
         ].join('');
 
         const showFrequency = frequency && canonicalFrequency(item) !== 'scheduled';
@@ -501,6 +504,7 @@
     const SVG_CALENDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
     const SVG_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
     const SVG_PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/></svg>';
+    const SVG_GLOBE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>';
     const SVG_DURATION = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
     const SVG_REGISTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
     const SVG_BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';

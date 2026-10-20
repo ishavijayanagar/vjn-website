@@ -83,6 +83,7 @@
                 <input type="text" id="fieldArea" placeholder="e.g. Jayanagar, Koramangala"/>
               </div>
               <div id="fieldIeGate"></div>
+              <p class="quiz-consent-note">We may establish contact with you through phone calls, WhatsApp messages and email to provide support regarding programs, practices and processes that you have registered for. We do not sell any data to third parties for marketing or any other purpose.</p>
               <button class="submit-btn" id="submitBtn" onclick="submitForm()">Submit Interest</button>
             </div>
 
@@ -134,6 +135,7 @@
             <input type="text" id="pvArea" placeholder="e.g. Jayanagar, Koramangala"/>
           </div>
           <div id="pvIeGate"></div>
+          <p class="quiz-consent-note">We may establish contact with you through phone calls, WhatsApp messages and email to provide support regarding programs, practices and processes that you have registered for. We do not sell any data to third parties for marketing or any other purpose.</p>
           <button type="button" class="submit-btn pv-submit" id="pvSubmitBtn" onclick="submitProgramVolunteer()">Submit</button>
         </div>
         <div class="form-success program-volunteer-success" id="pvFormSuccess" style="display:none">
@@ -187,9 +189,10 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=share-1"></script>
+  <script src="site.js?v=drafts-1"></script>
   <script src="ptr.js?v=1"></script>
   <script src="ie-gate.js?v=1"></script>
+  <script src="drafts.js?v=1"></script>
   <script>
     function escapeHtmlAttr(s) {
       return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -224,6 +227,7 @@
     const PD_ICON = {
       calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
       clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+      globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
       pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12Z"/><circle cx="12" cy="9" r="2.4"/></svg>',
       phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>',
       chevron: '<svg class="pd-call-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>'
@@ -268,6 +272,8 @@
         }
 
         currentItem = data.item;
+        // Once the page has painted, bring back a sign-up the tab lost in the background.
+        setTimeout(watchVolunteerDraft, 0);
 
         document.title = `${data.item.title} – Isha Place, Vijayanagar`;
 
@@ -296,11 +302,13 @@
         const mapsHref = /isha place/i.test(location)
           ? 'https://maps.app.goo.gl/jgfwchQEJ46nfh7Q6'
           : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location + ', Bengaluru');
+        const language = data.item.language ? String(data.item.language).trim() : '';
         const fact = (icon, label, valueHtml) =>
           `<li class="pd-fact">${icon}<div><span class="pd-fact-k">${label}</span>${valueHtml}</div></li>`;
         const factsHtml = [
           dateLabel ? fact(PD_ICON.calendar, 'Date', `<span class="pd-fact-v">${escapeHtml(dateLabel)}</span>`) : '',
           slotLines.length ? fact(PD_ICON.clock, 'Timings', slotLines.map((l) => `<span class="pd-fact-v">${escapeHtml(l)}</span>`).join('')) : '',
+          language ? fact(PD_ICON.globe, 'Language', `<span class="pd-fact-v">${escapeHtml(language)}</span>`) : '',
           location ? fact(PD_ICON.pin, 'Venue', `<a class="pd-fact-v pd-fact-link" href="${escapeHtmlAttr(mapsHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(location)}</a>`) : '',
         ].join('');
 
@@ -432,7 +440,25 @@
       grab.addEventListener('pointercancel', end);
     })();
 
+    /* Android Chrome may reload this tab while someone is away from it; drafts.js
+       keeps what they typed and this reopens the sign-up for it. */
+    function watchVolunteerDraft() {
+      if (!window.DraftKeeper || itemType !== 'program') return;
+      DraftKeeper.watch('volunteer', {
+        root: () => document.getElementById('programVolunteerOverlay'),
+        isOpen: () => document.getElementById('programVolunteerOverlay').classList.contains('open')
+          && document.getElementById('pvFormBody').style.display !== 'none',
+        meta: () => ({ id: currentItem && currentItem.id }),
+        reopen: (meta) => {
+          if (!meta || !currentItem || String(meta.id) !== String(currentItem.id)) return false;
+          openProgramVolunteerModal();
+          return true;
+        },
+      });
+    }
+
     function closeProgramVolunteerModal() {
+      if (window.DraftKeeper) DraftKeeper.clear('volunteer');
       const overlay = document.getElementById('programVolunteerOverlay');
       overlay.classList.remove('open');
       overlay.setAttribute('aria-hidden', 'true');
@@ -488,6 +514,7 @@
           }),
         });
 
+        if (window.DraftKeeper) DraftKeeper.clear('volunteer');
         document.getElementById('pvFormBody').style.display = 'none';
         document.getElementById('pvFormSuccess').style.display = 'block';
         btn.disabled = false;

@@ -9,12 +9,15 @@
  * One JSON object per line in activity.jsonl. Rotates itself. Never throws into
  * a caller: recording an event must not break the thing being recorded.
  */
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const ACTIVITY_FILE = path.join(__dirname, 'activity.jsonl');
-const MAX_BYTES = 512 * 1024;   // ~a few thousand rows before rotation
-const READ_TAIL_BYTES = 256 * 1024;
+// Tests point this at a temp file so they never write into the live log.
+const ACTIVITY_FILE = process.env.SANDESHA_ACTIVITY_FILE || path.join(__dirname, 'activity.jsonl');
+const MAX_BYTES = 4 * 1024 * 1024;   // rows now carry per-recipient detail
+const READ_TAIL_BYTES = 3 * 1024 * 1024;
+const MAX_META_CHARS = 16000;
 
 /** Known categories — kept in sync with the dashboard filter chips. */
 const CATEGORIES = new Set([
@@ -33,6 +36,9 @@ const CATEGORIES = new Set([
  * @param {boolean}[evt.ok]             explicit success flag (defaults from type)
  * @param {string} [evt.via]            'manual' | 'broadcast' | 'bulk' | 'scheduled' | 'api'
  * @param {string} [evt.corrId]         groups a fan-out into one logical action
+ * @param {{role: string, name: string}} [evt.actor]  who started it (team + person)
+ * @param {object} [evt.meta]           everything else worth showing when the row is opened:
+ *                                      message, per-recipient results, errors, schedule times…
  * @param {boolean}[evt.push]           also fire a Web Push notification (summary events only)
  */
 function recordEvent(evt = {}) {
@@ -44,12 +50,15 @@ function recordEvent(evt = {}) {
       type,
       category,
       title: String(evt.title || '').slice(0, 200),
-      detail: evt.detail ? String(evt.detail).slice(0, 300) : '',
+      detail: evt.detail ? String(evt.detail).slice(0, 500) : '',
       target: evt.target ? String(evt.target) : '',
       count: Number.isFinite(evt.count) ? evt.count : null,
       ok: typeof evt.ok === 'boolean' ? evt.ok : type !== 'err',
       via: evt.via ? String(evt.via) : '',
       corrId: evt.corrId ? String(evt.corrId) : '',
+      id: crypto.randomBytes(6).toString('hex'),
+      actor: cleanActor(evt.actor),
+      meta: capMeta(evt.meta),
     };
     if (fs.existsSync(ACTIVITY_FILE) && fs.statSync(ACTIVITY_FILE).size > MAX_BYTES) {
       fs.renameSync(ACTIVITY_FILE, `${ACTIVITY_FILE}.1`);
@@ -64,6 +73,38 @@ function recordEvent(evt = {}) {
     /* logging must never break the caller */
     return null;
   }
+}
+
+function cleanActor(actor) {
+  if (!actor || typeof actor !== 'object' || !actor.role) return null;
+  return {
+    role: String(actor.role).slice(0, 30),
+    name: String(actor.name || '').slice(0, 80),
+  };
+}
+
+/**
+ * Keep the detail object small enough that one row can't bloat the log:
+ * long arrays (per-recipient results) are cut, then the whole thing dropped.
+ */
+function capMeta(meta) {
+  if (!meta || typeof meta !== 'object') return null;
+  let out;
+  try {
+    out = JSON.parse(JSON.stringify(meta));
+  } catch {
+    return null;
+  }
+  if (JSON.stringify(out).length <= MAX_META_CHARS) return out;
+  for (const [key, val] of Object.entries(out)) {
+    if (Array.isArray(val) && val.length > 100) {
+      out[key] = val.slice(0, 100);
+      out[`${key}Total`] = val.length;
+    } else if (typeof val === 'string' && val.length > 2000) {
+      out[key] = `${val.slice(0, 2000)}…`;
+    }
+  }
+  return JSON.stringify(out).length <= MAX_META_CHARS ? out : { truncated: true };
 }
 
 const ADMIN_ONLY = new Set(['members', 'group', 'set', 'contact', 'system', 'auth']);

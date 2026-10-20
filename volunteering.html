@@ -433,6 +433,7 @@
           <div class="form-group"><label for="vOpportunity">Opportunity *</label><select id="vOpportunity"></select></div>
           <div class="form-group"><label for="vRemarks">Remarks</label><textarea id="vRemarks" rows="3" maxlength="1000" placeholder="Anything you'd like us to know"></textarea></div>
           <div id="vIeGate"></div>
+          <p class="quiz-consent-note">We may establish contact with you through phone calls, WhatsApp messages and email to provide support regarding programs, practices and processes that you have registered for. We do not sell any data to third parties for marketing or any other purpose.</p>
           <button type="button" class="submit-btn vi-submit" id="vSubmitBtn" onclick="submitVolunteerInterest()">Submit</button>
         </div>
         <div class="form-success-msg vi-success" id="vFormSuccess" style="display:none">
@@ -589,9 +590,10 @@
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=footer-1"></script>
+  <script src="site.js?v=drafts-1"></script>
   <script src="ptr.js?v=1"></script>
   <script src="ie-gate.js?v=1"></script>
+  <script src="drafts.js?v=1"></script>
   <script>
     let allVolunteering = [];
     IEGate.mount(document.getElementById('vIeGate'), { submitBtn: document.getElementById('vSubmitBtn') });
@@ -671,7 +673,19 @@
       document.getElementById('volunteerModalOverlay').classList.add('open');
     }
     function closeVolunteerModal() {
+      if (window.DraftKeeper) DraftKeeper.clear('volunteer');
       document.getElementById('volunteerModalOverlay').classList.remove('open');
+    }
+    /* Android Chrome may reload this tab while someone is away from it; drafts.js
+       keeps what they typed and this reopens the form for it. */
+    function watchVolunteerDraft() {
+      if (!window.DraftKeeper) return;
+      DraftKeeper.watch('volunteer', {
+        root: () => document.getElementById('volunteerModalOverlay'),
+        isOpen: () => document.getElementById('volunteerModalOverlay').classList.contains('open')
+          && document.getElementById('vFormBody').style.display !== 'none',
+        reopen: () => { openVolunteerModal(); return true; },
+      });
     }
     document.getElementById('volunteerModalOverlay').addEventListener('click', function (e) {
       if (e.target === this) closeVolunteerModal();
@@ -729,6 +743,7 @@
             timestamp: new Date().toISOString()
           })
         });
+        if (window.DraftKeeper) DraftKeeper.clear('volunteer');
         document.getElementById('vFormBody').style.display = 'none';
         document.getElementById('vFormSuccess').style.display = 'block';
       } catch (e) {
@@ -946,7 +961,8 @@
       if (location.hash) activate(location.hash.slice(1), false);
     })();
 
-    loadVolunteering();
+    // The opportunity list fills the form's dropdown, so restore after it.
+    loadVolunteering().finally(watchVolunteerDraft);
     if (window.registerRefresh) registerRefresh(loadVolunteering);
 
     /* =====================
