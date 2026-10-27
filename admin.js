@@ -506,6 +506,37 @@
     return true;
   }
 
+  /** Bell buttons (header and Promotions). Every outcome says something —
+   * the header button is hidden outside the installed app, so a silent
+   * no-op here looked like a dead button. */
+  async function onNotifyButton() {
+    if (typeof Notification === "undefined" || !isInstalledApp()) {
+      showToast("Install this page as an app (Add to Home screen), then turn alerts on from there.", {
+        title: "Alerts work in the installed app",
+        ms: 6000,
+      });
+      return;
+    }
+    if (Notification.permission === "denied") {
+      showToast("Allow notifications for this site in your phone's settings, then try again.", {
+        title: "Notifications are blocked",
+        tone: "warn",
+        ms: 6000,
+      });
+      return;
+    }
+    if (queryNotifyEnabled()) {
+      openNotifyOffConfirm();
+      return;
+    }
+    showToast("Asking for permission…", { tone: "progress", ms: 8000 });
+    const ok = await turnOnQueryAlerts();
+    showToast(ok ? "You'll get a phone alert for new queries and due posts." : "Notifications weren't allowed.", {
+      title: ok ? "Alerts on" : undefined,
+      tone: ok ? "success" : "warn",
+    });
+  }
+
   function openNotifyOffConfirm() {
     const overlay = $("notifyOffOverlay");
     if (overlay) overlay.classList.add("open");
@@ -521,6 +552,7 @@
     stopAlertWatch();
     updateNotifyButton();
     closeNotifyOffConfirm();
+    showToast("Alerts off");
   }
 
   function readInquiryStamp() {
@@ -11145,12 +11177,7 @@ panels +
       if (e.key === "Enter") handleLogin();
     });
     const notifyBtn = $("queryNotifyBtn");
-    if (notifyBtn) {
-      notifyBtn.addEventListener("click", function () {
-        if (queryNotifyEnabled()) openNotifyOffConfirm();
-        else turnOnQueryAlerts();
-      });
-    }
+    if (notifyBtn) notifyBtn.addEventListener("click", onNotifyButton);
     $("cancelNotifyOffBtn").addEventListener("click", closeNotifyOffConfirm);
     $("confirmNotifyOffBtn").addEventListener("click", turnOffQueryAlerts);
     $("notifyOffOverlay").addEventListener("click", function (e) {
@@ -12075,12 +12102,7 @@ panels +
         setPromoView(btn.getAttribute("data-promo-view"));
       });
     }
-    if ($("promoNotifyProxy")) {
-      $("promoNotifyProxy").addEventListener("click", function () {
-        const btn = $("queryNotifyBtn");
-        if (btn) btn.click();
-      });
-    }
+    if ($("promoNotifyProxy")) $("promoNotifyProxy").addEventListener("click", onNotifyButton);
     if ($("promoLogoutProxy")) {
       $("promoLogoutProxy").addEventListener("click", function () {
         const btn = $("logoutBtn");

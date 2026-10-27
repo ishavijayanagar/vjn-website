@@ -17,6 +17,45 @@ const state = {
   loadError: '',
 };
 
+// Last good groups/sets/contacts/schedules, drawn at once on the next visit
+// while the Pi answers (/groups and /chats can take many seconds there). The
+// vjn_rc: prefix is the admin read cache's, so logging out wipes it too.
+const CORE_CACHE_KEY = 'vjn_rc:sandesha-core';
+
+function loadCoreCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CORE_CACHE_KEY) || 'null');
+    if (!cached) return;
+    if (Array.isArray(cached.groups)) {
+      state.groups = cached.groups;
+      state.groupsLoaded = true;
+    }
+    if (cached.sets && typeof cached.sets === 'object') {
+      state.sets = cached.sets;
+      state.setsLoaded = true;
+    }
+    if (cached.contacts && typeof cached.contacts === 'object') state.contacts = cached.contacts;
+    if (Array.isArray(cached.schedules)) state.schedules = cached.schedules;
+  } catch {
+    /* no cache: first visit, private window, or storage blocked */
+  }
+}
+
+function saveCoreCache() {
+  try {
+    localStorage.setItem(CORE_CACHE_KEY, JSON.stringify({
+      groups: state.groups,
+      sets: state.sets,
+      contacts: state.contacts,
+      schedules: state.schedules,
+    }));
+  } catch {
+    /* over quota or blocked: the next visit just loads from the Pi */
+  }
+}
+
+loadCoreCache();
+
 const listeners = new Set();
 
 export function subscribe(fn) {
@@ -41,20 +80,41 @@ export async function refreshCore(forceGroups = false) {
   // long time on a Raspberry Pi, and the status row should not wait on them.
   const healthPromise = api('/health');
   healthPromise.then((h) => { state.health = h; state.healthError = false; notify(); }).catch(() => {});
+  // Each answer is shown the moment it lands: /sets is a quick file read and
+  // must not wait behind /groups and /chats, which can take many seconds.
+  const land = (promise, apply) => {
+    promise.then((value) => { apply(value); notify(); }).catch(() => {});
+    return promise;
+  };
   const settled = await Promise.allSettled([
     healthPromise,
-    api(`/groups${forceGroups ? '?refresh=1' : ''}`),
-    api('/sets'),
-    api('/contacts'),
-    api('/schedules'),
-    api('/chats?limit=200'),
-    wantActivity ? api('/activity?limit=150') : Promise.resolve(null),
+    land(api(`/groups${forceGroups ? '?refresh=1' : ''}`), (value) => {
+      state.groups = (Array.isArray(value) ? value : []).sort((a, b) => a.name.localeCompare(b.name));
+      state.groupsLoaded = true;
+    }),
+    land(api('/sets'), (value) => {
+      if (value) state.sets = value.sets || value || {};
+      state.setsLoaded = true;
+    }),
+    land(api('/contacts'), (value) => {
+      if (value) state.contacts = value.contacts || value || {};
+    }),
+    land(api('/schedules'), (value) => {
+      if (value) state.schedules = value.schedules || value || [];
+    }),
+    land(api('/chats?limit=200'), (value) => {
+      if (value) state.chats = Array.isArray(value?.chats) ? value.chats : [];
+    }),
+    wantActivity
+      ? land(api('/activity?limit=150'), (value) => {
+        if (value && Array.isArray(value.activity)) state.activity = value.activity;
+      })
+      : Promise.resolve(null),
   ]);
 
-  if (settled[1].status === 'fulfilled') state.groupsLoaded = true;
-  if (settled[2].status === 'fulfilled') state.setsLoaded = true;
   const firstFail = settled.slice(0, 3).find((r) => r.status === 'rejected');
   state.loadError = firstFail ? String(firstFail.reason?.message || 'Could not reach Sandesha') : '';
+  if (settled.slice(1, 5).some((r) => r.status === 'fulfilled')) saveCoreCache();
   notify();
 
   const health = settled[0].status === 'fulfilled' ? settled[0].value : null;
@@ -64,20 +124,6 @@ export async function refreshCore(forceGroups = false) {
   }
 
   state.health = health;
-  state.groups = settled[1].status === 'fulfilled'
-    ? (Array.isArray(settled[1].value) ? settled[1].value : []).sort((a, b) => a.name.localeCompare(b.name))
-    : state.groups;
-  const setsData = settled[2].status === 'fulfilled' ? settled[2].value : null;
-  if (setsData) state.sets = setsData.sets || setsData || {};
-  const contactsData = settled[3].status === 'fulfilled' ? settled[3].value : null;
-  if (contactsData) state.contacts = contactsData.contacts || contactsData || {};
-  const schedulesData = settled[4].status === 'fulfilled' ? settled[4].value : null;
-  if (schedulesData) state.schedules = schedulesData.schedules || schedulesData || [];
-  const chatsData = settled[5].status === 'fulfilled' ? settled[5].value : null;
-  if (chatsData) state.chats = Array.isArray(chatsData?.chats) ? chatsData.chats : [];
-  // Activity is optional and admin-only — never let it affect load success.
-  const activityData = settled[6]?.status === 'fulfilled' ? settled[6].value : null;
-  if (activityData && Array.isArray(activityData.activity)) state.activity = activityData.activity;
 
   // Only the WhatsApp-dependent calls (groups…chats) count toward "load failed".
   const waCalls = settled.slice(1, 6);
