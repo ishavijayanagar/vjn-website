@@ -181,7 +181,13 @@ follow_sandesha_log() {
   echo "════════════════════════════════════════"
   echo " sandesha log  (Ctrl+C to stop)"
   echo "────────────────────────────────────────"
-  tail -n "$n" -F "$BACKEND_LOG" &
+  if [[ ! -s "$BACKEND_LOG" && -z "$BACKEND_PID" ]]; then
+    echo "  (backend was started outside dev.sh, so there are no logs to show."
+    echo "   Run ./dev.sh --restart to start it here and see everything.)"
+  fi
+  local logs=("$BACKEND_LOG")
+  [[ -n "$SITE_PID" ]] && logs+=("$SITE_LOG")
+  tail -n "$n" -F "${logs[@]}" &
   TAIL_PID=$!
 }
 
