@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v166";
+const CACHE_NAME = "isha-vjn-v167";
 const PRECACHE = [
   "./",
   "./index.html",

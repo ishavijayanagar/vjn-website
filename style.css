@@ -18305,6 +18305,9 @@ a.promo-banner-link{cursor:pointer}
 .sx-line { font-weight: 600; font-size: 0.95rem; color: #2B211D; overflow-wrap: anywhere; }
 .sx-status[data-tone="err"] .sx-line { color: #9B2C20; }
 .sx-sub { font-size: 0.82rem; color: #6B5F52; overflow-wrap: anywhere; }
+.sx-action { align-self: flex-start; margin-top: 8px; padding: 7px 14px; border: 1px solid #C0392B; border-radius: 999px; background: transparent; color: #9B2C20; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.sx-action:hover:not(:disabled) { background: #F9E4E0; }
+.sx-action:disabled { opacity: 0.7; cursor: progress; }
 .sx-refresh { flex: none; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #E4DED4; border-radius: 50%; background: transparent; color: #8A7E6E; cursor: pointer; }
 .sx-refresh svg { width: 16px; height: 16px; }
 .sx-status.is-checking .sx-refresh svg { animation: spin 0.8s linear infinite; }

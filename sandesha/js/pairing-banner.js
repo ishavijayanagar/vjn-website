@@ -47,6 +47,7 @@ export function updatePairingBanner(health) {
   }
 
   if (metaEl) metaEl.textContent = '';
+  ensureEmailButton(el);
 
   if (qrEl) {
     if (qr) {
@@ -71,4 +72,32 @@ async function loadQrInto(img) {
   img.dataset.objectUrl = url;
   img.src = url;
   img.classList.remove('hidden');
+}
+
+/** Adds an "Email me the QR code" button to the banner (once). */
+function ensureEmailButton(el) {
+  if (el.querySelector('[data-pairing-email]')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pairing-email-btn';
+  btn.dataset.pairingEmail = '';
+  const label = 'Email me the QR code';
+  btn.textContent = label;
+  btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      const res = await fetch(`${getApiBase().replace(/\/$/, '')}/pairing/email-qr`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      btn.textContent = res.ok ? 'QR sent to email' : data.error || 'Could not send';
+    } catch {
+      btn.textContent = "Can't reach the server";
+    }
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = label;
+    }, 4000);
+  });
+  (el.querySelector('.pairing-banner-inner') || el).appendChild(btn);
 }

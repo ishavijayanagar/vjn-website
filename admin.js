@@ -6297,6 +6297,7 @@ panels +
         tone: "err",
         line: "Logged out — WhatsApp needs to be linked again",
         sub: role() === "admin" ? "Open Tools to link it." : "Ask the admin to relink Sandesha. Nothing can be sent until then.",
+        qr: true,
       };
     }
     if (/connecting|authenticated|loading|starting/.test(state)) {
@@ -6318,6 +6319,25 @@ panels +
     const checked = "Checked " + new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit" });
     $("sandeshaStatusSub").textContent = [view.sub, checked].filter(Boolean).join(" · ");
     show($("sandeshaStatusSub"), true);
+    show($("sandeshaQrMail"), Boolean(view.qr));
+  }
+
+  /** Asks the Sandesha server to mail the current QR to its notify address. */
+  async function emailSandeshaQr() {
+    const btn = $("sandeshaQrMail");
+    const base = sandeshaBase();
+    if (!btn || btn.disabled || !base) return;
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    try {
+      const res = await fetch(base + "/pairing/email-qr", { method: "POST" });
+      const data = await res.json().catch(function () { return {}; });
+      btn.textContent = res.ok ? "QR sent to email" : (data.error || "Could not send");
+    } catch (e) {
+      btn.textContent = "Can't reach the server";
+    }
+    setTimeout(function () { btn.disabled = false; btn.textContent = label; }, 4000);
   }
 
   /** Manual ↻: spin for at least a beat and flash the card, so a quick
@@ -11028,6 +11048,7 @@ panels +
     initInqMessage();
     initConnectForm();
     if ($("sandeshaStatusRefresh")) $("sandeshaStatusRefresh").addEventListener("click", refreshSandeshaStatus);
+    if ($("sandeshaQrMail")) $("sandeshaQrMail").addEventListener("click", emailSandeshaQr);
     if ($("gfProgram")) {
       $("gfProgram").addEventListener("change", function () {
         gfLoadTemplates($("gfProgram").value);

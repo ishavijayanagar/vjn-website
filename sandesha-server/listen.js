@@ -502,6 +502,8 @@ async function announcePairingCode(code) {
 let qrEmailState = 'idle';
 let qrEmailAttempts = 0;
 const QR_EMAIL_MAX_ATTEMPTS = 3;
+const QR_EMAIL_COOLDOWN_MS = 60 * 1000;
+let lastQrEmailRequestAt = 0;
 
 /**
  * Email the QR once per server start. WhatsApp re-emits a new QR every ~20s;
@@ -3368,6 +3370,40 @@ function startSendServer() {
         payload.commandsGroup = commandsGroupJid;
       }
       jsonResponse(res, 200, payload);
+      return;
+    }
+
+    // "Email me the QR" button on the status pages. Open (no login) because the
+    // mail only ever goes to SANDESHA_NOTIFY_EMAIL; a cooldown stops spamming.
+    if (req.method === 'POST' && parsed.pathname === '/pairing/email-qr') {
+      if (!isNotifyConfigured()) {
+        jsonResponse(res, 503, { error: 'Email is not set up on the Sandesha server' });
+        return;
+      }
+      if (waLink.state === 'connected') {
+        jsonResponse(res, 409, { error: 'WhatsApp is already linked' });
+        return;
+      }
+      const wait = QR_EMAIL_COOLDOWN_MS - (Date.now() - lastQrEmailRequestAt);
+      if (wait > 0) {
+        jsonResponse(res, 429, { error: `Already sent. Try again in ${Math.ceil(wait / 1000)}s`, retryAfter: Math.ceil(wait / 1000) });
+        return;
+      }
+      const hasQr = waLink.state === 'pairing' && waLink.qrIssued && fs.existsSync(QR_PATH);
+      if (!hasQr && !waLink.pairingCodeRaw) {
+        jsonResponse(res, 404, { error: 'No QR available yet. Try again in a few seconds' });
+        return;
+      }
+      lastQrEmailRequestAt = Date.now();
+      const r = hasQr ? await sendQrEmail(QR_PATH) : await sendPairingCodeEmail(waLink.pairingCodeRaw);
+      if (!r.sent) {
+        lastQrEmailRequestAt = 0;
+        log('Failed to email QR on request:', r.error || 'unknown');
+        jsonResponse(res, 502, { error: 'Could not send the email' });
+        return;
+      }
+      log('QR emailed on request');
+      jsonResponse(res, 200, { sent: true });
       return;
     }
 

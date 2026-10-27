@@ -275,6 +275,19 @@ input, textarea, [contenteditable] {
   -webkit-user-select: all;
 }
 
+.pairing-email-btn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pairing-email-btn:disabled { opacity: 0.7; cursor: progress; }
 .pairing-qr {
   display: block;
   margin: var(--space-md) auto 0;
