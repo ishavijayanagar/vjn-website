@@ -103,7 +103,6 @@ html.is-page-loading .admin-hub-panel,
 html.is-page-loading .admin-card,
 html.is-page-loading .admin-back-icon,
 html.is-page-loading .admin-icon-btn,
-html.is-page-loading .nav-toggle,
 html.is-page-loading input[type="submit"],
 html.is-page-loading input[type="button"] {
   pointer-events: none !important;
@@ -113,6 +112,16 @@ html.is-page-loading input[type="button"] {
 
 html.is-page-loading {
   cursor: wait;
+}
+
+/* The menu is plain navigation and never depends on page data: keep it
+   usable while the page loads. */
+html.is-page-loading .nav-toggle,
+html.is-page-loading .mobile-menu button,
+html.is-page-loading [data-nav-backdrop] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  opacity: 1;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 

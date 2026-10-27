@@ -675,6 +675,12 @@
   };
 
   async function boot() {
+    // Wire up the page first: the site-content call below goes to Apps Script
+    // and takes ~2s, and the menu must not wait for it.
+    initModalScrollLock();
+    initMobileNav();
+    initPwa();
+    initPullToRefresh();
     try {
       await applySiteContent();
     } catch (err) {
@@ -684,10 +690,6 @@
         endPageLoad();
       }
     }
-    initModalScrollLock();
-    initMobileNav();
-    initPwa();
-    initPullToRefresh();
   }
 
   /* Pages register their own loader; anything that doesn't just re-pulls the
