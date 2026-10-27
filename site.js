@@ -553,10 +553,13 @@
       // new version on their next page load instead.
       var swRefreshing = false;
       var typedSinceLoad = false;
+      // First visit: the worker taking control is not a new version, and
+      // the page is already current, so don't pay for a second load.
+      var hadController = !!navigator.serviceWorker.controller;
       document.addEventListener("input", function () { typedSinceLoad = true; }, true);
       document.addEventListener("change", function () { typedSinceLoad = true; }, true);
       navigator.serviceWorker.addEventListener("controllerchange", function () {
-        if (swRefreshing || typedSinceLoad) return;
+        if (swRefreshing || typedSinceLoad || !hadController) return;
         swRefreshing = true;
         window.location.reload();
       });

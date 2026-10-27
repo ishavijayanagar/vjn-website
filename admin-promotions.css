@@ -3334,3 +3334,18 @@ button.chip {
   #sandeshaServer .set-spin, #sandeshaServer .set-skel-bar { animation: none; }
 }
 #sandeshaServer .set-state .set-row-text b { text-transform: none; }
+
+/* "Email me the QR code" (added by sandesha/js/pairing-banner.js) */
+.pairing-email-btn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pairing-email-btn:disabled { opacity: 0.7; cursor: progress; }

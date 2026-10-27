@@ -1,22 +1,17 @@
-const CACHE_NAME = "isha-vjn-v167";
+const CACHE_NAME = "isha-vjn-v168";
+// Only unversioned files here: pages ask for "style.css?v=…" and each of
+// those is cached the first time it is fetched (see the fetch handler).
 const PRECACHE = [
   "./",
   "./index.html",
   "./programs.html",
   "./volunteering.html",
   "./detail.html",
+  "./admin.html",
   "./admin-promotions.html",
   "./admin-messaging.html",
-  "./admin-promotions.css?v=reach-1",
-  "./admin-promotions.js?v=drafts-1",
-  "./admin-messaging.css?v=1",
-  "./sandesha/css/embedded.css?v=5",
-  "./style.css?v=inquiry-card-redesign-v1",
-  "./site.js?v=drafts-1",
   "./config.js",
-  "./protect.js?v=selectable-v1",
   "./whatsapp-validate.js",
-  "./ie-gate.js?v=1",
   "./assets/logo.png",
   "./assets/icon-192.png",
   "./assets/icon-512.png",
@@ -24,6 +19,9 @@ const PRECACHE = [
   "./assets/sg.jpg",
   "./assets/signature-40159.png"
 ];
+const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "static.sadhguru.org"];
+// A page waits this long for the network before falling back to its cached copy.
+const NAV_TIMEOUT_MS = 3000;
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
@@ -131,6 +129,74 @@ self.addEventListener("notificationclick", function (event) {
   );
 });
 
+function putInCache(request, res) {
+  if (!res || !(res.ok || res.type === "opaque")) return Promise.resolve();
+  var copy = res.clone();
+  return caches.open(CACHE_NAME).then(function (cache) {
+    return cache.put(request, copy);
+  });
+}
+
+/* Pages: network first so a deploy shows up straight away, but give up after
+   NAV_TIMEOUT_MS and show the cached copy instead of a blank screen. */
+function networkFirst(event) {
+  var request = event.request;
+  var network = fetch(request).then(function (res) {
+    event.waitUntil(putInCache(request, res));
+    return res;
+  });
+  var timeout = new Promise(function (resolve) {
+    setTimeout(resolve, NAV_TIMEOUT_MS);
+  }).then(function () {
+    return caches.match(request);
+  });
+  return Promise.race([
+    network.catch(function () { return null; }),
+    timeout,
+  ]).then(function (res) {
+    if (res) return res;
+    // Timed out with nothing cached, or the network failed: keep waiting on
+    // the network, then fall back to any cached copy, then the home page.
+    return network.catch(function () {
+      return caches.match(request).then(function (cached) {
+        return cached || caches.match("./index.html");
+      });
+    });
+  });
+}
+
+/* Scripts, styles, images, fonts: answer from cache at once and refresh the
+   copy in the background (stale-while-revalidate). A file changed without a
+   new ?v= shows up on the next load; bumping ?v= shows it immediately. */
+function staleWhileRevalidate(event) {
+  var request = event.request;
+  return caches.match(request).then(function (cached) {
+    var network = fetch(request).then(function (res) {
+      return putInCache(request, res).then(function () {
+        return res;
+      });
+    });
+    if (cached) {
+      event.waitUntil(network.catch(function () {}));
+      return cached;
+    }
+    return network.catch(function () {
+      return Response.error();
+    });
+  });
+}
+
+/* Web fonts never change at a given URL, so cache them for good. */
+function cacheFirst(event) {
+  var request = event.request;
+  return caches.match(request).then(function (cached) {
+    return cached || fetch(request).then(function (res) {
+      event.waitUntil(putInCache(request, res));
+      return res;
+    });
+  });
+}
+
 self.addEventListener("fetch", function (event) {
   if (event.request.method !== "GET") return;
 
@@ -140,29 +206,16 @@ self.addEventListener("fetch", function (event) {
   } catch (err) {
     return;
   }
+  if (FONT_HOSTS.indexOf(url.hostname) !== -1) {
+    event.respondWith(cacheFirst(event));
+    return;
+  }
+  // Apps Script, the Sandesha API and other hosts always go to the network.
   if (url.origin !== self.location.origin) return;
+  // Local dev server: always fresh, so an edit shows on the very next reload.
+  if (/^(localhost|127\.0\.0\.1|192\.168\.|10\.|100\.)/.test(url.hostname)) return;
 
   var isNavigation = event.request.mode === "navigate" || event.request.destination === "document";
-
-  event.respondWith(
-    fetch(event.request)
-      .then(function (res) {
-        if (res && res.ok) {
-          var copy = res.clone();
-          caches.open(CACHE_NAME).then(function (cache) {
-            cache.put(event.request, copy);
-          });
-        }
-        return res;
-      })
-      .catch(function () {
-        return caches.match(event.request).then(function (cached) {
-          if (cached) return cached;
-          // Only a page navigation should ever fall back to index.html —
-          // an image/script/style with no cached copy must stay a failed
-          // request, not silently become the wrong content type.
-          return isNavigation ? caches.match("./index.html") : Response.error();
-        });
-      })
-  );
+  event.respondWith(isNavigation ? networkFirst(event) : staleWhileRevalidate(event));
 });
+

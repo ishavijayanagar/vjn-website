@@ -459,6 +459,9 @@ function doPost(e) {
     if (formType === "adminGet") {
       return json_(adminRead_(data));
     }
+    if (formType === "adminGetMany") {
+      return json_(adminReadMany_(data));
+    }
     if (formType === "adminSaveItem") {
       return json_(adminSaveItem(data));
     }
@@ -860,6 +863,25 @@ function adminLogin(data) {
 function adminLogout(data) {
   dropToken_(data && data.token);
   return { success: true };
+}
+
+/**
+ * Several adminGet reads in one request. Each web-app call pays ~1.5s of
+ * fixed overhead, so the hub's six counts cost one round trip, not six.
+ * data.reads: [{ type, ...extra }]. A failed read becomes { error } in its
+ * slot instead of failing the whole batch.
+ */
+function adminReadMany_(data) {
+  const reads = Array.isArray(data && data.reads) ? data.reads.slice(0, 12) : [];
+  return {
+    results: reads.map(function (r) {
+      try {
+        return adminRead_(Object.assign({}, r, { token: data.token }));
+      } catch (err) {
+        return { error: err.message };
+      }
+    }),
+  };
 }
 
 function adminRead_(data) {

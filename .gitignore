@@ -19,3 +19,6 @@ Thumbs.db
 
 # Separate repo (backend); not part of the Pages site
 sandesha-vjn/
+
+# Per-machine overrides of config.js (e.g. point Sandesha at the laptop)
+config.local.js

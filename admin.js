@@ -338,7 +338,76 @@
         payload[key] = extra[key];
       });
     }
-    return apiPost(payload);
+    const data = await apiPost(payload);
+    writeCached(type, extra, data);
+    return data;
+  }
+
+  /** Several reads in one Apps Script round trip (each call costs ~1.5s of
+   * fixed overhead). Falls back to parallel single reads on a script that
+   * predates adminGetMany. */
+  async function apiGetMany(reads) {
+    if (!reads.length) return [];
+    const data = await apiPost({ formType: "adminGetMany", token: token(), reads: reads });
+    if (data && Array.isArray(data.results)) {
+      reads.forEach(function (r, i) {
+        const extra = Object.assign({}, r);
+        delete extra.type;
+        writeCached(r.type, Object.keys(extra).length ? extra : undefined, data.results[i]);
+      });
+      return data.results;
+    }
+    if (data && data.error && !/Unknown formType/i.test(data.error)) return reads.map(function () { return data; });
+    return Promise.all(reads.map(function (r) {
+      const extra = Object.assign({}, r);
+      delete extra.type;
+      return apiGet(r.type, true, Object.keys(extra).length ? extra : undefined);
+    }));
+  }
+
+  /* ── Read cache (stale-while-revalidate) ───────────────────────────────
+   * The last good answer to each read, so a page can draw instantly from it
+   * and refresh behind the scenes. Per browser; wiped on login and logout so
+   * one person's data never shows to the next. */
+  const READ_CACHE_PREFIX = "vjn_rc:";
+
+  function readCacheKey(type, extra) {
+    let key = READ_CACHE_PREFIX + type;
+    if (extra) {
+      Object.keys(extra).sort().forEach(function (k) {
+        if (extra[k] === undefined || extra[k] === null || extra[k] === "") return;
+        key += "|" + k + "=" + extra[k];
+      });
+    }
+    return key;
+  }
+
+  function readCached(type, extra) {
+    try {
+      const raw = localStorage.getItem(readCacheKey(type, extra));
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeCached(type, extra, data) {
+    if (!data || data.error) return;
+    const key = readCacheKey(type, extra);
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      // Over quota: drop the whole cache rather than evict piecemeal.
+      clearReadCache();
+    }
+  }
+
+  function clearReadCache() {
+    try {
+      Object.keys(localStorage).forEach(function (k) {
+        if (k.indexOf(READ_CACHE_PREFIX) === 0) localStorage.removeItem(k);
+      });
+    } catch (e) {}
   }
 
   function setStatus(message, isError) {
@@ -678,18 +747,34 @@
       const bootApp = $("adminApp");
       if (bootApp) bootApp.classList.add("is-hub");
     }
-    const session = await loadSessionUser();
-    if (session.unauthorized) {
-      logout();
-      loginError(session.unauthorized);
-      if (window.endPageLoad) endPageLoad();
-      return;
-    }
-    if (!session.user) {
-      logout();
-      loginError("Please log in again.");
-      if (window.endPageLoad) endPageLoad();
-      return;
+    // A returning user goes straight in on the role saved at login and the
+    // session is confirmed in the background — it costs a ~2s Apps Script
+    // round trip. An expired session still ends at the login screen.
+    const stored = currentUser();
+    const sessionCheck = loadSessionUser();
+    if (stored && stored.role) {
+      sessionCheck.then(function (session) {
+        if (session.unauthorized) {
+          logout();
+          loginError(session.unauthorized);
+        } else if (session.user && session.user.role !== stored.role) {
+          location.reload();
+        }
+      });
+    } else {
+      const session = await sessionCheck;
+      if (session.unauthorized) {
+        logout();
+        loginError(session.unauthorized);
+        if (window.endPageLoad) endPageLoad();
+        return;
+      }
+      if (!session.user) {
+        logout();
+        loginError("Please log in again.");
+        if (window.endPageLoad) endPageLoad();
+        return;
+      }
     }
     applyRoleUi();
     const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
@@ -942,41 +1027,86 @@
     return (list || []).filter(isListingOpen).length;
   }
 
+  function applyHubStats(byKey) {
+    if (byKey.programs) {
+      const programItems = byKey.programs.items || [];
+      listingPrefetch.programs = { items: programItems, at: Date.now() };
+      const programsOpen = countOpenListings(programItems);
+      setHubStat("programs", programsOpen);
+      setHubStat("programs-closed", Math.max(0, programItems.length - programsOpen));
+    }
+    if (byKey.volunteering) {
+      const volunteerItems = byKey.volunteering.items || [];
+      listingPrefetch.volunteering = { items: volunteerItems, at: Date.now() };
+      setHubStat("volunteering", countOpenListings(volunteerItems));
+    }
+    const volunteerNeedCounts = (byKey.volunteerNeeds && byKey.volunteerNeeds.counts) || {};
+    if (byKey.volunteerNeeds) {
+      setHubStat("volunteer-needs", volunteerNeedCounts.unmet || 0);
+      setHubStat("pv-unmet", volunteerNeedCounts.unmet || 0);
+      setHubStat("vol-awaiting", volunteerNeedCounts.awaitingAttendance || 0);
+      volunteerNeeds = byKey.volunteerNeeds.items || [];
+    }
+    let openQueries = 0;
+    if (byKey.inquiries) {
+      // Attendance sign-ins now live under Volunteering, not this card.
+      const groups = (byKey.inquiries.groups || []).filter(function (g) {
+        return QUERY_GROUP_KEYS.indexOf(g.key) >= 0;
+      });
+      openQueries = groups.reduce(function (sum, g) {
+        return sum + (g.openCount || 0);
+      }, 0);
+      const totalQueries = groups.reduce(function (sum, g) {
+        return sum + (g.total || 0);
+      }, 0);
+      setHubStat("queries", openQueries);
+      setHubStat("queries-resolved", Math.max(0, totalQueries - openQueries));
+      setNotifyDot(canNotifyQueries() && openQueries > 0);
+    }
+    const promoCounts = (byKey.promotions && byKey.promotions.counts) || {};
+    if (byKey.promotions) {
+      setHubStat("promo-due", promoCounts.due || 0);
+      setHubStat("promo-copy", promoCounts.pending || promoCounts.needs_copy || 0);
+      if (canNotifyPromos() && (promoCounts.due || 0) > 0) setNotifyDot(true);
+    }
+    if (byKey.users) {
+      const people = byKey.users.users || [];
+      const active = people.filter(function (u) {
+        return String(u.status || "").toLowerCase() === "active";
+      }).length;
+      setHubStat("team", people.length);
+      setHubStat("team-active", active);
+    }
+    setHubLead(promoCounts, volunteerNeedCounts);
+  }
+
   async function loadHubStats(force) {
     const grid = $("hubStats");
     if (!grid) return;
     const fresh = Date.now() - hubStatsAt < 30000;
     if (!force && !hubStatsDirty && fresh) return;
-    grid.classList.add("is-loading");
     hubStatsNote("");
+    const keys = [];
+    if (canAccess("events")) keys.push("programs");
+    if (canAccess("volunteering")) keys.push("volunteering");
+    if (canAccess("volunteering") || canAccess("programVolunteers")) keys.push("volunteerNeeds");
+    if (canAccess("queries")) keys.push("inquiries");
+    if (canAccess("promotions")) keys.push("promotions");
+    if (canAccess("team")) keys.push("users");
+    // Draw last visit's counts at once; the fresh ones replace them below.
+    const cached = {};
+    const haveCache = keys.every(function (key) {
+      cached[key] = readCached(key);
+      return !!cached[key];
+    });
+    if (haveCache && keys.length) {
+      applyHubStats(cached);
+      grid.classList.remove("is-loading");
+    } else {
+      grid.classList.add("is-loading");
+    }
     try {
-      const fetches = [];
-      const keys = [];
-      if (canAccess("events")) {
-        keys.push("programs");
-        fetches.push(apiGet("programs", true));
-      }
-      if (canAccess("volunteering")) {
-        keys.push("volunteering");
-        fetches.push(apiGet("volunteering", true));
-      }
-      if (canAccess("volunteering") || canAccess("programVolunteers")) {
-        keys.push("volunteerNeeds");
-        fetches.push(apiGet("volunteerNeeds", true));
-      }
-      if (canAccess("queries")) {
-        keys.push("inquiries");
-        fetches.push(apiGet("inquiries", true));
-      }
-      if (canAccess("promotions")) {
-        keys.push("promotions");
-        fetches.push(apiGet("promotions", true));
-      }
-      if (canAccess("team")) {
-        keys.push("users");
-        fetches.push(apiGet("users", true));
-      }
-      const results = await Promise.all(fetches);
+      const results = await apiGetMany(keys.map(function (key) { return { type: key }; }));
       const byKey = {};
       keys.forEach(function (key, i) {
         byKey[key] = results[i];
@@ -989,59 +1119,14 @@
         loginError(unauthorized.error);
         return;
       }
-      if (byKey.programs) {
-        const programItems = byKey.programs.items || [];
-        listingPrefetch.programs = { items: programItems, at: Date.now() };
-        const programsOpen = countOpenListings(programItems);
-        setHubStat("programs", programsOpen);
-        setHubStat("programs-closed", Math.max(0, programItems.length - programsOpen));
-      }
-      if (byKey.volunteering) {
-        const volunteerItems = byKey.volunteering.items || [];
-        listingPrefetch.volunteering = { items: volunteerItems, at: Date.now() };
-        setHubStat("volunteering", countOpenListings(volunteerItems));
-      }
-      const volunteerNeedCounts = (byKey.volunteerNeeds && byKey.volunteerNeeds.counts) || {};
-      if (byKey.volunteerNeeds) {
-        setHubStat("volunteer-needs", volunteerNeedCounts.unmet || 0);
-        setHubStat("pv-unmet", volunteerNeedCounts.unmet || 0);
-        setHubStat("vol-awaiting", volunteerNeedCounts.awaitingAttendance || 0);
-        volunteerNeeds = byKey.volunteerNeeds.items || [];
-      }
-      let openQueries = 0;
-      if (byKey.inquiries) {
-        // Attendance sign-ins now live under Volunteering, not this card.
-        const groups = (byKey.inquiries.groups || []).filter(function (g) {
-          return QUERY_GROUP_KEYS.indexOf(g.key) >= 0;
-        });
-        openQueries = groups.reduce(function (sum, g) {
-          return sum + (g.openCount || 0);
-        }, 0);
-        const totalQueries = groups.reduce(function (sum, g) {
-          return sum + (g.total || 0);
-        }, 0);
-        setHubStat("queries", openQueries);
-        setHubStat("queries-resolved", Math.max(0, totalQueries - openQueries));
-        setNotifyDot(canNotifyQueries() && openQueries > 0);
-      }
-      const promoCounts = (byKey.promotions && byKey.promotions.counts) || {};
-      if (byKey.promotions) {
-        setHubStat("promo-due", promoCounts.due || 0);
-        setHubStat("promo-copy", promoCounts.pending || promoCounts.needs_copy || 0);
-        if (canNotifyPromos() && (promoCounts.due || 0) > 0) setNotifyDot(true);
-      }
-      if (byKey.users) {
-        const people = byKey.users.users || [];
-        const active = people.filter(function (u) {
-          return String(u.status || "").toLowerCase() === "active";
-        }).length;
-        setHubStat("team", people.length);
-        setHubStat("team-active", active);
-      }
-      setHubLead(promoCounts, volunteerNeedCounts);
+      applyHubStats(byKey);
       hubStatsAt = Date.now();
       hubStatsDirty = false;
     } catch (err) {
+      if (haveCache && keys.length) {
+        hubStatsNote("Showing the last counts — could not refresh them.");
+        return;
+      }
       setHubStat("programs", null);
       setHubStat("programs-closed", null);
       setHubStat("volunteering", null);
@@ -1229,6 +1314,7 @@
   function logout() {
     const current = token();
     stopAlertWatch();
+    clearReadCache();
     setToken("");
     setCurrentUser(null);
     updateNotifyButton();
@@ -1337,6 +1423,7 @@
         loginError(data.error || "Login failed.");
         return;
       }
+      clearReadCache();
       setToken(data.token);
       if (data.user) setCurrentUser(data.user);
       else
@@ -2149,10 +2236,20 @@
     if ($("addItemBtn")) $("addItemBtn").disabled = true;
     if ($("oppAddBtn")) $("oppAddBtn").disabled = true;
     setStatus("");
-    (oppActive() ? $("oppCards") : $("itemList")).innerHTML =
-      '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading…</div>';
+    const resource = currentResource;
+    const cached = readCached(resource);
+    if (cached && cached.items) {
+      // Last visit's list straight away; the fresh one replaces it below.
+      items = cached.items;
+      listLoadedFor = resource;
+      renderList();
+    } else {
+      (oppActive() ? $("oppCards") : $("itemList")).innerHTML =
+        '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading…</div>';
+    }
     try {
-      const data = await apiGet(currentResource, true);
+      const data = await apiGet(resource, true);
+      if (currentResource !== resource) return;
       if (data.error && /Unauthorized/i.test(data.error)) {
         logout();
         loginError(data.error);
@@ -2163,8 +2260,10 @@
       listLoadedFor = currentResource;
       renderList();
     } catch (err) {
-      items = [];
-      renderList();
+      if (!(cached && cached.items)) {
+        items = [];
+        renderList();
+      }
       setStatus(err.message, true);
     } finally {
       setPageBusy(false);
@@ -2608,7 +2707,11 @@
   async function loadVolunteerNeeds() {
     const host = $("volunteerNeedsList");
     if (!host) return;
-    if (!volunteerNeedsLoading) {
+    const cached = readCached("volunteerNeeds");
+    if (cached && cached.items) {
+      volunteerNeeds = cached.items;
+      renderVolunteerNeeds();
+    } else if (!volunteerNeedsLoading) {
       host.innerHTML = '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading…</div>';
     }
     volunteerNeedsLoading = true;
@@ -2619,7 +2722,9 @@
       setHubStat("volunteer-needs", (data.counts && data.counts.unmet) || 0);
       renderVolunteerNeeds();
     } catch (err) {
-      host.innerHTML = '<div class="admin-empty">' + escapeHtml(err.message || "Could not load volunteer needs.") + "</div>";
+      if (!(cached && cached.items)) {
+        host.innerHTML = '<div class="admin-empty">' + escapeHtml(err.message || "Could not load volunteer needs.") + "</div>";
+      }
     } finally {
       volunteerNeedsLoading = false;
     }
@@ -3452,6 +3557,10 @@
     const hash = "#volunteering/need/" + currentVolNeedId;
     if (replaceHash) history.replaceState(null, "", hash);
     else history.pushState(null, "", hash);
+    if (!volunteerNeeds.length) {
+      const cachedNeeds = readCached("volunteerNeeds");
+      if (cachedNeeds && cachedNeeds.items) volunteerNeeds = cachedNeeds.items;
+    }
     if (!volunteerNeeds.length) {
       try {
         const data = await apiGet("volunteerNeeds", true);
@@ -4858,8 +4967,10 @@ panels +
       setHubStat("roster", rosterData.rows.length);
       renderRoster();
     } catch (err) {
-      host.innerHTML =
-        '<div class="admin-empty">' + escapeHtml(friendlyError(err.message) || "Could not load volunteers.") + "</div>";
+      if (!(cached && cached.items)) {
+        host.innerHTML =
+          '<div class="admin-empty">' + escapeHtml(friendlyError(err.message) || "Could not load volunteers.") + "</div>";
+      }
     }
   }
 
@@ -4891,7 +5002,11 @@ panels +
     const host = $("pvList");
     if (!host) return;
     pvToast("");
-    if (!pvLoading) {
+    const cached = readCached("volunteerNeeds");
+    if (cached && cached.items) {
+      pvItems = cached.items;
+      setPvView("open");
+    } else if (!pvLoading) {
       host.innerHTML =
         '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading…</div>';
     }
@@ -8495,11 +8610,40 @@ panels +
     );
   }
 
+  /** Queries from the read cache, if every group this scope shows is there. */
+  function inquiriesFromCache() {
+    const meta = readCached("inquiries");
+    if (!meta || !meta.groups) return null;
+    const groups = meta.groups.map(function (g) {
+      const one = readCached("inquiries", { group: g.key });
+      const loaded = one && one.group;
+      return {
+        key: g.key,
+        title: (loaded && loaded.title) || g.title,
+        openCount: loaded ? loaded.openCount : g.openCount || 0,
+        total: loaded ? loaded.total : g.total || 0,
+        items: (loaded && loaded.items) || g.items || [],
+        loaded: !!loaded || !!g.loaded,
+      };
+    });
+    const keys = scopeGroupKeys();
+    const complete = keys.every(function (key) {
+      return groups.some(function (g) { return g.key === key && g.loaded; });
+    });
+    return complete ? groups : null;
+  }
+
   async function loadInquiries() {
     setPageBusy(true);
     setStatus("");
-    $("inquiryList").innerHTML =
-      '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading queries…</div>';
+    const cachedGroups = inquiriesFromCache();
+    if (cachedGroups) {
+      inquiryGroups = cachedGroups;
+      renderInquiries();
+    } else {
+      $("inquiryList").innerHTML =
+        '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading queries…</div>';
+    }
     try {
       const meta = await apiGet("inquiries", true);
       if (meta.error && /Unauthorized/i.test(meta.error)) {
@@ -8521,8 +8665,10 @@ panels +
       await Promise.all([loadInquiryScopeGroups(true), loadInviteMessages()]);
       renderInquiries();
     } catch (err) {
-      inquiryGroups = [];
-      renderInquiries();
+      if (!cachedGroups) {
+        inquiryGroups = [];
+        renderInquiries();
+      }
       setStatus(err.message, true);
     } finally {
       setPageBusy(false);
@@ -8828,14 +8974,26 @@ panels +
         await startInqMsgJob(text);
         return;
       }
-      await window.VjnVol.sendMessage(inquiryWhatsAppDigits(item), fillInqMsgFields(text, item));
-      noteInquiriesContacted([{ sheet: item.sheet, id: String(item.id) }]);
-      closeInqMessage();
-      showToast("Message sent to " + (inquiryField(item, "name") || "them"));
     } catch (e) {
       setInqMsgError((e && e.message) || "Could not send the message.");
       btn.disabled = false;
       btn.textContent = "Send";
+      return;
+    }
+    // One message: close straight away and send behind it. WhatsApp on the
+    // Pi can take several seconds; nobody should sit watching "Sending…".
+    const who = inquiryField(item, "name") || "them";
+    closeInqMessage();
+    showToast("Sending to " + who + "…", { tone: "progress", ms: 30000 });
+    try {
+      await window.VjnVol.sendMessage(inquiryWhatsAppDigits(item), fillInqMsgFields(text, item));
+      noteInquiriesContacted([{ sheet: item.sheet, id: String(item.id) }]);
+      showToast("Message sent to " + who, { tone: "success" });
+    } catch (e) {
+      // Reopen with their words intact so a retry is one tap.
+      openInqMessage(item);
+      $("inqMsgText").value = text;
+      setInqMsgError((e && e.message) || "Could not send the message.");
     }
   }
 
@@ -9793,20 +9951,24 @@ panels +
     else if (message) showPromoToast(message, null);
   }
 
-  function showPromoToast(msg, undoFn) {
+  function showPromoToast(msg, undoFn, opts) {
+    const o = opts || {};
     const toast = $("promoToast");
     const msgEl = $("promoToastMsg");
     const undoBtn = $("promoToastUndo");
     if (!toast || !msgEl) return;
     msgEl.textContent = msg || "";
     promoUndoFn = typeof undoFn === "function" ? undoFn : null;
-    if (undoBtn) undoBtn.classList.toggle("hidden", !promoUndoFn);
+    if (undoBtn) {
+      undoBtn.classList.toggle("hidden", !promoUndoFn);
+      undoBtn.textContent = o.label || "Undo";
+    }
     toast.classList.add("show");
     clearTimeout(promoToastTimer);
     promoToastTimer = setTimeout(function () {
       toast.classList.remove("show");
       promoUndoFn = null;
-    }, 4200);
+    }, o.ms || 4200);
   }
 
   function flyerDownloadUrl(url) {
@@ -10304,7 +10466,14 @@ panels +
 
   async function loadPromotions() {
     const host = $("promoScroll");
-    if (host) {
+    const cached = readCached("promotions");
+    if (cached && cached.items) {
+      promoItems = cached.items.map(function (item) {
+        item.status = normalizePromoClientStatus(item.status);
+        return item;
+      });
+      renderPromotions();
+    } else if (host) {
       host.innerHTML =
         '<div class="promo-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading…</div>';
     }
@@ -10324,8 +10493,10 @@ panels +
       promoCacheDirty = false;
       renderPromotions();
     } catch (err) {
-      promoItems = [];
-      renderPromotions();
+      if (!(cached && cached.items)) {
+        promoItems = [];
+        renderPromotions();
+      }
       showPromoToast(err.message || "Could not load promotions.", null);
     } finally {
       setPageBusy(false);
@@ -10569,77 +10740,77 @@ panels +
     }
   }
 
-  async function savePromoEditor() {
+  /* Answers at once: the editor closes and a toast says it's on its way;
+     the upload and Apps Script save run behind it. A failure comes back as
+     a toast with Retry, which re-runs the same save. */
+  function savePromoEditor() {
     const item = findPromo(editingPromoId);
     if (!item) return;
-    const btn = $("savePromoBtn");
     const err = $("promoEditorError");
     const message = ($("promoMessage").value || "").trim();
     const wantSchedule = $("promoWhenSchedule") && $("promoWhenSchedule").checked;
     err.textContent = "";
     err.style.display = "none";
-    if (!message) {
-      err.textContent = "Write a message.";
+    const fail = function (text) {
+      err.textContent = text;
       err.style.display = "block";
-      return;
-    }
+    };
+    if (!message) return fail("Write a message.");
 
-    let flyerUrl = promoFlyerOverrideUrl || String(item.flyer_url || "").trim() || String(item.event_image || "").trim();
-    setButtonBusy(btn, true, wantSchedule ? "Scheduling…" : "Saving…");
-    let scheduledYmd = "";
-    try {
-      if (pendingPromoFlyer) {
-        flyerUrl = await uploadPayload(pendingPromoFlyer);
+    const job = {
+      id: item.id,
+      message: message,
+      wantSchedule: wantSchedule,
+      flyerUrl: promoFlyerOverrideUrl || String(item.flyer_url || "").trim() || String(item.event_image || "").trim(),
+      pendingFlyer: pendingPromoFlyer,
+      sendAt: "",
+      ymd: "",
+    };
+    if (wantSchedule) {
+      if (!job.flyerUrl && !job.pendingFlyer) {
+        return fail("Add a flyer before scheduling, or ask Programs to upload an event photo.");
       }
+      job.ymd = promoComposeYmd();
+      if (
+        promosForDay(job.ymd, { includeSent: true }).filter(function (p) {
+          return String(p.id) !== String(item.id);
+        }).length >= MAX_PROMO_SLOTS
+      ) {
+        return fail("Only " + MAX_PROMO_SLOTS + " posts can be scheduled on one day.");
+      }
+      const hm =
+        normalizeHm(($("promoComposeTime") && $("promoComposeTime").value) || "") ||
+        nextFreeSlotHm(job.ymd);
+      job.sendAt = job.ymd + " " + hm;
+    }
+    closePromoEditor();
+    if (wantSchedule) setPromoView(promoViewForYmd(job.ymd));
+    runPromoSave(job);
+  }
 
+  async function runPromoSave(job) {
+    showPromoToast(job.wantSchedule ? "Scheduling… you can keep working" : "Saving…", null);
+    try {
+      let flyerUrl = job.flyerUrl;
+      if (job.pendingFlyer) flyerUrl = await uploadPayload(job.pendingFlyer);
       const payload = {
         formType: "adminSavePromotion",
         token: token(),
-        id: item.id,
-        message: message,
+        id: job.id,
+        message: job.message,
         flyer_url: flyerUrl,
       };
-
-      if (wantSchedule) {
-        if (!flyerUrl) {
-          err.textContent = "Add a flyer before scheduling, or ask Programs to upload an event photo.";
-          err.style.display = "block";
-          setButtonBusy(btn, false);
-          return;
-        }
-        const ymd = promoComposeYmd();
-        scheduledYmd = ymd;
-        if (
-          promosForDay(ymd, { includeSent: true }).filter(function (p) {
-            return String(p.id) !== String(item.id);
-          }).length >= MAX_PROMO_SLOTS
-        ) {
-          err.textContent = "Only " + MAX_PROMO_SLOTS + " posts can be scheduled on one day.";
-          err.style.display = "block";
-          setButtonBusy(btn, false);
-          return;
-        }
-        const hm =
-          normalizeHm(($("promoComposeTime") && $("promoComposeTime").value) || "") ||
-          nextFreeSlotHm(ymd);
-        payload.send_at = ymd + " " + hm;
-      }
-
+      if (job.sendAt) payload.send_at = job.sendAt;
       const data = await apiPost(payload);
       if (data.error) throw new Error(data.error);
-      closePromoEditor();
+      showPromoToast(job.wantSchedule ? "Scheduled" : "Saved to Events", null);
       await loadPromotions();
-      if (wantSchedule) {
-        setPromoView(promoViewForYmd(scheduledYmd || promoComposeYmd()));
-        showPromoToast("Scheduled", null);
-      } else {
-        showPromoToast("Saved to Events", null);
-      }
     } catch (e) {
-      err.textContent = friendlyError(e.message);
-      err.style.display = "block";
-    } finally {
-      setButtonBusy(btn, false);
+      showPromoToast(
+        "Couldn't " + (job.wantSchedule ? "schedule" : "save") + ": " + friendlyError(e.message),
+        function () { runPromoSave(job); },
+        { label: "Retry", ms: 15000 }
+      );
     }
   }
 
@@ -10841,7 +11012,11 @@ panels +
 
   async function loadTeam() {
     const host = $("teamList");
-    if (host) {
+    const cached = readCached("users");
+    if (cached && cached.users) {
+      teamUsers = cached.users;
+      renderTeam();
+    } else if (host) {
       host.innerHTML =
         '<div class="admin-empty admin-loading"><span class="admin-spinner" aria-hidden="true"></span> Loading people…</div>';
     }
@@ -10858,8 +11033,10 @@ panels +
       renderTeam();
       setTeamStatus("");
     } catch (err) {
-      teamUsers = [];
-      renderTeam();
+      if (!(cached && cached.users)) {
+        teamUsers = [];
+        renderTeam();
+      }
       setTeamStatus(err.message, true);
     } finally {
       setPageBusy(false);

@@ -662,6 +662,7 @@ async function saveSchedule(text) {
 
   const editing = isEditing();
   busy(true, editing ? 'Saving…' : 'Scheduling…');
+  toast(editing ? 'Saving your changes…' : 'Scheduling — this takes a moment', 'info', 4000);
   const runAt = new Date(draft.runAt).toISOString();
   let done = 0;
   try {
@@ -713,6 +714,7 @@ async function sendNow(text) {
   const label = host.querySelector('#pcProgTxt');
 
   busy(true, 'Sending…');
+  toast(recipients.length === 1 ? 'Sending…' : `Sending to ${recipients.length} audiences — progress below`, 'info', 4000);
   sync();
   if (recipients.length > 1) prog.hidden = false;
 

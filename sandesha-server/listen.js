@@ -1192,13 +1192,15 @@ function startMessagePoller() {
         return;
       }
 
-      consecutiveErrors = 0;
-      nextAllowedAt = 0;
-
+      // fetchMessages is the slow call (headless Chromium on a Pi can take
+      // 20s+), so only a successful fetch counts as healthy. Resetting before
+      // it made every timeout look like a first error: no backoff, endless logs.
       const messages = await Promise.race([
         chat.fetchMessages({ limit: 20 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('fetchMessages timeout')), 20000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('fetchMessages timeout')), 45000))
       ]);
+      consecutiveErrors = 0;
+      nextAllowedAt = 0;
 
       for (const msg of messages) {
         // Track ALL messages (both phone and web) to avoid reprocessing

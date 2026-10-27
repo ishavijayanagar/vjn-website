@@ -180,6 +180,30 @@
       sessionStorage.removeItem(USER_KEY);
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      Object.keys(localStorage).forEach(function (k) {
+        if (k.indexOf(READ_CACHE_PREFIX) === 0) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+  }
+
+  // Shared with admin.js: the last promotions list, drawn at once on open
+  // while the fresh one loads (stale-while-revalidate).
+  const READ_CACHE_PREFIX = "vjn_rc:";
+  const PROMO_CACHE_KEY = READ_CACHE_PREFIX + "promotions";
+
+  function readPromoCache() {
+    try {
+      const raw = localStorage.getItem(PROMO_CACHE_KEY);
+      const data = raw ? JSON.parse(raw) : null;
+      return data && Array.isArray(data.items) ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writePromoCache(data) {
+    try {
+      localStorage.setItem(PROMO_CACHE_KEY, JSON.stringify(data));
     } catch (e) {}
   }
 
@@ -1281,14 +1305,16 @@
   }
 
   /* ───────── toast ───────── */
-  function toast(msg, fn) {
+  function toast(msg, fn, opts) {
+    opts = opts || {};
     tmsgEl.textContent = msg;
     undoFn = fn || null;
+    undoEl.textContent = opts.label || "Undo";
     undoEl.style.display = undoFn ? "" : "none";
     fabEl.classList.add("hide");
     toastEl.classList.add("on");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(hideToast, 4200);
+    toastTimer = setTimeout(hideToast, opts.ms || 4200);
   }
 
   function hideToast() {
@@ -2073,94 +2099,113 @@
     return data.url;
   }
 
-  async function saveCompose() {
+  /* Save/Schedule answers at once: the sheet closes, the row shows as busy
+     and a toast says what's happening, while the slow part (Sandesha queue,
+     flyer upload, Apps Script) runs in the background. A failure comes back
+     as a toast with Retry, so nothing typed is lost. */
+  function saveCompose() {
     const item = find(editingId);
     if (!item) return;
     const err = $("composeErr");
     const message = ($("composeMessage").value || "").trim();
     const wantSchedule = $("composeWhenSchedule") && $("composeWhenSchedule").checked;
-    const btn = $("composeSave");
     err.hidden = true;
     if (!message) {
       err.textContent = "Write a message.";
       err.hidden = false;
       return;
     }
-    let flyerUrl =
-      flyerOverride || String(item.flyer_url || "").trim() || String(item.event_image || "").trim();
-    if (wantSchedule && !composeTargets.length) {
-      err.textContent = "Choose who this goes to.";
+    if (busyIds[String(item.id)]) {
+      err.textContent = "Still saving the last change to this post — one moment.";
       err.hidden = false;
       return;
     }
-    btn.disabled = true;
-    btn.textContent = wantSchedule ? "Scheduling…" : "Saving…";
+    const job = {
+      id: item.id,
+      message: message,
+      wantSchedule: wantSchedule,
+      flyerUrl: flyerOverride || String(item.flyer_url || "").trim() || String(item.event_image || "").trim(),
+      pendingFlyer: pendingFlyer,
+      targets: composeTargets.slice(),
+      ymd: "",
+      hm: "",
+    };
+    if (wantSchedule) {
+      if (!job.targets.length) {
+        err.textContent = "Choose who this goes to.";
+        err.hidden = false;
+        return;
+      }
+      if (!job.flyerUrl && !job.pendingFlyer) {
+        err.textContent = "Add a flyer before scheduling.";
+        err.hidden = false;
+        return;
+      }
+      job.ymd = readComposeDate();
+      if (
+        promosOnDate(job.ymd, true).filter(function (p) {
+          return String(p.id) !== String(item.id);
+        }).length >= MAX_SLOTS
+      ) {
+        err.textContent = "Only " + MAX_SLOTS + " posts can be scheduled on one day.";
+        err.hidden = false;
+        return;
+      }
+      job.hm = ($("composeTime") && $("composeTime").value) || nextFreeHm(job.ymd);
+    }
+    closeCompose();
+    if (wantSchedule) setView(viewIndexForYmd(job.ymd));
+    runComposeJob(job);
+  }
+
+  async function runComposeJob(job) {
+    const item = find(job.id);
+    if (!item) return;
+    setRowBusy(job.id, true);
+    toast(job.wantSchedule ? "Scheduling… you can keep working" : "Saving…", null);
     const previousIds = scheduleIdsOf(item);
     let queuedIds = null;
-    let scheduledYmd = "";
+    let flyerUrl = job.flyerUrl;
     try {
       const payload = {
         formType: "adminSavePromotion",
         token: token(),
-        id: item.id,
-        message: message,
+        id: job.id,
+        message: job.message,
       };
-      if (wantSchedule) {
-        if (!flyerUrl && !pendingFlyer) {
-          err.textContent = "Add a flyer before scheduling.";
-          err.hidden = false;
-          return;
-        }
-        const ymd = readComposeDate();
-        scheduledYmd = ymd;
-        if (
-          promosOnDate(ymd, true).filter(function (p) {
-            return String(p.id) !== String(item.id);
-          }).length >= MAX_SLOTS
-        ) {
-          err.textContent = "Only " + MAX_SLOTS + " posts can be scheduled on one day.";
-          err.hidden = false;
-          return;
-        }
-        const hm = ($("composeTime") && $("composeTime").value) || nextFreeHm(ymd);
-
+      if (job.wantSchedule) {
         // Hand it to Sandesha before the sheet records the slot, so the board
         // can never show a queued post that WhatsApp was never told about.
         const bridge = await ensureRelay();
         const flyer = await flyerForSandesha(item, flyerUrl);
-        btn.textContent = "Queueing…";
         queuedIds = await bridge.schedule({
-          promoId: item.id,
-          message: message,
-          runAtIso: sendAtToIso(ymd, hm),
-          targets: composeTargets,
+          promoId: job.id,
+          message: job.message,
+          runAtIso: sendAtToIso(job.ymd, job.hm),
+          targets: job.targets,
           flyer: flyer,
         });
-
-        payload.send_at = ymd + " " + hm;
-        payload.target = bridge.stringify(composeTargets);
+        payload.send_at = job.ymd + " " + job.hm;
+        payload.target = bridge.stringify(job.targets);
         payload.wa_schedule_ids = queuedIds;
-        btn.textContent = "Scheduling…";
       }
-      if (!wantSchedule && previousIds.length) {
+      if (!job.wantSchedule && previousIds.length) {
         // Editing the copy of a post that is already queued: re-queue it at
         // the same slot, or WhatsApp would send the words that were replaced.
         const parts = splitSendAt(item.send_at);
         if (parts.date && parts.hm) {
           const bridge = await ensureRelay();
-          btn.textContent = "Queueing…";
           queuedIds = await bridge.schedule({
-            promoId: item.id,
-            message: message,
+            promoId: job.id,
+            message: job.message,
             runAtIso: sendAtToIso(parts.date, parts.hm),
             targets: bridge.resolveTargets(item.target),
             flyer: await flyerForSandesha(item, flyerUrl),
           });
           payload.wa_schedule_ids = queuedIds;
-          btn.textContent = "Saving…";
         }
       }
-      if (pendingFlyer) flyerUrl = await uploadPayload(pendingFlyer);
+      if (job.pendingFlyer) flyerUrl = await uploadPayload(job.pendingFlyer);
       payload.flyer_url = flyerUrl;
       const data = await apiPost(payload);
       if (data.error) throw new Error(data.error);
@@ -2169,35 +2214,49 @@
       const committed = queuedIds || [];
       queuedIds = null;
       await cancelIds(staleIds(previousIds, committed));
-      closeCompose();
-      await load(false);
-      if (wantSchedule) {
-        setView(viewIndexForYmd(scheduledYmd || readComposeDate()));
+      setRowBusy(job.id, false);
+      if (job.wantSchedule) {
         const linked = relay() && relay().isLinked();
-        toast(
-          linked ? "Scheduled — Sandesha will post it" : "Scheduled — link WhatsApp so it can send",
-          null
-        );
+        toast(linked ? "Scheduled — Sandesha will post it" : "Scheduled — link WhatsApp so it can send", null);
       } else {
         toast("Saved to Events", null);
       }
+      await load(false);
     } catch (e) {
       // The sheet never learned about these rows, so nothing would ever cancel
       // them — drop them rather than leave WhatsApp holding an orphan post.
       // Rows the server deduped back to the existing queue are left alone.
-      await cancelIds(staleIds(queuedIds, previousIds));
-      err.textContent = e.message || "Could not save.";
-      err.hidden = false;
-    } finally {
-      btn.disabled = false;
-      syncComposeWhen();
+      await cancelIds(staleIds(queuedIds, previousIds)).catch(function () {});
+      setRowBusy(job.id, false);
+      const what = job.wantSchedule ? "schedule" : "save";
+      toast(
+        "Couldn't " + what + ": " + ((e && e.message) || "something went wrong"),
+        function () { runComposeJob(job); },
+        { label: "Retry", ms: 15000 }
+      );
     }
   }
 
   /* ───────── load / boot ───────── */
+  function applyPromotions(data) {
+    items = (data.items || []).map(function (item) {
+      item.status = normalizeStatus(item.status);
+      return item;
+    });
+    const due = items.some(function (item) {
+      return normalizeStatus(item.status) === "due";
+    });
+    const dot = $("notifyDot");
+    if (dot) dot.hidden = !due;
+    listEl.removeAttribute("aria-busy");
+    render();
+  }
+
   async function load(showLoading) {
     if (showLoading !== false) {
-      showBoardLoading();
+      const cached = readPromoCache();
+      if (cached) applyPromotions(cached);
+      else showBoardLoading();
     }
     const data = await apiPost({
       formType: "adminGet",
@@ -2210,17 +2269,8 @@
       return;
     }
     if (data.error) throw new Error(data.error);
-    items = (data.items || []).map(function (item) {
-      item.status = normalizeStatus(item.status);
-      return item;
-    });
-    const due = items.some(function (item) {
-      return normalizeStatus(item.status) === "due";
-    });
-    const dot = $("notifyDot");
-    if (dot) dot.hidden = !due;
-    listEl.removeAttribute("aria-busy");
-    render();
+    writePromoCache(data);
+    applyPromotions(data);
 
     // Sandesha has no way back into the sheet, so the board catches up on
     // what it already posted the next time someone opens this page.
