@@ -437,6 +437,7 @@ html.nav-open .mobile-menu {
 }
 
 .mobile-menu-footer {
+  position: relative;
   margin-top: auto;
   padding-top: var(--space-7);
   font-size: 0.78rem;
@@ -450,6 +451,29 @@ html.nav-open .mobile-menu {
   -ms-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Progress line while the footer is held to open the team login (see site.js).
+   Only drawn once the hold is clearly deliberate. */
+.mobile-menu-footer[data-admin-longpress]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -8px;
+  height: 2px;
+  width: 0;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+}
+.mobile-menu-footer.is-holding::after {
+  opacity: 0.85;
+  animation: admin-hold-fill var(--hold-fill, 1500ms) linear forwards;
+}
+@keyframes admin-hold-fill {
+  from { width: 0; }
+  to { width: 100%; }
 }
 
 /* =====================

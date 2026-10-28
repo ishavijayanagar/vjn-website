@@ -326,14 +326,25 @@
     var adminHold = menu.querySelector("[data-admin-longpress]");
     if (adminHold) {
       var holdTimer = null;
-      var holdMs = 900;
+      var showTimer = null;
+      // A long, deliberate hold: nothing shows for the first part, so a stray
+      // touch or a short press looks like nothing happened; then a line fills
+      // along the bottom until it opens.
+      var holdMs = 2200;
+      var showAfterMs = 700;
       var openedAdmin = false;
+      adminHold.style.setProperty("--hold-fill", holdMs - showAfterMs + "ms");
 
       function clearHold() {
         if (holdTimer) {
           clearTimeout(holdTimer);
           holdTimer = null;
         }
+        if (showTimer) {
+          clearTimeout(showTimer);
+          showTimer = null;
+        }
+        adminHold.classList.remove("is-holding");
       }
 
       function clearSelection() {
@@ -346,9 +357,13 @@
         clearHold();
         clearSelection();
         if (e && e.cancelable) e.preventDefault();
+        showTimer = setTimeout(function () {
+          adminHold.classList.add("is-holding");
+        }, showAfterMs);
         holdTimer = setTimeout(function () {
           openedAdmin = true;
           clearSelection();
+          if (navigator.vibrate) navigator.vibrate(30);
           window.location.href = "admin.html";
         }, holdMs);
       }
