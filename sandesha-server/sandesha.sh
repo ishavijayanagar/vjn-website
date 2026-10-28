@@ -71,6 +71,27 @@ running_pid() {
   pgrep -f "^([^ ]*/)?node ([^ ]*/)?listen\.js$" | head -1
 }
 
+# Copies of Sandesha running OUTSIDE systemd (e.g. started by hand earlier). They hold the
+# port and the WhatsApp login, so the service then crash-loops with "Port 42620 already in use".
+stray_pids() {
+  local main; main="$(systemctl show -p MainPID --value "$UNIT" 2>/dev/null)"
+  pgrep -f "^([^ ]*/)?node ([^ ]*/)?listen\.js$" | grep -vx "${main:-0}" || true
+}
+
+stop_strays() {
+  local pids p; pids="$(stray_pids)"
+  [[ -z "$pids" ]] && return 0
+  for p in $pids; do
+    say "A copy of Sandesha is already running outside systemd (pid ${p}) — stopping it so the service can take over..."
+    kill -TERM "$p" 2>/dev/null || true
+    if ! wait_gone "$p" 30; then
+      say "  Still running after 30s — forcing stop."
+      kill -9 "$p" 2>/dev/null || true
+    fi
+  done
+  rm -f "$PID_FILE" .lock
+}
+
 check_prereqs() {
   command -v node >/dev/null 2>&1 || die "node not found. Install Node.js 18+."
   if [[ -z "${PUPPETEER_EXECUTABLE_PATH:-}" ]]; then
@@ -131,6 +152,7 @@ do_start() {
   [[ -d node_modules ]] || { say "Installing dependencies..."; npm install || die "npm install failed"; }
 
   if use_systemd; then
+    stop_strays
     say "Starting Sandesha (systemd service)..."
     svc start || die "could not start the service"
     wait_for_api systemctl is-active --quiet "$UNIT"
@@ -153,6 +175,7 @@ do_start() {
 
 do_stop() {
   local pid; pid="$(running_pid)"
+  use_systemd && stop_strays
   if [[ -z "$pid" ]]; then
     say "Not running."
   elif use_systemd; then
@@ -183,8 +206,12 @@ do_status() {
   else
     say "Managed by: this script (NOT started on boot — run '${NAME} install-service')"
   fi
+  if use_systemd && [[ -n "$(stray_pids)" ]]; then
+    say "WARNING: a copy of Sandesha is running outside systemd (pid $(stray_pids | tr '\n' ' ')). The service will keep failing with 'port already in use'."
+    say "         Fix: ${NAME} restart"
+  fi
   if [[ -z "$pid" ]]; then
-    say "Sandesha: NOT running"
+    say "Sandesha: NOT running (as the service)"
     return 1
   fi
   say "Sandesha: running (pid ${pid})"
