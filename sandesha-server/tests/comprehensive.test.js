@@ -426,13 +426,15 @@ async function runTests() {
   // ============================================
   console.log('--- Test Suite 8: formatTimeUntil ---');
   
-  let futureDate = new Date(Date.now() + 3600000);
+  // A few seconds of margin: the function reads the clock again, and exactly 1h away
+  // would read as 59 min whenever a millisecond ticks between the two.
+  let futureDate = new Date(Date.now() + 3600000 + 5000);
   assertEqual(formatTimeUntil(futureDate), 'in 1h 0m', 'formatTimeUntil shows hours');
   
-  futureDate = new Date(Date.now() + 7200000);
+  futureDate = new Date(Date.now() + 7200000 + 5000);
   assertEqual(formatTimeUntil(futureDate), 'in 2h 0m', 'formatTimeUntil shows hours > 1');
   
-  futureDate = new Date(Date.now() + 90000000);
+  futureDate = new Date(Date.now() + 90000000 + 5000);
   assertEqual(formatTimeUntil(futureDate), 'in 1 day', 'formatTimeUntil shows days');
   
   futureDate = new Date(Date.now() + 180000000);
