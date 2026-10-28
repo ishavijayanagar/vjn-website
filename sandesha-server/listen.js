@@ -3974,8 +3974,8 @@ async function runSchedulerCheck() {
       const schedules = loadSchedules();
       const now = new Date();
       console.error(`[SCHEDULER] Checking ${schedules.length} schedules at ${now.toISOString()}`);
-      const pending = [];
       const delivered = [];
+      const progress = new Map();
       let quietNoted = false;
       let budgetNoted = false;
       
@@ -3992,7 +3992,6 @@ async function runSchedulerCheck() {
               log(`[SCHEDULER] Quiet hours — holding due schedules until ${safety.quietHoursEndAt(now).toISOString()}`);
               quietNoted = true;
             }
-            pending.push(schedule);
             continue;
           }
           const budgetVerdict = sendBudget.check(now);
@@ -4001,7 +4000,6 @@ async function runSchedulerCheck() {
               log(`[SCHEDULER] Holding due schedules — ${budgetVerdict.reason}`);
               budgetNoted = true;
             }
-            pending.push(schedule);
             continue;
           }
 
@@ -4030,7 +4028,7 @@ async function runSchedulerCheck() {
               // already had it, so resuming cannot send the same group twice.
               log(`[SCHEDULE] Paused after ${result.sentTo.length} of "${schedule.target}" — ${result.reason}`);
               sentScheduleIds.delete(schedule.id);
-              pending.push({ ...schedule, sentTo: result.sentTo });
+              progress.set(schedule.id, result.sentTo);
               writeNotification(`⏸️ Paused (${result.reason}): ${kind}"${schedule.message}" → ${schedule.target}`);
               activity.recordEvent({
                 category: 'schedule', type: 'warn', ok: false,
@@ -4045,7 +4043,6 @@ async function runSchedulerCheck() {
             console.error(`[SCHEDULE ERROR] ${err.message}`);
             // Allow retry on next tick
             sentScheduleIds.delete(schedule.id);
-            pending.push(schedule);
             activity.recordEvent({
               category: 'schedule', type: 'err', ok: false,
               title: `Scheduled send to ${label} failed`,
@@ -4055,17 +4052,23 @@ async function runSchedulerCheck() {
               meta: scheduleActivityMeta(schedule, { error: err.message }),
             });
           }
-        } else {
-          pending.push(schedule);
         }
       }
       
-      saveSchedules(pending);
+      // A send can take minutes, and rows are added or cancelled through the
+      // API meanwhile. Apply this tick's outcome to the file as it is now —
+      // writing back the list read at the start brought cancelled rows back
+      // (without their flyer, which the cancel had deleted) and dropped new ones.
+      const deliveredIds = new Set(delivered.map((s) => s.id));
+      const latest = loadSchedules()
+        .filter((s) => !deliveredIds.has(s.id))
+        .map((s) => (progress.has(s.id) ? { ...s, sentTo: progress.get(s.id) } : s));
+      saveSchedules(latest);
       // Positive record of the send, so the board never has to infer one from
       // a missing row.
       recordDelivered(delivered);
       for (const done of delivered) {
-        if (done.filePath) dropScheduleMedia(done.filePath, pending);
+        if (done.filePath) dropScheduleMedia(done.filePath, latest);
       }
     } catch (err) {
       console.error('[SCHEDULER ERROR]', err.message);

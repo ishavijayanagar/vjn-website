@@ -100,6 +100,10 @@
   let relayReady = null;
   let reconciling = false;
   const busyIds = {};
+  // Retry needs what was typed, which the server does not hand back.
+  const jobInputs = {};
+  let pollTimer = 0;
+  let stickyToast = null;
   const MARK_SPIN = '<span class="mark-spin" aria-hidden="true"></span>';
 
   /* ───────── theme ───────── */
@@ -870,7 +874,7 @@
    */
   async function reconcileSent() {
     const queued = items.filter(function (item) {
-      return normalizeStatus(item.status) !== "sent";
+      return normalizeStatus(item.status) !== "sent" && !pendingJobs[String(item.id)];
     });
     if (!queued.length) return false;
 
@@ -1307,6 +1311,8 @@
   /* ───────── toast ───────── */
   function toast(msg, fn, opts) {
     opts = opts || {};
+    // A failure stays until it is dealt with; a passing message only covers it.
+    if (opts.sticky) stickyToast = { msg: msg, fn: fn, opts: opts };
     tmsgEl.textContent = msg;
     undoFn = fn || null;
     undoEl.textContent = opts.label || "Undo";
@@ -1314,10 +1320,15 @@
     fabEl.classList.add("hide");
     toastEl.classList.add("on");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(hideToast, opts.ms || 4200);
+    if (!opts.sticky) toastTimer = setTimeout(hideToast, opts.ms || 4200);
   }
 
   function hideToast() {
+    if (stickyToast) {
+      const s = stickyToast;
+      toast(s.msg, s.fn, s.opts);
+      return;
+    }
     toastEl.classList.remove("on");
     fabEl.classList.remove("hide");
     undoFn = null;
@@ -1342,8 +1353,10 @@
   });
 
   undoEl.onclick = function () {
-    if (undoFn) undoFn();
+    const fn = undoFn;
+    stickyToast = null;
     hideToast();
+    if (fn) fn();
   };
 
   /* ───────── actions ───────── */
@@ -2127,6 +2140,7 @@
       flyerUrl: flyerOverride || String(item.flyer_url || "").trim() || String(item.event_image || "").trim(),
       pendingFlyer: pendingFlyer,
       targets: composeTargets.slice(),
+      title: item.event_title || "this post",
       ymd: "",
       hm: "",
     };
@@ -2158,7 +2172,214 @@
     runComposeJob(job);
   }
 
+  /* Anything that touches Sandesha is handed to it whole (see
+     sandesha-server/promo-jobs.js). The board shows the slot at once and the
+     server finishes the job even if this phone switches apps or closes the
+     tab; the outcome is picked up by pollJobs, here or on the next open. */
   async function runComposeJob(job) {
+    const item = find(job.id);
+    if (!item) return;
+    const previousIds = scheduleIdsOf(item);
+    let ymd = job.ymd;
+    let hm = job.hm;
+    if (!job.wantSchedule) {
+      // Editing the copy of a post that is already queued re-queues it at the
+      // same slot, or WhatsApp would send the words that were replaced.
+      const parts = splitSendAt(item.send_at);
+      if (!previousIds.length || !parts.date || !parts.hm) return runComposeJobHere(job);
+      ymd = parts.date;
+      hm = parts.hm;
+    }
+    const key = String(job.id);
+    const fields = { message: job.message };
+    if (job.wantSchedule) {
+      fields.send_at = ymd + " " + hm;
+      fields.target = job.targets.length ? JSON.stringify(job.targets) : "";
+    }
+    jobInputs[key] = job;
+    setPendingJob(key, {
+      jobId: "",
+      title: job.title,
+      fields: fields,
+      prev: { send_at: item.send_at, target: item.target, message: item.message, status: item.status },
+      startedAt: Date.now(),
+    });
+    overlayPendingJobs();
+    render();
+    const clock = formatHmAmPm(hm);
+    toast(
+      job.wantSchedule
+        ? "Scheduled for " + clock.time + " " + clock.mer + " — finishing in the background"
+        : "Saved — updating the queued post",
+      null
+    );
+    try {
+      const bridge = await ensureRelay();
+      const targets = job.wantSchedule ? job.targets : bridge.resolveTargets(item.target);
+      const sheetFields = { message: job.message };
+      if (job.wantSchedule) {
+        sheetFields.send_at = fields.send_at;
+        sheetFields.target = bridge.stringify(targets);
+      }
+      let flyer = null;
+      if (job.pendingFlyer) {
+        flyer = {
+          base64: job.pendingFlyer.base64,
+          mimeType: job.pendingFlyer.mimeType,
+          filename: job.pendingFlyer.filename || flyerFileName(item, job.pendingFlyer.mimeType),
+        };
+      } else if (job.flyerUrl) {
+        flyer = { url: job.flyerUrl };
+        sheetFields.flyer_url = job.flyerUrl;
+      }
+      const started = await bridge.startJob({
+        promoId: job.id,
+        title: job.title,
+        message: job.message,
+        runAtIso: sendAtToIso(ymd, hm),
+        targets: targets,
+        flyer: flyer,
+        previousIds: previousIds,
+        sheet: { url: APPS_SCRIPT_URL, token: token(), fields: sheetFields },
+      });
+      const pending = pendingJobs[key];
+      if (pending) {
+        pending.jobId = started.id;
+        savePendingJobs();
+      }
+      schedulePoll(2000);
+    } catch (e) {
+      const pending = pendingJobs[key];
+      clearPendingJob(key);
+      if (pending) Object.assign(item, pending.prev);
+      // A Sandesha server that predates /promo-jobs: do it from here instead.
+      if (e && e.unsupported) return runComposeJobHere(job);
+      render();
+      showJobFailure(key, job.title, (e && e.message) || "something went wrong", job.wantSchedule);
+    }
+  }
+
+  /* ───────── handed-over jobs ─────────
+     promoId -> the job Sandesha is running for it, with the fields the board
+     shows meanwhile. Kept in localStorage so a reload, or a tab Android
+     discarded, still shows the slot and still learns how the job ended. */
+  const PENDING_JOBS_KEY = "vjn_promo_jobs";
+  const pendingJobs = loadPendingJobs();
+
+  function loadPendingJobs() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PENDING_JOBS_KEY) || "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function savePendingJobs() {
+    try {
+      localStorage.setItem(PENDING_JOBS_KEY, JSON.stringify(pendingJobs));
+    } catch (e) {}
+  }
+
+  function setPendingJob(key, entry) {
+    pendingJobs[key] = entry;
+    savePendingJobs();
+  }
+
+  function clearPendingJob(key) {
+    delete pendingJobs[key];
+    delete busyIds[key];
+    savePendingJobs();
+  }
+
+  /** Show what was asked for, not what the sheet says yet. */
+  function overlayPendingJobs() {
+    items.forEach(function (item) {
+      const pending = pendingJobs[String(item.id)];
+      if (!pending) return;
+      Object.assign(item, pending.fields);
+      if (normalizeStatus(item.status) !== "sent") item.status = "ready";
+      busyIds[String(item.id)] = true;
+    });
+  }
+
+  function schedulePoll(ms) {
+    clearTimeout(pollTimer);
+    if (!Object.keys(pendingJobs).length) return;
+    pollTimer = setTimeout(pollJobs, ms || 3000);
+  }
+
+  async function pollJobs() {
+    clearTimeout(pollTimer);
+    const keys = Object.keys(pendingJobs);
+    if (!keys.length || document.hidden || !token()) return;
+    let bridge;
+    let jobs;
+    try {
+      bridge = await ensureRelay();
+      jobs = await bridge.jobs();
+    } catch (e) {
+      schedulePoll(8000);
+      return;
+    }
+    let changed = false;
+    keys.forEach(function (key) {
+      const pending = pendingJobs[key];
+      if (!pending) return;
+      const job = pending.jobId && jobs.find(function (j) {
+        return j.id === pending.jobId;
+      });
+      if (!job) {
+        // The hand-off never landed (closed mid-request) — the sheet is the truth.
+        if (Date.now() - pending.startedAt > 2 * 60 * 1000) {
+          clearPendingJob(key);
+          changed = true;
+        }
+        return;
+      }
+      if (job.status === "running") return;
+      clearPendingJob(key);
+      changed = true;
+      bridge.dismissJob(job.id).catch(function () {});
+      const scheduling = !!(pending.fields && pending.fields.send_at);
+      if (job.status === "done") {
+        delete jobInputs[key];
+        const linked = bridge.isLinked();
+        toast(
+          scheduling
+            ? linked
+              ? "“" + pending.title + "” scheduled — Sandesha will post it"
+              : "Scheduled — link WhatsApp so it can send"
+            : "Queued post updated",
+          null
+        );
+      } else {
+        showJobFailure(key, pending.title, job.error || "something went wrong", scheduling);
+      }
+    });
+    if (changed) await load(false).catch(function () {});
+    schedulePoll();
+  }
+
+  /** Stays on screen until acted on — a lost post must not go unnoticed. */
+  function showJobFailure(key, title, message, scheduling) {
+    const input = jobInputs[key];
+    toast(
+      "Couldn't " + (scheduling ? "schedule" : "save") + " “" + title + "”: " + message,
+      function () {
+        if (input) runComposeJob(input);
+        else if (find(key)) openCompose(find(key));
+      },
+      { label: input ? "Retry" : "Edit", sticky: true }
+    );
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) pollJobs();
+  });
+
+  /** Plain save, and the fallback when Sandesha cannot take a job. */
+  async function runComposeJobHere(job) {
     const item = find(job.id);
     if (!item) return;
     setRowBusy(job.id, true);
@@ -2243,6 +2464,7 @@
       item.status = normalizeStatus(item.status);
       return item;
     });
+    overlayPendingJobs();
     const due = items.some(function (item) {
       return normalizeStatus(item.status) === "due";
     });
@@ -2409,6 +2631,7 @@
     try {
       await load(true);
       watchComposeDraft();
+      pollJobs();
     } catch (e) {
       listEl.removeAttribute("aria-busy");
       listEl.innerHTML = emptyHtml(

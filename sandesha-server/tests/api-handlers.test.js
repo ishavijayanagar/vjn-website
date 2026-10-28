@@ -167,6 +167,47 @@ async function run() {
     assert.strictEqual(data.schedule.message, 'hi');
   });
 
+  await test('POST /promo-jobs queues the post and GET reports it done', async () => {
+    const sheetCalls = [];
+    const deps = makeDeps({
+      MEDIA_DIR: testDir,
+      PROMO_JOBS_FILE: path.join(testDir, 'promo-jobs.json'),
+      promoFetch: async (_url, opts) => {
+        const payload = JSON.parse(opts.body);
+        sheetCalls.push(payload);
+        const data = payload.formType === 'adminGetImage'
+          ? { base64: Buffer.from('img').toString('base64'), mimeType: 'image/jpeg' }
+          : { success: true };
+        return { text: async () => JSON.stringify(data) };
+      },
+    });
+    const h = createApiHandlers(deps);
+    const body = JSON.stringify({
+      promoId: 'p1',
+      message: 'hi',
+      runAt: new Date(Date.now() + 3600e3).toISOString(),
+      rows: [{ target: 'family', isSet: true }],
+      flyer: { url: 'https://drive.google.com/file/d/x/view' },
+      sheet: { url: 'https://script.google.com/macros/s/abc/exec', token: 't', fields: { send_at: '2026-10-28 16:00' } },
+    });
+    const req = { method: 'POST', on(evt, fn) { if (evt === 'data') fn(body); if (evt === 'end') fn(); } };
+    const res = mockRes();
+    await h.handleRequest(req, res, { pathname: '/promo-jobs' }, () => true);
+    assert.strictEqual(res.statusCode, 202);
+    const { job } = JSON.parse(res.body);
+    assert.ok(!('token' in job));
+    await new Promise((r) => setTimeout(r, 50));
+    const res2 = mockRes();
+    await h.handleRequest({ method: 'GET' }, res2, { pathname: '/promo-jobs' }, () => true);
+    const listed = JSON.parse(res2.body).jobs.find((j) => j.id === job.id);
+    assert.strictEqual(listed.status, 'done', listed.error);
+    assert.strictEqual(listed.ids.length, 1);
+    assert.deepStrictEqual(sheetCalls.at(-1).wa_schedule_ids, listed.ids);
+    const res3 = mockRes();
+    await h.handleRequest({ method: 'DELETE' }, res3, { pathname: `/promo-jobs/${job.id}` }, () => true);
+    assert.strictEqual(res3.statusCode, 200);
+  });
+
   await test('POST /schedules carries an uploaded flyer', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sandesha-media-'));
     const flyer = path.join(dir, 'upload_1.jpg');

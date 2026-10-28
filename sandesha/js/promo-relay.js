@@ -147,6 +147,46 @@ const SandeshaPromo = {
     return ids;
   },
 
+  /**
+   * Hand the whole schedule over to Sandesha in one request, so it finishes
+   * even if the phone switches apps. Resolves once the server has the job —
+   * not when it is done; poll jobs() for that.
+   * Rejects with err.unsupported on a server that predates /promo-jobs.
+   */
+  async startJob({ promoId, title, message, runAtIso, targets, flyer, previousIds, sheet }) {
+    await this.ready();
+    const rows = runAtIso ? scheduleTargets(targets || []) : [];
+    if (runAtIso && !rows.length) throw new Error('Choose at least one audience');
+    try {
+      const res = await api('/promo-jobs', {
+        method: 'POST',
+        body: JSON.stringify({
+          promoId: String(promoId),
+          title: title || '',
+          message: message || '',
+          runAt: runAtIso || '',
+          rows,
+          flyer,
+          previousIds: previousIds || [],
+          sheet,
+        }),
+      });
+      return res.job;
+    } catch (err) {
+      if (/^(Not found|HTTP 404)$/i.test(err.message)) err.unsupported = true;
+      throw err;
+    }
+  },
+
+  async jobs() {
+    const data = await api('/promo-jobs');
+    return Array.isArray(data?.jobs) ? data.jobs : [];
+  },
+
+  async dismissJob(id) {
+    await api(`/promo-jobs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
   /** Best-effort: a row already fired or already gone is not an error. */
   async cancel(ids) {
     const list = Array.isArray(ids) ? ids : this.parse(ids);

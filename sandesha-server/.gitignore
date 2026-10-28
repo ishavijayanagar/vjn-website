@@ -72,6 +72,7 @@ Thumbs.db
 
 # JSON data files (personal config)
 schedules.json
+promo-jobs.json
 contacts.json
 groups.json
 qr-code.png

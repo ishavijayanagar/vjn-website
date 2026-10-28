@@ -11,6 +11,7 @@ const activity = require('./activity');
 const push = require('./push');
 const auth = require('./auth');
 const { isWhatsAppSessionError } = require('./wa-session');
+const { createPromoJobs } = require('./promo-jobs');
 
 const GROUPS_CACHE_TTL_MS = 5 * 60 * 1000;
 const JOB_TTL_MS = 24 * 60 * 60 * 1000;
@@ -76,6 +77,8 @@ function createApiHandlers(deps) {
     budget = null,
     onSessionError = null,
     pushSvc = push,
+    PROMO_JOBS_FILE = path.join(__dirname, 'promo-jobs.json'),
+    promoFetch,
   } = deps;
 
   let groupsCache = { at: 0, data: null };
@@ -693,6 +696,102 @@ function createApiHandlers(deps) {
     } catch { return ''; }
   }
 
+  /**
+   * Queue one schedule row. Shared by POST /schedules and board jobs.
+   * @returns {{schedule: object, deduped: boolean}}
+   */
+  async function createScheduleRow(body, actor) {
+    const { message, target, runAt, timeStr, isSet, filePath, sourceId } = body || {};
+    const media = resolveScheduleMedia(filePath);
+    if ((!message && !media) || !target) throw new Error('message (or filePath) and target required');
+    const when = runAt ? new Date(runAt) : (timeStr ? parseScheduleTime(timeStr) : null);
+    if (!when || Number.isNaN(when.getTime())) throw new Error('Invalid runAt or timeStr');
+    await validateScheduleTarget(target);
+
+    const schedules = loadSchedules();
+    const runAtIso = when.toISOString();
+    const msgNorm = String(message || '').trim();
+    const targetNorm = String(target).trim().toLowerCase();
+
+    // Guard against double-submit / duplicate POSTs for the same job
+    const dup = schedules.find((s) =>
+      String(s.message || '').trim() === msgNorm &&
+      String(s.target || '').trim().toLowerCase() === targetNorm &&
+      s.runAt === runAtIso &&
+      (Date.now() - new Date(s.createdAt || 0).getTime()) < 15000,
+    );
+    if (dup) return { schedule: dup, deduped: true };
+
+    const schedule = {
+      id: nextScheduleId(schedules),
+      message: msgNorm,
+      target: String(target).trim(),
+      isSet: !!isSet,
+      runAt: runAtIso,
+      createdAt: new Date().toISOString(),
+    };
+    // A flyer scheduled now must still be on disk at send time, so the
+    // upload stays in MEDIA_DIR and the row only carries its path.
+    if (media) schedule.filePath = media;
+    if (sourceId) schedule.sourceId = String(sourceId);
+    // Credit the person who queued it, so the send it turns into later
+    // (by the scheduler, with nobody logged in) still shows who started it.
+    if (actor) schedule.createdBy = { role: actor.role, name: actor.name };
+    schedules.push(schedule);
+    saveSchedules(schedules);
+    activity.recordEvent({
+      category: 'schedule',
+      type: 'info',
+      ok: true,
+      title: `Scheduled a ${media ? 'flyer' : 'message'}`,
+      detail: `For ${new Date(runAtIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}`,
+      target: schedule.target,
+      via: 'api',
+      actor,
+      meta: scheduleMeta(schedule),
+    });
+    return { schedule, deduped: false };
+  }
+
+  function cancelScheduleRow(rawId, actor) {
+    const id = parseInt(rawId, 10);
+    const all = loadSchedules();
+    const dropped = all.find((s) => s.id === id);
+    const schedules = all.filter((s) => s.id !== id);
+    saveSchedules(schedules);
+    if (dropped?.filePath) dropScheduleMedia(dropped.filePath, schedules);
+    if (dropped) {
+      activity.recordEvent({
+        category: 'schedule',
+        type: 'info',
+        ok: true,
+        title: 'Cancelled a scheduled message',
+        target: dropped.target,
+        via: 'api',
+        actor,
+        meta: scheduleMeta(dropped),
+      });
+    }
+  }
+
+  const promoJobs = createPromoJobs({
+    file: PROMO_JOBS_FILE,
+    MEDIA_DIR,
+    log,
+    fetchImpl: promoFetch,
+    createSchedule: async (body, actor) => (await createScheduleRow(body, actor)).schedule,
+    cancelSchedule: async (id, actor) => cancelScheduleRow(id, actor),
+  });
+
+  /** What the board needs to know about a job — no token, no flyer bytes. */
+  function publicJob(j) {
+    return {
+      id: j.id, promoId: j.promoId, title: j.title, sendAt: j.sendAt,
+      status: j.status, step: j.step, error: j.error, ids: j.ids,
+      createdAt: j.createdAt, updatedAt: j.updatedAt,
+    };
+  }
+
   async function handleRequest(req, res, parsed, requireAuthFn) {
     const pathname = parsed.pathname;
 
@@ -966,66 +1065,8 @@ function createApiHandlers(deps) {
       if (!requireAuthFn(req, res)) return true;
       try {
         const body = JSON.parse(await readBody(req) || '{}');
-        const { message, target, runAt, timeStr, isSet, filePath, sourceId } = body;
-        const media = resolveScheduleMedia(filePath);
-        if ((!message && !media) || !target) {
-          jsonResponse(res, 400, { error: 'message (or filePath) and target required' });
-          return true;
-        }
-        let when = runAt ? new Date(runAt) : (timeStr ? parseScheduleTime(timeStr) : null);
-        if (!when || Number.isNaN(when.getTime())) {
-          jsonResponse(res, 400, { error: 'Invalid runAt or timeStr' });
-          return true;
-        }
-        await validateScheduleTarget(target);
-
-        const schedules = loadSchedules();
-        const runAtIso = when.toISOString();
-        const msgNorm = String(message || '').trim();
-        const targetNorm = String(target).trim().toLowerCase();
-
-        // Guard against double-submit / duplicate POSTs for the same job
-        const dup = schedules.find((s) =>
-          String(s.message || '').trim() === msgNorm &&
-          String(s.target || '').trim().toLowerCase() === targetNorm &&
-          s.runAt === runAtIso &&
-          (Date.now() - new Date(s.createdAt || 0).getTime()) < 15000,
-        );
-        if (dup) {
-          jsonResponse(res, 200, { ok: true, schedule: dup, deduped: true });
-          return true;
-        }
-
-        const schedule = {
-          id: nextScheduleId(schedules),
-          message: msgNorm,
-          target: String(target).trim(),
-          isSet: !!isSet,
-          runAt: runAtIso,
-          createdAt: new Date().toISOString(),
-        };
-        // A flyer scheduled now must still be on disk at send time, so the
-        // upload stays in MEDIA_DIR and the row only carries its path.
-        if (media) schedule.filePath = media;
-        if (sourceId) schedule.sourceId = String(sourceId);
-        // Credit the person who queued it, so the send it turns into later
-        // (by the scheduler, with nobody logged in) still shows who started it.
-        const actor = callerActor(req);
-        if (actor) schedule.createdBy = { role: actor.role, name: actor.name };
-        schedules.push(schedule);
-        saveSchedules(schedules);
-        activity.recordEvent({
-          category: 'schedule',
-          type: 'info',
-          ok: true,
-          title: `Scheduled a ${media ? 'flyer' : 'message'}`,
-          detail: `For ${new Date(runAtIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}`,
-          target: schedule.target,
-          via: 'api',
-          actor,
-          meta: scheduleMeta(schedule),
-        });
-        jsonResponse(res, 200, { ok: true, schedule });
+        const { schedule, deduped } = await createScheduleRow(body, callerActor(req));
+        jsonResponse(res, 200, deduped ? { ok: true, schedule, deduped: true } : { ok: true, schedule });
       } catch (err) {
         jsonResponse(res, 400, { error: err.message });
       }
@@ -1035,24 +1076,35 @@ function createApiHandlers(deps) {
     const scheduleDelete = pathname.match(/^\/schedules\/(\d+)$/);
     if (scheduleDelete && req.method === 'DELETE') {
       if (!requireAuthFn(req, res)) return true;
-      const id = parseInt(scheduleDelete[1], 10);
-      const all = loadSchedules();
-      const dropped = all.find((s) => s.id === id);
-      const schedules = all.filter((s) => s.id !== id);
-      saveSchedules(schedules);
-      if (dropped?.filePath) dropScheduleMedia(dropped.filePath, schedules);
-      if (dropped) {
-        activity.recordEvent({
-          category: 'schedule',
-          type: 'info',
-          ok: true,
-          title: 'Cancelled a scheduled message',
-          target: dropped.target,
-          via: 'api',
-          actor: callerActor(req),
-          meta: scheduleMeta(dropped),
-        });
+      cancelScheduleRow(scheduleDelete[1], callerActor(req));
+      jsonResponse(res, 200, { ok: true });
+      return true;
+    }
+
+    // Board scheduling handed over whole, so it finishes even if the phone
+    // that started it goes to sleep. See promo-jobs.js.
+    if (pathname === '/promo-jobs' && req.method === 'POST') {
+      if (!requireAuthFn(req, res)) return true;
+      try {
+        const body = JSON.parse(await readBody(req) || '{}');
+        const job = promoJobs.start(body, callerActor(req));
+        jsonResponse(res, 202, { ok: true, job: publicJob(job) });
+      } catch (err) {
+        jsonResponse(res, 400, { error: err.message });
       }
+      return true;
+    }
+
+    if (pathname === '/promo-jobs' && req.method === 'GET') {
+      if (!requireAuthFn(req, res)) return true;
+      jsonResponse(res, 200, { jobs: promoJobs.list().map(publicJob) });
+      return true;
+    }
+
+    const promoJobDelete = pathname.match(/^\/promo-jobs\/([\w-]+)$/);
+    if (promoJobDelete && req.method === 'DELETE') {
+      if (!requireAuthFn(req, res)) return true;
+      promoJobs.dismiss(promoJobDelete[1]);
       jsonResponse(res, 200, { ok: true });
       return true;
     }
