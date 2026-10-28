@@ -6,7 +6,7 @@
  * the point of the screen — you read the bubble, not the form.
  */
 import { api, uploadFile, escapeHtml, fetchMedia } from '../api.js';
-import { getState, getTargetOptions } from '../store.js';
+import { getState, getTargetOptions, loadChats } from '../store.js';
 import { toast } from '../toast.js';
 import { openAudienceSheet, audienceSummary, audienceTotal } from '../promo-audience.js';
 
@@ -327,6 +327,7 @@ function reach() {
 export function renderPromoCompose() {
   const host = panel();
   if (!host) return;
+  loadChats(); // people for the audience list; not awaited
   if (!draft.runAt) draft.runAt = defaultRunAt();
   if (restoredNotice) {
     toast(restoredNotice, 'ok');

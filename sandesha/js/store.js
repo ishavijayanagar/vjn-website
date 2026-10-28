@@ -115,9 +115,6 @@ async function loadCore(forceGroups) {
     land(api('/schedules'), (value) => {
       if (value) state.schedules = value.schedules || value || [];
     }),
-    land(api('/chats?limit=200'), (value) => {
-      if (value) state.chats = Array.isArray(value?.chats) ? value.chats : [];
-    }),
     wantActivity
       ? land(api('/activity?limit=150'), (value) => {
         if (value && Array.isArray(value.activity)) state.activity = value.activity;
@@ -139,7 +136,7 @@ async function loadCore(forceGroups) {
   state.health = health;
 
   // Only the WhatsApp-dependent calls (groups…chats) count toward "load failed".
-  const waCalls = settled.slice(1, 6);
+  const waCalls = settled.slice(1, 5);
   const softFails = waCalls.filter((r) => r.status === 'rejected');
   notify();
   if (softFails.length && softFails.length === waCalls.length) {
@@ -159,6 +156,29 @@ async function loadCore(forceGroups) {
   }
   return state;
   });
+}
+
+/**
+ * Your one-to-one WhatsApp chats, for the "people" in the audience picker. Only
+ * Compose uses them, and asking WhatsApp Web for every chat is slow on a Pi, so
+ * this is not part of the page's start-up: Compose asks once, quietly, and the
+ * picker uses whatever has arrived when it is opened.
+ */
+let chatsPromise = null;
+
+export function loadChats() {
+  if (chatsPromise) return chatsPromise;
+  chatsPromise = api('/chats?limit=200')
+    .then((value) => {
+      state.chats = Array.isArray(value?.chats) ? value.chats : [];
+      notify();
+      return state.chats;
+    })
+    .catch(() => {
+      chatsPromise = null; // try again next time Compose opens
+      return state.chats;
+    });
+  return chatsPromise;
 }
 
 /**
