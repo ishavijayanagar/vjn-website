@@ -1,5 +1,5 @@
 import { api, escapeHtml } from '../api.js';
-import { getState, getTargetOptions, jidToName } from '../store.js';
+import { getState, getTargetOptions, jidToName, loadChats } from '../store.js';
 import { toast } from '../toast.js';
 import { openTargetPicker, formatTargetSummary } from '../target-picker.js';
 import { logActivity } from '../activity-log.js';
@@ -70,6 +70,7 @@ function buildScheduleTargets(selections) {
 }
 
 export function renderSchedule() {
+  loadChats(); // the people in the audience picker; not awaited
   const container = getScheduleContainer();
   if (!container) return;
   const { schedules, sets } = getState();

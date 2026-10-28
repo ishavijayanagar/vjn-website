@@ -1,5 +1,5 @@
 import { api, uploadFile, escapeHtml } from '../api.js';
-import { getState, getTargetOptions } from '../store.js';
+import { getState, getTargetOptions, loadChats } from '../store.js';
 import { openTargetPicker, formatTargetSummary } from '../target-picker.js';
 import { toast } from '../toast.js';
 import { pushSub } from '../router.js';
@@ -52,6 +52,7 @@ function recipientSummary() {
 }
 
 export function renderSend() {
+  loadChats(); // the people in the audience picker; not awaited
   const container = getSendContainer();
   if (!container) return;
   const label = formatTargetSummary(selectedTargets);

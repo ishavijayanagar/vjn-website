@@ -11553,6 +11553,7 @@ panels +
       $("fFlyerManualFile").addEventListener("change", async function () {
         const file = this.files && this.files[0];
         if (!file) return;
+        $("fFlyerManualFileName").textContent = "Reading photo…";
         try {
           const payload = await readFileAsImagePayload(file);
           pendingManualFlyer = payload;
@@ -11560,6 +11561,7 @@ panels +
           $("fFlyerManualFileName").textContent = "Replace flyer";
           showFlyerResult(payload.preview, false);
         } catch (err) {
+          $("fFlyerManualFileName").textContent = "Choose a flyer";
           $("flyerFieldsError").textContent = friendlyError(err.message);
           show($("flyerFieldsError"), true);
         }

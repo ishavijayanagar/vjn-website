@@ -91,7 +91,7 @@ subscribe(() => {
   if (!getSubPage()) renderTab(getCurrentTab());
 });
 
-window.addEventListener('sandesha:refresh', () => loadApp(true));
+window.addEventListener('sandesha:refresh', () => loadApp(false)); // groups are re-checked only on pull-to-refresh
 
 initPullToRefresh({
   onRefresh: async () => {
