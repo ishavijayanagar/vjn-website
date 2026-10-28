@@ -79,6 +79,7 @@ function createApiHandlers(deps) {
     pushSvc = push,
     PROMO_JOBS_FILE = path.join(__dirname, 'promo-jobs.json'),
     promoFetch,
+    savePromoLocal = null,
   } = deps;
 
   let groupsCache = { at: 0, data: null };
@@ -779,6 +780,7 @@ function createApiHandlers(deps) {
     MEDIA_DIR,
     log,
     fetchImpl: promoFetch,
+    savePromoLocal,
     createSchedule: async (body, actor) => (await createScheduleRow(body, actor)).schedule,
     cancelSchedule: async (id, actor) => cancelScheduleRow(id, actor),
   });

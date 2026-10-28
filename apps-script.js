@@ -240,6 +240,9 @@ const DISABLED_USER_IDS_PROP = "DISABLED_USER_IDS";
 // Script Property is set to the same value as the Pi's VJN_AUTH_SECRET.
 const VJN_AUTH_SECRET_PROP = "VJN_AUTH_SECRET";
 const VJN_REVOKED_PREFIX = "vjn_rev_";
+// Set by vjnExportPromos_: the Pi owns promotion posts from then on, and the
+// Promotions tab is left as a read-only record of what was there.
+const VJN_PROMOS_ON_PI_PROP = "VJN_PROMOS_ON_PI";
 const PUBLIC_CACHE_TTL = 90;
 const CACHE_PROGRAMS = "pub_programs_v3";
 const CACHE_VOLUNTEER = "pub_volunteer_v3";
@@ -455,6 +458,12 @@ function doPost(e) {
     }
     if (formType === "vjnExportUsers") {
       return json_(vjnExportUsers_(data));
+    }
+    if (formType === "vjnExportPromos") {
+      return json_(vjnExportPromos_(data));
+    }
+    if (formType === "vjnListings") {
+      return json_(vjnListings_(data));
     }
     if (formType === "adminLogin") {
       return json_(adminLogin(data));
@@ -922,6 +931,54 @@ function vjnExportUsers_(data) {
   };
 }
 
+function promosOnPi_() {
+  return PropertiesService.getScriptProperties().getProperty(VJN_PROMOS_ON_PI_PROP) === "1";
+}
+
+function promosMovedError_() {
+  throw new Error("Promotions are on Sandesha now. Sign out and sign in again.");
+}
+
+/**
+ * Hands the Promotions tab to the Pi and stops the Sheet taking promotion
+ * writes. Safe to run again: it only reads.
+ */
+function vjnExportPromos_(data) {
+  requireVjnSecret_(data);
+  const loaded = loadPromos_();
+  PropertiesService.getScriptProperties().setProperty(VJN_PROMOS_ON_PI_PROP, "1");
+  return {
+    promos: loaded.items.map(function (item) {
+      const row = {};
+      PROMO_HEADERS.forEach(function (h) {
+        row[h] = item[h] === undefined || item[h] === null ? "" : String(item[h]);
+      });
+      return row;
+    }),
+  };
+}
+
+/** Programs and volunteering listings, for the Pi to build posts from. */
+function vjnListings_(data) {
+  requireVjnSecret_(data);
+  const out = {};
+  ["programs", "volunteering"].forEach(function (resource) {
+    const sheetName = resource === "programs" ? PROGRAMS_SHEET : VOLUNTEER_SHEET;
+    out[resource] = (getAllItems(sheetName, true).items || []).map(function (item) {
+      return {
+        id: String(item.id),
+        title: item.title || "",
+        date: item.date || "",
+        startdate: item.startdate || "",
+        location: item.location || "",
+        status: item.status || "",
+        image: item.image || "",
+      };
+    });
+  });
+  return out;
+}
+
 function adminLogin(data) {
   if (loginsOnPi_()) return { error: "Sign-in has moved. Reload the page and try again." };
   bootstrapAdminUser_(getAdminPassword_());
@@ -1001,10 +1058,12 @@ function adminRead_(data) {
   }
   if (type === "inviteMessages") {
     requireRole_(token, ["admin", "nurturing"]);
+    if (promosOnPi_()) promosMovedError_();
     return { messages: programInviteMessages_() };
   }
   if (type === "promotions") {
     requireRole_(token, ["admin", "promotions"]);
+    if (promosOnPi_()) promosMovedError_();
     const dueOnly = String((data && data.due) || "") === "1";
     return listPromotions_({ dueOnly: dueOnly });
   }
@@ -3465,6 +3524,7 @@ function applyDuePromotions_() {
 }
 
 function markDuePromotions() {
+  if (promosOnPi_()) return;
   applyDuePromotions_();
 }
 
@@ -3569,6 +3629,7 @@ function appendPromo_(fields) {
 }
 
 function maybeCreatePromoForListing_(resource, eventId, item, session) {
+  if (promosOnPi_()) return; // the Pi makes a post for each open listing itself
   const eventType = resource === "volunteering" ? "volunteering" : "programs";
   const status = item && item.status;
   if (!isOpenListingStatus_(status)) return;
@@ -3613,6 +3674,7 @@ function promoReadyStatus_(item) {
 
 function adminSavePromotion(data) {
   const session = requireRole_(data.token, ["admin", "promotions"]);
+  if (promosOnPi_()) promosMovedError_();
   const loaded = loadPromos_();
   const item = findPromoById_(data.id);
   if (!item) throw new Error("Promotion not found.");
@@ -3664,6 +3726,7 @@ function adminSavePromotion(data) {
 
 function adminAddPromotion(data) {
   const session = requireRole_(data.token, ["admin", "promotions"]);
+  if (promosOnPi_()) promosMovedError_();
   const eventType = data.event_type === "volunteering" ? "volunteering" : "programs";
   const eventId = String(data.event_id || "").trim();
   if (!eventId) throw new Error("Choose an event.");
@@ -3697,6 +3760,7 @@ function normalizeScheduleIds_(raw) {
 
 function adminMarkPromotionSent(data) {
   const session = requireRole_(data.token, ["admin", "promotions"]);
+  if (promosOnPi_()) promosMovedError_();
   const loaded = loadPromos_();
   const item = findPromoById_(data.id);
   if (!item) throw new Error("Promotion not found.");
@@ -3714,6 +3778,7 @@ function adminMarkPromotionSent(data) {
 
 function adminUnmarkPromotionSent(data) {
   requireRole_(data.token, ["admin", "promotions"]);
+  if (promosOnPi_()) promosMovedError_();
   const loaded = loadPromos_();
   const item = findPromoById_(data.id);
   if (!item) throw new Error("Promotion not found.");

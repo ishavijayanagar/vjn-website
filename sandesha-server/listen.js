@@ -3,6 +3,7 @@ const auth = require('./auth');
 const { openDb } = require('./db');
 const { createVjnUsers } = require('./vjn-users');
 const { createVjnRoutes } = require('./vjn-routes');
+const { createPromos } = require('./promos');
 const { createApiHandlers } = require('./api-handlers');
 const { createSettingsWizard } = require('./settings');
 const { createBulkSendWizard } = require('./bulk-send');
@@ -639,6 +640,11 @@ function wireClientEvents(c) {
       // Recreate API handlers so they always point at the current client
       apiHandlers = createApiHandlers({
         client: c,
+        savePromoLocal: async (token, fields) => {
+          const who = vjnUsers.verify(token);
+          if (!who || !['admin', 'promotions'].includes(who.role)) throw new Error('Unauthorized. Please log in again.');
+          return vjnPromos.save(fields);
+        },
         loadSchedules,
         saveSchedules,
         loadDelivered,
@@ -3124,12 +3130,28 @@ async function notifySheetRevoke({ id, disabled, before }) {
   if (data.error) throw new Error(`The Sheet did not take the change (${data.error}) — nothing was changed.`);
 }
 
+/** Programs and volunteering listings, from the Sheet (the Pi never writes them). */
+async function fetchListings() {
+  const urlStr = String(process.env.VJN_APPS_SCRIPT_URL || '').trim();
+  if (!urlStr) throw new Error('VJN_APPS_SCRIPT_URL is not set');
+  const res = await fetch(urlStr, {
+    method: 'POST',
+    body: JSON.stringify({ formType: 'vjnListings', secret: process.env.VJN_AUTH_SECRET || '' }),
+    redirect: 'follow',
+  });
+  const data = JSON.parse(await res.text());
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+const vjnDb = openDb();
 const vjnUsers = createVjnUsers({
-  db: openDb(),
+  db: vjnDb,
   secret: process.env.VJN_AUTH_SECRET || '',
   notifySheet: notifySheetRevoke,
 });
-const vjnRoutes = createVjnRoutes({ users: vjnUsers, readBody: readRequestBody, jsonResponse });
+const vjnPromos = createPromos({ db: vjnDb, fetchListings });
+const vjnRoutes = createVjnRoutes({ users: vjnUsers, promos: vjnPromos, readBody: readRequestBody, jsonResponse });
 auth.setLocalVjnVerifier((token) => vjnUsers.verify(token));
 
 function startSendServer() {
@@ -4096,6 +4118,13 @@ async function runSchedulerCheck() {
       recordDelivered(delivered);
       for (const done of delivered) {
         if (done.filePath) dropScheduleMedia(done.filePath, latest);
+      }
+      // A board post is sent once every list it was queued for has been
+      // delivered — the board no longer has to guess from a missing row.
+      const stillQueued = new Set(latest.map((s) => String(s.sourceId || '')));
+      for (const sourceId of new Set(delivered.map((s) => String(s.sourceId || '')).filter(Boolean))) {
+        if (stillQueued.has(sourceId)) continue;
+        vjnPromos.markSent(sourceId, 'sandesha').catch(() => { /* not a board post */ });
       }
     } catch (err) {
       console.error('[SCHEDULER ERROR]', err.message);

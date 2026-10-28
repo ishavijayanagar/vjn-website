@@ -16,7 +16,10 @@ async function postToSheet(payload) {
   const token = getVjnToken();
   if (!url || !token) return false;
   try {
-    const res = await fetch(url, { method: 'POST', body: JSON.stringify({ ...payload, token }) });
+    const full = { ...payload, token };
+    const piReply = window.PiPromos ? await window.PiPromos.route(full) : undefined;
+    if (piReply !== undefined) return !piReply?.error;
+    const res = await fetch(url, { method: 'POST', body: JSON.stringify(full) });
     const data = await res.json();
     return !data?.error;
   } catch {

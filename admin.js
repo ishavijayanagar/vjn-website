@@ -318,6 +318,10 @@
       delete listingPrefetch.volunteering;
       promoCacheDirty = true;
     }
+    if (window.PiPromos) {
+      const piReply = await window.PiPromos.route(payload);
+      if (piReply !== undefined) return rejectIfAuthEnded(piReply);
+    }
     const res = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -395,6 +399,28 @@
    * fixed overhead). Falls back to parallel single reads on a script that
    * predates adminGetMany. */
   async function apiGetMany(reads) {
+    // Promotion reads are answered by the Pi for Pi logins; the rest by the Sheet.
+    const onPi = function (r) {
+      return isPiToken(token()) && (r.type === "promotions" || r.type === "inviteMessages");
+    };
+    if (!reads.some(onPi)) return apiGetManySheet(reads);
+    const sheetReads = reads.filter(function (r) { return !onPi(r); });
+    const both = await Promise.all([
+      sheetReads.length ? apiGetManySheet(sheetReads) : [],
+      Promise.all(
+        reads.filter(onPi).map(function (r) {
+          return apiGet(r.type, true).catch(function (e) { return { error: e.message }; });
+        })
+      ),
+    ]);
+    let si = 0;
+    let pi = 0;
+    return reads.map(function (r) {
+      return onPi(r) ? both[1][pi++] : both[0][si++];
+    });
+  }
+
+  async function apiGetManySheet(reads) {
     if (!reads.length) return [];
     const data = await apiPost({ formType: "adminGetMany", token: token(), reads: reads });
     if (data && Array.isArray(data.results)) {

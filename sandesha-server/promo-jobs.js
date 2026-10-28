@@ -24,6 +24,9 @@ function createPromoJobs(deps) {
     MEDIA_DIR,
     createSchedule,
     cancelSchedule,
+    // (token, fields) → saves the post in this server's own database. Used
+    // instead of the Sheet when the person signed in on the Pi.
+    savePromoLocal = null,
     fetchImpl = (...args) => fetch(...args),
     log = () => {},
     now = () => Date.now(),
@@ -151,7 +154,8 @@ function createPromoJobs(deps) {
       }
 
       update(job, { step: 'sheet' });
-      await appsScript(sheet.url, payload);
+      if (savePromoLocal && String(sheet.token).startsWith('v1.')) await savePromoLocal(sheet.token, payload);
+      else await appsScript(sheet.url, payload);
 
       // Committed — only now drop the rows the sheet no longer refers to.
       // A re-save inside the dedupe window hands back the row already queued,

@@ -23,6 +23,31 @@ const MIGRATIONS = [
      created_at TEXT NOT NULL DEFAULT '',
      revoked_before INTEGER NOT NULL DEFAULT 0
    )`,
+  // 2 — promotion posts (moved from the Sheet's Promotions tab). event_* are
+  // the last-seen copy of the program/volunteering listing the post is for,
+  // kept so the board still draws when the Sheet cannot be reached.
+  `CREATE TABLE promos (
+     id TEXT PRIMARY KEY,
+     event_type TEXT NOT NULL DEFAULT 'programs',
+     event_id TEXT NOT NULL DEFAULT '',
+     event_title TEXT NOT NULL DEFAULT '',
+     message TEXT NOT NULL DEFAULT '',
+     flyer_url TEXT NOT NULL DEFAULT '',
+     send_at TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'pending',
+     created_by TEXT NOT NULL DEFAULT '',
+     updated_at TEXT NOT NULL DEFAULT '',
+     sent_at TEXT NOT NULL DEFAULT '',
+     sent_by TEXT NOT NULL DEFAULT '',
+     target TEXT NOT NULL DEFAULT '',
+     wa_schedule_ids TEXT NOT NULL DEFAULT '',
+     event_date TEXT NOT NULL DEFAULT '',
+     event_location TEXT NOT NULL DEFAULT '',
+     event_status TEXT NOT NULL DEFAULT '',
+     event_image TEXT NOT NULL DEFAULT '',
+     event_open INTEGER NOT NULL DEFAULT 0
+   )`,
+  `CREATE INDEX promos_event ON promos (event_type, event_id)`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {

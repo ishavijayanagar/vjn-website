@@ -650,6 +650,12 @@
   function pickStatusMarkup(item) {
     const s = normalizeStatus(item.status);
     const when = formatPickScheduleWhen(item.send_at);
+    if (s === "sent") {
+      return (
+        '<span class="pick-status pick-status--ready">' +
+        '<span class="pick-status-kind">Sent</span></span>'
+      );
+    }
     if (s === "pending") {
       return (
         '<span class="pick-status pick-status--pending">' +
@@ -740,9 +746,7 @@
   function libraryItems() {
     return items
       .filter(function (item) {
-        if (item.event_open === false) return false;
-        const s = normalizeStatus(item.status);
-        return s === "pending" || s === "ready" || s === "due";
+        return item.event_open !== false;
       })
       .sort(function (a, b) {
         return String(a.event_title || "").localeCompare(String(b.event_title || ""));
@@ -756,6 +760,10 @@
   }
 
   async function apiPost(payload) {
+    if (window.PiPromos) {
+      const piReply = await window.PiPromos.route(payload);
+      if (piReply !== undefined) return piReply;
+    }
     const res = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
       body: JSON.stringify(payload),
