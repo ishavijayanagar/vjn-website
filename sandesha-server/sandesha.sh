@@ -328,7 +328,25 @@ do_update() {
   local old new changed
   old="$(git rev-parse HEAD)"
   say "Pulling..."
-  git pull --ff-only || die "git pull failed (local changes in the way?). Fix that, then run '${NAME} update' again."
+  if ! git pull --ff-only; then
+    # Edited files in the checkout block the pull. Nobody should edit code on the Pi
+    # (the old start.sh did rewrite config.js), so offer to discard them and retry.
+    local dirty; dirty="$(git status --porcelain --untracked-files=no)"
+    if [[ -z "$dirty" ]]; then
+      die "git pull failed and no local edits are in the way. Check the message above."
+    fi
+    say ""
+    say "These files were changed on this machine and block the update:"
+    printf '%s\n' "$dirty" | sed 's/^/    /'
+    read -r -p "Discard those changes and update? [y/N] " ans
+    [[ "$ans" == "y" || "$ans" == "Y" ]] || die "Left as it is. Run 'git diff' to see the changes, or 'git stash' to keep them aside."
+    # The files can be anywhere in the repo (config.js sits above this folder), so restore
+    # exactly the ones that changed, from the top.
+    local top; top="$(git rev-parse --show-toplevel)"
+    (cd "$top" && git diff --name-only HEAD | xargs -r git restore --staged --worktree --) \
+      || die "could not discard the local changes."
+    git pull --ff-only || die "git pull still failed."
+  fi
   new="$(git rev-parse HEAD)"
   if [[ "$old" == "$new" ]]; then
     say "Already up to date."
