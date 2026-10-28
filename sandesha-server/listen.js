@@ -788,6 +788,17 @@ function notifyWhatsAppSessionError(err, where) {
   return true;
 }
 
+/** A failed send: 503 (and a reconnect) if WhatsApp's page is broken, else 500. */
+function sendFailureResponse(res, err, where) {
+  if (notifyWhatsAppSessionError(err, where)) {
+    res.writeHead(503);
+    res.end(JSON.stringify({ error: 'WhatsApp session reconnecting — try again in a moment' }));
+    return;
+  }
+  res.writeHead(500);
+  res.end(JSON.stringify({ error: err.message }));
+}
+
 function whatsAppUnavailableResponse(res, authed = true) {
   jsonResponse(res, 503, {
     error: 'WhatsApp session reconnecting — try again in a moment',
@@ -3401,7 +3412,7 @@ function startSendServer() {
             throw err;
           }
           res.writeHead(200); res.end(JSON.stringify({ ok: true }));
-        } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+        } catch (err) { sendFailureResponse(res, err, 'POST /send'); }
       });
       return;
     }
@@ -3440,12 +3451,12 @@ function startSendServer() {
               detail: err.message, target, via: 'manual', actor,
               meta: { ...mediaMeta, error: err.message },
             });
-            const status = err.message === 'Chat not found' ? 404 : 500;
-            res.writeHead(status); res.end(JSON.stringify(status === 404 ? {} : { error: err.message }));
+            if (err.message !== 'Chat not found') { sendFailureResponse(res, err, 'POST /send-media'); return; }
+            res.writeHead(404); res.end('{}');
             return;
           }
           res.writeHead(200); res.end(JSON.stringify({ ok: true }));
-        } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+        } catch (err) { sendFailureResponse(res, err, 'POST /send-media'); }
       });
       return;
     }
