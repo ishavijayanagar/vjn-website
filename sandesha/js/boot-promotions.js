@@ -75,10 +75,16 @@ export async function showSendPanel() {
   bootPromotionsMessaging().catch(() => {});
 }
 
-export async function refreshMessagingData() {
-  if (!booted) return;
+/**
+ * After a change to the queue only the queue needs re-reading. A full refresh
+ * (every group re-checked) is what /groups costs minutes for on the Pi, so it
+ * only happens when asked for.
+ */
+export async function refreshMessagingData({ full = false } = {}) {
+  if (!booted && full) return;
   try {
-    await refreshCore(true);
+    if (full) await refreshCore(true);
+    else await refreshSchedules();
     updatePairingBanner(getState().health);
   } catch (err) {
     toast(err.message || 'Refresh failed', 'err');

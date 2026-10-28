@@ -13,6 +13,7 @@ let host = null;
 let editing = null; // { original: string|null, name: string, jids: Set<string>, pinned: Set<string> }
 let query = '';
 let saving = false;
+let deleting = false;
 
 /** "seva_team" → "seva team" for display; keys stay underscored like the console's. */
 function label(key) {
@@ -173,7 +174,7 @@ function renderEditor() {
       </div>
       ${editing.original ? `
       <div class="ios-group">
-        <button type="button" class="ios-row-btn danger" id="setDelete">Delete set</button>
+        <button type="button" class="ios-row-btn danger" id="setDelete" ${saving ? 'disabled' : ''}>${deleting ? 'Deleting…' : 'Delete set'}</button>
       </div>` : ''}
     </section>`;
 
@@ -233,12 +234,20 @@ async function remove() {
   if (!name || !confirm(`Delete the set "${label(name)}"? Scheduled posts to it will have nothing to send to.`)) return;
   const sets = { ...(getState().sets || {}) };
   delete sets[name];
+  saving = true;
+  deleting = true;
+  renderEditor();
   try {
     await saveSets(sets);
     toast(`Deleted "${label(name)}"`, 'ok');
+    saving = false;
+    deleting = false;
     closeEditor();
   } catch (err) {
     toast(err?.message || 'Could not delete the set', 'err');
+    saving = false;
+    deleting = false;
+    renderEditor();
   }
 }
 

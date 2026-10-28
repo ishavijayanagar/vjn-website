@@ -1482,6 +1482,9 @@
   }
 
   async function removeFromDay(id) {
+    if (busyIds[String(id)]) return;
+    setRowBusy(id, true);
+    toast("Removing from the day…", null);
     try {
       await unqueue(find(id));
       const data = await apiPost({
@@ -1491,9 +1494,11 @@
         send_at: "",
       });
       if (data.error) throw new Error(data.error);
+      delete busyIds[String(id)];
       await load(false);
       toast("Removed from day", null);
     } catch (e) {
+      setRowBusy(id, false);
       toast(e.message || "Could not remove", null);
     }
   }
@@ -2520,12 +2525,17 @@
       openPickSheet();
     };
     const logoutBtn = $("logoutBtn");
-    if (logoutBtn) logoutBtn.onclick = async function () {
+    if (logoutBtn) logoutBtn.onclick = function () {
       const t = token();
       clearAuth();
+      // Leave at once; telling the server is best effort and must not hold the page.
       if (t) {
         try {
-          await apiPost({ formType: "adminLogout", token: t });
+          fetch(APPS_SCRIPT_URL, {
+            method: "POST",
+            body: JSON.stringify({ formType: "adminLogout", token: t }),
+            keepalive: true,
+          }).catch(function () {});
         } catch (e) {}
       }
       location.href = "admin.html";
@@ -2582,6 +2592,7 @@
     $("composeFlyerFile").addEventListener("change", async function () {
       const file = this.files && this.files[0];
       if (!file) return;
+      $("composeFlyerName").textContent = "Reading photo…";
       try {
         pendingFlyer = await readFileAsImagePayload(file);
         $("composeFlyerName").textContent = file.name || "Replace flyer";
@@ -2590,6 +2601,7 @@
         syncComposeWhen();
       } catch (e) {
         pendingFlyer = null;
+        $("composeFlyerName").textContent = "No flyer yet";
         const err = $("composeErr");
         err.textContent = e.message || "Could not read that image.";
         err.hidden = false;

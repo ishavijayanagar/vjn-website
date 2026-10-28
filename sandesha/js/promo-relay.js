@@ -10,6 +10,8 @@
  * the centre meant to post, and learns the send happened on the next load.
  */
 import { api, uploadFile, getApiBase } from './api.js';
+import { ensureSandeshaAuth } from './auth-bridge.js';
+import { toast } from './toast.js';
 import { getState, getTargetOptions } from './store.js';
 import { openAudienceSheet, audienceSummary, audienceTotal } from './promo-audience.js';
 import { scheduleTargets } from './pages/promo-compose.js';
@@ -49,20 +51,28 @@ function rememberDefaultTargets(targets) {
  * value cannot silently schedule to nothing.
  */
 function stillReal(targets) {
+  // Until the groups have loaded nothing can be checked — keep what was saved
+  // rather than dropping every group from the audience.
+  if (!getState().groupsLoaded) return targets || [];
   const options = getTargetOptions();
   const known = new Set(options.map((o) => String(o.value).toLowerCase()));
   return (targets || []).filter((t) => t && known.has(String(t.value).toLowerCase()));
 }
 
 const SandeshaPromo = {
-  /** Boot auth + groups/sets. Throws with a readable message if unreachable. */
+  /**
+   * Sign in to Sandesha. The groups and sets load in the background: cancelling
+   * a queued row, handing over a job or polling one needs none of them, and
+   * /groups can take minutes on the Pi — nothing should wait behind it.
+   */
   async ready() {
-    await bootPromotionsMessaging();
+    await ensureSandeshaAuth();
+    bootPromotionsMessaging().catch(() => {});
     return true;
   },
 
   async refresh() {
-    await refreshMessagingData();
+    await refreshMessagingData({ full: true });
   },
 
   apiBase() {
@@ -99,6 +109,7 @@ const SandeshaPromo = {
   },
 
   pick(preselected) {
+    if (!getState().groupsLoaded) toast('Groups are still loading — they will appear in the list in a moment', 'ok');
     return new Promise((resolve) => {
       openAudienceSheet(getTargetOptions(), preselected || [], (picked) => {
         rememberDefaultTargets(picked);

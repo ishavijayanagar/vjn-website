@@ -146,12 +146,14 @@
       var f = fileEl.files[0];
       if (!f) return;
       clearMsg();
+      msgEl.textContent = "Reading photo…";
       try {
         pending = await readImage(f);
         setImage(pending.preview);
       } catch (e) {
         errEl.textContent = e.message;
       }
+      if (msgEl.textContent === "Reading photo…") msgEl.textContent = "";
     });
     [onEl, untilEl].forEach(function (el) {
       el.addEventListener("input", paintState);
@@ -176,6 +178,8 @@
       if (link && !/^https?:\/\//i.test(link)) return (errEl.textContent = "The link must start with http:// or https://");
       if (onEl.checked && (!until || isNaN(until))) return (errEl.textContent = "Set when the banner closes.");
       saveEl.disabled = true;
+      var saveLabel = saveEl.textContent;
+      saveEl.textContent = "Saving…";
       try {
         var url = imageUrl;
         if (pending) {
@@ -205,6 +209,7 @@
         errEl.textContent = ex.message || "Could not save.";
       } finally {
         saveEl.disabled = false;
+        saveEl.textContent = saveLabel;
       }
     });
 
