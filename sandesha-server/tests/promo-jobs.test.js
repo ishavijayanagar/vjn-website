@@ -136,6 +136,52 @@ async function run() {
     assert.strictEqual(t.jobs.list().length, 0);
   });
 
+  await test('queue job: one row per list, then drops the rows it replaces', async () => {
+    const t = setup();
+    const job = t.jobs.start({
+      kind: 'queue', title: 'Hello', message: 'Hello', runAt: '2026-10-28T10:30:00.000Z',
+      rows: [{ target: 'Group A' }, { target: 'Set B', isSet: true }],
+      filePath: 'upload_1.png', previousIds: ['7', '8'],
+    }, { role: 'admin', name: 'A' });
+    assert.strictEqual(job.status, 'running');
+    assert.strictEqual(job.kind, 'queue');
+    await job.done;
+    assert.strictEqual(job.status, 'done');
+    assert.deepStrictEqual(job.ids, ['1', '2']);
+    assert.deepStrictEqual(t.rows.map((r) => [r.target, !!r.isSet, r.filePath]), [['Group A', false, 'upload_1.png'], ['Set B', true, 'upload_1.png']]);
+    assert.deepStrictEqual(t.cancelled, ['7', '8']);
+    assert.strictEqual(t.sheetCalls.length, 0, 'a queue job never talks to the sheet');
+  });
+
+  await test('queue job: a failing row rolls back the rows it made and keeps the old ones', async () => {
+    const t = setup({ failRow: 1 });
+    const job = t.jobs.start({
+      kind: 'queue', message: 'Hi', runAt: '2026-10-28T10:30:00.000Z',
+      rows: [{ target: 'A' }, { target: 'B' }], previousIds: ['5'],
+    }, null);
+    await job.done;
+    assert.strictEqual(job.status, 'failed');
+    assert.match(job.error, /target not found/);
+    assert.deepStrictEqual(t.cancelled, ['1'], 'the first new row is taken back; the old row 5 stays queued');
+  });
+
+  await test('queue job: rejects bad input before starting', async () => {
+    const t = setup();
+    const base = { kind: 'queue', message: 'Hi', runAt: '2026-10-28T10:30:00.000Z', rows: [{ target: 'A' }] };
+    assert.throws(() => t.jobs.start({ ...base, rows: [] }, null), /audience/);
+    assert.throws(() => t.jobs.start({ ...base, runAt: 'nope' }, null), /runAt/);
+    assert.throws(() => t.jobs.start({ ...base, message: '  ' }, null), /message or attach/);
+    assert.strictEqual(t.jobs.list().length, 0);
+  });
+
+  await test('queue job: shows up in the job list for the page to poll', async () => {
+    const t = setup();
+    const job = t.jobs.start({ kind: 'queue', message: 'Hi', runAt: '2026-10-28T10:30:00.000Z', rows: [{ target: 'A' }] }, null);
+    await job.done;
+    assert.strictEqual(t.jobs.list()[0].id, job.id);
+    assert.strictEqual(t.jobs.list()[0].status, 'done');
+  });
+
   if (failed) {
     console.log(`\n${failed} failed`);
     process.exit(1);

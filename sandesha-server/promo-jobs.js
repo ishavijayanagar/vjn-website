@@ -1,7 +1,11 @@
 'use strict';
 
 /**
- * Board scheduling, run here instead of in the browser.
+ * Scheduling, run here instead of in the browser.
+ *
+ * Two kinds of job. A Board post (default) also saves its slot to the sheet/DB.
+ * A "queue" job (the Send tab's Schedule) just creates the schedule rows and
+ * drops the ones it replaces; the attachment is already uploaded by then.
  *
  * Scheduling a board post is several slow steps — fetch the flyer, queue one
  * row per list, write the slot back to the sheet, drop the rows it replaced.
@@ -78,6 +82,7 @@ function createPromoJobs(deps) {
    * @returns the job record, already 'running'
    */
   function start(input, actor) {
+    if (input && input.kind === 'queue') return startQueue(input, actor);
     const promoId = String(input.promoId || '').trim();
     if (!promoId) throw new Error('promoId required');
     const sheet = input.sheet || {};
@@ -108,6 +113,60 @@ function createPromoJobs(deps) {
     save();
     job.done = run(job, { ...input, rows, runAt }, actor).catch(() => {});
     return job;
+  }
+
+  /** The Send tab's Schedule: one row per list, replacing rows the message held before. */
+  function startQueue(input, actor) {
+    const rows = Array.isArray(input.rows) ? input.rows.filter((r) => r && r.target) : [];
+    if (!rows.length) throw new Error('Choose at least one audience');
+    const runAt = input.runAt ? new Date(input.runAt) : null;
+    if (!runAt || Number.isNaN(runAt.getTime())) throw new Error('Invalid runAt');
+    if (!String(input.message || '').trim() && !input.filePath) throw new Error('Write a message or attach something');
+
+    const job = {
+      id: `pj-${now()}-${Math.random().toString(36).slice(2, 7)}`,
+      kind: 'queue',
+      promoId: `queue-${now()}`,
+      title: String(input.title || '').slice(0, 200),
+      sendAt: runAt.toISOString(),
+      status: 'running',
+      step: 'queue',
+      error: '',
+      ids: [],
+      createdAt: new Date(now()).toISOString(),
+      updatedAt: new Date(now()).toISOString(),
+      createdBy: actor ? { role: actor.role, name: actor.name } : null,
+    };
+    jobs.push(job);
+    save();
+    job.done = runQueue(job, { ...input, rows, runAt }, actor).catch(() => {});
+    return job;
+  }
+
+  async function runQueue(job, input, actor) {
+    const previousIds = (input.previousIds || []).map(String);
+    const newIds = [];
+    try {
+      for (const row of input.rows) {
+        const schedule = await createSchedule({
+          message: input.message,
+          runAt: input.runAt.toISOString(),
+          target: row.target,
+          isSet: !!row.isSet,
+          filePath: input.filePath || '',
+        }, actor);
+        newIds.push(String(schedule.id));
+        update(job, { step: `queue ${newIds.length}/${input.rows.length}` });
+      }
+      // Only once the replacements exist, so a failure cannot leave the message unqueued.
+      for (const id of previousIds.filter((p) => !newIds.includes(p))) await cancelQuietly(id, actor);
+      update(job, { status: 'done', step: 'done', ids: newIds });
+    } catch (err) {
+      // The upload is left on the server, so the page can offer the same message again.
+      for (const id of newIds.filter((n) => !previousIds.includes(n))) await cancelQuietly(id, actor);
+      log(`[promo-jobs] ${job.id} failed: ${err.message}`);
+      update(job, { status: 'failed', error: err.message || 'Something went wrong' });
+    }
   }
 
   async function run(job, input, actor) {

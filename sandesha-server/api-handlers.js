@@ -828,7 +828,7 @@ function createApiHandlers(deps) {
   /** What the board needs to know about a job — no token, no flyer bytes. */
   function publicJob(j) {
     return {
-      id: j.id, promoId: j.promoId, title: j.title, sendAt: j.sendAt,
+      id: j.id, kind: j.kind || 'post', promoId: j.promoId, title: j.title, sendAt: j.sendAt,
       status: j.status, step: j.step, error: j.error, ids: j.ids,
       createdAt: j.createdAt, updatedAt: j.updatedAt,
     };

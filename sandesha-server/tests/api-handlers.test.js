@@ -208,6 +208,38 @@ async function run() {
     assert.strictEqual(res3.statusCode, 200);
   });
 
+  await test('POST /promo-jobs kind=queue schedules every list with an uploaded flyer and no sheet', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sandesha-queue-'));
+    fs.writeFileSync(path.join(dir, 'upload_9.jpg'), 'jpegbytes');
+    const h = createApiHandlers(makeDeps({
+      MEDIA_DIR: dir,
+      PROMO_JOBS_FILE: path.join(dir, 'promo-jobs.json'),
+      promoFetch: async () => { throw new Error('a queue job must not call the sheet'); },
+    }));
+    const post = async (payload) => {
+      const body = JSON.stringify(payload);
+      const req = { method: 'POST', on(evt, fn) { if (evt === 'data') fn(body); if (evt === 'end') fn(); } };
+      const res = mockRes();
+      await h.handleRequest(req, res, { pathname: '/promo-jobs' }, () => true);
+      return res;
+    };
+    const res = await post({
+      kind: 'queue', title: 'Hello', message: 'hi', runAt: new Date(Date.now() + 3600e3).toISOString(),
+      rows: [{ target: 'family', isSet: true }, { target: 'friends', isSet: true }], filePath: 'upload_9.jpg',
+    });
+    assert.strictEqual(res.statusCode, 202, res.body);
+    const { job } = JSON.parse(res.body);
+    assert.strictEqual(job.kind, 'queue');
+    await new Promise((r) => setTimeout(r, 60));
+    const res2 = mockRes();
+    await h.handleRequest({ method: 'GET' }, res2, { pathname: '/promo-jobs' }, () => true);
+    const listed = JSON.parse(res2.body).jobs.find((j) => j.id === job.id);
+    assert.strictEqual(listed.status, 'done', listed.error);
+    assert.strictEqual(listed.ids.length, 2);
+    const bad = await post({ kind: 'queue', message: 'hi', runAt: new Date().toISOString(), rows: [] });
+    assert.strictEqual(bad.statusCode, 400);
+  });
+
   await test('POST /schedules carries an uploaded flyer', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sandesha-media-'));
     const flyer = path.join(dir, 'upload_1.jpg');

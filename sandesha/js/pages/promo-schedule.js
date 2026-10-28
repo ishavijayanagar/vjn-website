@@ -10,7 +10,7 @@ import { getState, jidToName } from '../store.js';
 import { toast } from '../toast.js';
 import { releaseBoardPost, markBoardPostSent } from '../vjn-sheet.js';
 import { openManualSendSheet } from '../manual-send.js';
-import { loadScheduleIntoCompose } from './promo-compose.js';
+import { loadScheduleIntoCompose, pendingQueueTitles } from './promo-compose.js';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -137,6 +137,20 @@ function rowHtml(entry, now) {
     </div>`;
 }
 
+/** Schedules the server is still creating: shown at once, replaced by the real rows. */
+function pendingHtml() {
+  return pendingQueueTitles()
+    .map((title) => `
+    <div class="listrow is-pending" aria-busy="true">
+      <div class="time"><svg class="pend-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg></div>
+      <div class="body" style="cursor:default">
+        <div class="meta"><span class="chip queued">Scheduling…</span></div>
+        <div class="snippet">${escapeHtml(title)}</div>
+      </div>
+    </div>`)
+    .join('');
+}
+
 export function renderPromoSchedule() {
   const host = panel();
   if (!host) return;
@@ -160,6 +174,12 @@ export function renderPromoSchedule() {
 
   setKicker(monthRange(days));
 
+  const pending = pendingHtml();
+  if (!list.length && pending) {
+    host.innerHTML = `<div class="week">${weekHtml(days, counts, todayKey)}</div>${pending}`;
+    bind(host);
+    return;
+  }
   if (!list.length) {
     host.innerHTML = `
       <div class="week">${weekHtml(days, counts, todayKey)}</div>
@@ -175,7 +195,7 @@ export function renderPromoSchedule() {
     return;
   }
 
-  const parts = [`<div class="week">${weekHtml(days, counts, todayKey)}</div>`];
+  const parts = [`<div class="week">${weekHtml(days, counts, todayKey)}</div>`, pending];
   let openKey = '';
   for (const entry of list) {
     const key = dayKey(entry.when);

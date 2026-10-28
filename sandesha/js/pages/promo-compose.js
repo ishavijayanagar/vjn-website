@@ -651,7 +651,169 @@ async function submit() {
   else await sendNow(text);
 }
 
+/**
+ * Hand the schedule to Sandesha whole (see promo-jobs.js "queue" jobs). Only the
+ * attachment upload happens from this phone; creating a row per list and
+ * dropping the rows it replaces carries on at the server if the phone sleeps
+ * or the tab closes. The outcome is picked up by watchQueueJobs().
+ */
 async function saveSchedule(text) {
+  if (!draft.runAt) {
+    toast('Pick a delivery time', 'err');
+    return;
+  }
+  const rows = scheduleTargets(draft.targets);
+  if (!rows.length) {
+    toast('No valid audience', 'err');
+    return;
+  }
+
+  const editing = isEditing();
+  busy(true, editing ? 'Saving…' : 'Scheduling…');
+  toast(editing ? 'Saving your changes…' : 'Scheduling…', 'info', 3000);
+  const runAt = new Date(draft.runAt).toISOString();
+  let filePath = draft.keepFilePath;
+  try {
+    if (draft.file) {
+      busy(true, 'Uploading attachment…');
+      const up = await uploadFile(draft.file);
+      filePath = up.filePath;
+    }
+    const title = (text || draft.keepFileName || (draft.file && draft.file.name) || 'Message').trim().slice(0, 60);
+    let started;
+    try {
+      started = await api('/promo-jobs', {
+        method: 'POST',
+        body: JSON.stringify({
+          kind: 'queue',
+          title,
+          message: text,
+          runAt,
+          rows: rows.map((r) => ({ target: r.target, isSet: !!r.isSet })),
+          filePath,
+          previousIds: draft.replacingIds,
+        }),
+      });
+    } catch (err) {
+      // A Sandesha that predates queue jobs reads this as a Board post.
+      if (/promoId required|sheet\.url|sheet\.token/i.test(err.message || '')) {
+        return saveScheduleHere(text, filePath);
+      }
+      throw err;
+    }
+    rememberQueueJob(started.job.id, title, {
+      message: text,
+      targets: draft.targets,
+      runAt: draft.runAt,
+      replacingIds: draft.replacingIds,
+      keepFilePath: filePath || '',
+      keepFileName: draft.file ? draft.file.name : draft.keepFileName,
+    });
+    toast(editing ? 'Saved — finishing on the server' : 'Scheduled — finishing on the server', 'ok');
+    clearDraft();
+    sending = false;
+    renderPromoCompose();
+    window.dispatchEvent(new CustomEvent('promo:goto', { detail: { mode: 'schedule' } }));
+    watchQueueJobs(1000);
+  } catch (err) {
+    toast(err.message || 'Could not schedule', 'err');
+    sending = false;
+    sync();
+  }
+}
+
+/* ───────── queue jobs handed to the server ─────────
+   Kept in localStorage so a reload, or a tab Android discarded, still learns how
+   the job ended. If it failed, the message comes back in Compose so nothing
+   typed is lost. */
+const QUEUE_JOBS_KEY = 'vjn_queue_jobs';
+const QUEUE_JOB_MAX_AGE_MS = 15 * 60 * 1000;
+let queuePollTimer = 0;
+
+function readQueueJobs() {
+  try {
+    const list = JSON.parse(localStorage.getItem(QUEUE_JOBS_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeQueueJobs(list) {
+  try { localStorage.setItem(QUEUE_JOBS_KEY, JSON.stringify(list)); } catch { /* storage off */ }
+}
+
+function rememberQueueJob(id, title, snapshot) {
+  const list = readQueueJobs().filter((j) => j.id !== id);
+  list.push({ id, title, snapshot, at: Date.now() });
+  writeQueueJobs(list);
+}
+
+/** Titles of schedules still being created on the server, for the Schedule tab. */
+export function pendingQueueTitles() {
+  return readQueueJobs().map((j) => j.title || 'Message');
+}
+
+function restoreDraftFrom(snapshot) {
+  if (!snapshot) return;
+  draft.message = String(snapshot.message || '');
+  draft.targets = Array.isArray(snapshot.targets) ? snapshot.targets : [];
+  draft.later = true;
+  draft.runAt = String(snapshot.runAt || '');
+  draft.replacingIds = Array.isArray(snapshot.replacingIds) ? snapshot.replacingIds.map(String) : [];
+  draft.keepFilePath = String(snapshot.keepFilePath || '');
+  draft.keepFileName = String(snapshot.keepFileName || '');
+  persistDraft();
+  if (panel()?.isConnected && panel().closest('.is-active')) renderPromoCompose();
+}
+
+async function pollQueueJobs() {
+  queuePollTimer = 0;
+  const pending = readQueueJobs();
+  if (!pending.length) return;
+  let jobs;
+  try {
+    jobs = (await api('/promo-jobs')).jobs || [];
+  } catch {
+    watchQueueJobs(8000);
+    return;
+  }
+  const keep = [];
+  let finished = false;
+  for (const entry of pending) {
+    const job = jobs.find((j) => j.id === entry.id);
+    if (!job) {
+      // The server forgot it (restart + 48h) or it never landed: stop waiting.
+      if (Date.now() - entry.at < QUEUE_JOB_MAX_AGE_MS) keep.push(entry);
+      continue;
+    }
+    if (job.status === 'running') {
+      keep.push(entry);
+      continue;
+    }
+    finished = true;
+    api(`/promo-jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' }).catch(() => {});
+    if (job.status === 'done') {
+      const n = (job.ids || []).length;
+      toast(`${entry.title || 'Message'} scheduled${n > 1 ? ` for ${n} lists` : ''}`, 'ok');
+    } else {
+      toast(`Could not schedule “${entry.title || 'your message'}”: ${job.error || 'something went wrong'}. Your message is back in Compose.`, 'err', 12000);
+      restoreDraftFrom(entry.snapshot);
+    }
+  }
+  writeQueueJobs(keep);
+  if (finished) window.dispatchEvent(new CustomEvent('sandesha:refresh'));
+  if (keep.length) watchQueueJobs(2500);
+}
+
+/** Start (or continue) checking on handed-over schedules. Safe to call any time. */
+export function watchQueueJobs(delayMs = 0) {
+  if (!readQueueJobs().length) return;
+  clearTimeout(queuePollTimer);
+  queuePollTimer = setTimeout(pollQueueJobs, delayMs);
+}
+
+async function saveScheduleHere(text, preUploadedPath = '') {
   if (!draft.runAt) {
     toast('Pick a delivery time', 'err');
     return;
@@ -671,8 +833,8 @@ async function saveSchedule(text) {
     // Uploaded once; every row points at the same file and the server clears
     // it after the last one has gone out. An untouched attachment keeps the
     // path it already has rather than being uploaded a second time.
-    let filePath = draft.keepFilePath;
-    if (draft.file) {
+    let filePath = preUploadedPath || draft.keepFilePath;
+    if (draft.file && !preUploadedPath) {
       busy(true, 'Uploading attachment…');
       const up = await uploadFile(draft.file);
       filePath = up.filePath;

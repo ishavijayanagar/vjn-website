@@ -3349,3 +3349,7 @@ button.chip {
   cursor: pointer;
 }
 .pairing-email-btn:disabled { opacity: 0.7; cursor: progress; }
+
+/* A schedule the server is still creating (Send tab → Schedule). */
+.listrow.is-pending { opacity: 0.78; }
+.listrow.is-pending .time { display: flex; align-items: center; justify-content: center; min-width: 52px; }

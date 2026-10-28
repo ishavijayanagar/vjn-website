@@ -13,7 +13,7 @@ import { renderApiSettings, updateApiStatus } from './api-settings.js';
 import { renderPromoSets } from './pages/promo-sets.js?v=3';
 import { toast } from './toast.js';
 
-import { setComposeMode } from './pages/promo-compose.js';
+import { setComposeMode, watchQueueJobs } from './pages/promo-compose.js';
 import { renderPromoReach } from './pages/promo-reach.js';
 // Registers window.SandeshaPromo for admin-promotions.js (a classic script).
 import './promo-relay.js';
@@ -257,6 +257,8 @@ function syncSandeshaDot() {
 async function watchSandeshaLink() {
   try {
     await ensureSandeshaAuth();
+    // Schedules handed to the server before a reload still need their outcome shown.
+    watchQueueJobs();
     await refreshCore(false);
     syncPush().catch(() => {});
   } catch {
