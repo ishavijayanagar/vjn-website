@@ -283,10 +283,24 @@ function httpJson(urlString, { method = 'GET', body = null, headers = {} } = {})
   });
 }
 
+let localVjnVerifier = null;
+
+/** fn(token) → session or null, for tokens signed by this server (vjn-users.js). */
+function setLocalVjnVerifier(fn) {
+  localVjnVerifier = fn;
+}
+
 async function exchangeVjnToken(vjnToken) {
   const token = String(vjnToken || '').trim();
   if (!token) {
     return { ok: false, error: 'Missing VJN token', status: 400 };
+  }
+
+  // Logins the Pi signed itself are checked here, without a round trip.
+  if (token.startsWith('v1.')) {
+    const local = localVjnVerifier ? localVjnVerifier(token) : null;
+    if (!local) return { ok: false, error: 'VJN session is invalid or expired', status: 401 };
+    return issueVjnSession(local);
   }
 
   const appsScriptUrl = getVjnAppsScriptUrl();
@@ -320,7 +334,10 @@ async function exchangeVjnToken(vjnToken) {
     };
   }
 
-  const user = data.user || data.session || data;
+  return issueVjnSession(data.user || data.session || data);
+}
+
+function issueVjnSession(user) {
   const role = normalizeRole(user?.role);
   if (!MESSAGING_ROLES.has(role)) {
     return {
@@ -368,6 +385,7 @@ function clearAllSessions() {
 module.exports = {
   login,
   exchangeVjnToken,
+  setLocalVjnVerifier,
   validateAuth,
   validateToken,
   getBearerToken,

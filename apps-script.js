@@ -236,6 +236,10 @@ const TOKEN_CACHE_PREFIX = "admin_token_";
 const USER_DISABLED_PREFIX = "user_disabled_";
 const USER_TOKENS_PREFIX = "user_toks_";
 const DISABLED_USER_IDS_PROP = "DISABLED_USER_IDS";
+// Logins live on the Sandesha Pi (sandesha-server/vjn-users.js) once this
+// Script Property is set to the same value as the Pi's VJN_AUTH_SECRET.
+const VJN_AUTH_SECRET_PROP = "VJN_AUTH_SECRET";
+const VJN_REVOKED_PREFIX = "vjn_rev_";
 const PUBLIC_CACHE_TTL = 90;
 const CACHE_PROGRAMS = "pub_programs_v3";
 const CACHE_VOLUNTEER = "pub_volunteer_v3";
@@ -446,6 +450,12 @@ function doPost(e) {
       return json_({ success: true });
     }
 
+    if (formType === "vjnRevoke") {
+      return json_(vjnRevoke_(data));
+    }
+    if (formType === "vjnExportUsers") {
+      return json_(vjnExportUsers_(data));
+    }
     if (formType === "adminLogin") {
       return json_(adminLogin(data));
     }
@@ -728,6 +738,7 @@ function clearUserDisabled_(userId) {
 
 function readSession_(token) {
   if (!token) return { reason: "expired" };
+  if (String(token).indexOf("v1.") === 0) return readSignedSession_(token);
   const cache = CacheService.getScriptCache();
   let session = null;
 
@@ -789,6 +800,9 @@ function userIsActive_(user) {
 
 function requireLiveSession_(token) {
   const session = requireSession_(token);
+  // A Pi login was checked against the revocation list already; the person
+  // is not in the Users tab any more.
+  if (session.signed) return session;
   const user = findUserById_(session.id);
   if (!userIsActive_(user)) {
     markUserDisabled_(session.id);
@@ -829,7 +843,87 @@ function findUserByRoleAndPassword_(role, password) {
   return { user: null, hasRole: hasRole };
 }
 
+/* ───────── logins signed by the Sandesha Pi ───────── */
+
+function vjnSecret_() {
+  return String(PropertiesService.getScriptProperties().getProperty(VJN_AUTH_SECRET_PROP) || "");
+}
+
+function loginsOnPi_() {
+  return !!vjnSecret_();
+}
+
+function webSafe_(bytes) {
+  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, "");
+}
+
+function fromWebSafe_(str) {
+  let s = String(str || "");
+  while (s.length % 4) s += "=";
+  return Utilities.newBlob(Utilities.base64DecodeWebSafe(s)).getDataAsString();
+}
+
+/** "v1.<payload>.<sig>" — see sandesha-server/vjn-users.js. */
+function readSignedSession_(token) {
+  const secret = vjnSecret_();
+  const parts = String(token).split(".");
+  if (!secret || parts.length !== 3) return { reason: "expired" };
+  const expected = webSafe_(Utilities.computeHmacSha256Signature("v1." + parts[1], secret));
+  if (expected !== parts[2]) return { reason: "expired" };
+  let p;
+  try {
+    p = JSON.parse(fromWebSafe_(parts[1]));
+  } catch (err) {
+    return { reason: "expired" };
+  }
+  if (!p || !p.uid || !(p.exp > Date.now())) return { reason: "expired" };
+  if (isPersistentlyDisabled_(p.uid)) return { reason: "disabled" };
+  const revokedBefore = Number(PropertiesService.getScriptProperties().getProperty(VJN_REVOKED_PREFIX + p.uid) || 0);
+  if (p.iat < revokedBefore) return { reason: "expired" };
+  return {
+    session: { id: p.uid, username: p.u, displayName: p.n || p.u, role: normalizeRole_(p.r), signed: true },
+  };
+}
+
+function requireVjnSecret_(data) {
+  const secret = vjnSecret_();
+  if (!secret || String((data && data.secret) || "") !== secret) throw new Error("Unauthorized.");
+}
+
+/** The Pi disabled someone or changed their team/password. */
+function vjnRevoke_(data) {
+  requireVjnSecret_(data);
+  const id = String(data.id || "").trim();
+  if (!id) throw new Error("id required");
+  const props = PropertiesService.getScriptProperties();
+  const before = Number(data.before || 0);
+  if (before) props.setProperty(VJN_REVOKED_PREFIX + id, String(before));
+  if (data.disabled) markUserDisabled_(id);
+  else clearUserDisabled_(id);
+  return { success: true };
+}
+
+/** One-off copy of the Users tab for the Pi (scripts/import-users.js). */
+function vjnExportUsers_(data) {
+  requireVjnSecret_(data);
+  return {
+    users: loadUsers_().users.map(function (u) {
+      return {
+        id: u.id,
+        username: u.username,
+        display_name: u.display_name,
+        role: u.role,
+        password_salt: u.password_salt,
+        password_hash: u.password_hash,
+        status: u.status,
+        created_at: u.created_at,
+      };
+    }),
+  };
+}
+
 function adminLogin(data) {
+  if (loginsOnPi_()) return { error: "Sign-in has moved. Reload the page and try again." };
   bootstrapAdminUser_(getAdminPassword_());
   const role = normalizeRole_(data.role);
   const password = String(data.password || "");
@@ -916,6 +1010,7 @@ function adminRead_(data) {
   }
   if (type === "users") {
     requireRole_(token, ["admin"]);
+    if (loginsOnPi_()) throw new Error("Team is managed on Sandesha now. Sign out and sign in again.");
     return { users: listUsersPublic_() };
   }
   if (type === "volunteerRoster") {
@@ -3114,6 +3209,7 @@ function uniqueUsernameFor_(base, users) {
 
 function adminSaveUser(data) {
   const session = requireRole_(data.token, ["admin"]);
+  if (loginsOnPi_()) throw new Error("Team is managed on Sandesha now. Sign out and sign in again.");
   const loaded = loadUsers_();
   const id = String(data.id || "").trim();
   const role = normalizeRole_(data.role);
@@ -3162,6 +3258,7 @@ function adminSaveUser(data) {
 
 function adminSetUserStatus(data) {
   const session = requireRole_(data.token, ["admin"]);
+  if (loginsOnPi_()) throw new Error("Team is managed on Sandesha now. Sign out and sign in again.");
   const loaded = loadUsers_();
   const user = findUserById_(data.id);
   if (!user) throw new Error("Person not found.");

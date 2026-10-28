@@ -330,6 +330,54 @@
     }
   }
 
+  /* ───────── sign-in on Sandesha ─────────
+     Logins live on the Pi (sandesha-server/vjn-users.js) as signed "v1." tokens.
+     Apps Script checks the signature itself, so only signing in and the Team
+     page need the Pi; everything else keeps working if it is offline. */
+  function isPiToken(t) {
+    return /^v1\./.test(String(t || ""));
+  }
+
+  async function piCall(path, opts) {
+    const base = String(window.SANDESHA_API_URL || "").replace(/\/$/, "");
+    const options = Object.assign({}, opts || {});
+    if (options.auth) {
+      options.headers = { Authorization: "Bearer " + token() };
+      delete options.auth;
+    }
+    let res;
+    try {
+      res = await fetch(base + path, options);
+    } catch (e) {
+      throw new Error("Sandesha is offline — signing in and Team need it. Try again in a minute.");
+    }
+    if (res.status === 404) {
+      const err = new Error("Sandesha is not updated yet.");
+      err.unsupported = true;
+      throw err;
+    }
+    const data = await res.json().catch(function () {
+      return { error: "Sandesha replied HTTP " + res.status };
+    });
+    return rejectIfAuthEnded(data);
+  }
+
+  /** Swap a day-old login for a fresh one, so active people stay signed in. */
+  function refreshPiToken() {
+    const t = token();
+    if (!isPiToken(t)) return;
+    let iat = 0;
+    try {
+      iat = JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).iat || 0;
+    } catch (e) {}
+    if (Date.now() - iat < 24 * 60 * 60 * 1000) return;
+    piCall("/vjn/refresh", { method: "POST", body: JSON.stringify({ token: t }) })
+      .then(function (data) {
+        if (data && data.token && token() === t) setToken(data.token);
+      })
+      .catch(function () {});
+  }
+
   async function apiGet(type, asAdmin, extra) {
     const payload = { formType: "adminGet", type: type, token: token() };
     if (extra) {
@@ -784,6 +832,7 @@
     // round trip. An expired session still ends at the login screen.
     const stored = currentUser();
     const sessionCheck = loadSessionUser();
+    refreshPiToken();
     if (stored && stored.role) {
       sessionCheck.then(function (session) {
         if (session.unauthorized) {
@@ -1138,11 +1187,25 @@
       grid.classList.add("is-loading");
     }
     try {
-      const results = await apiGetMany(keys.map(function (key) { return { type: key }; }));
+      // Team comes from Sandesha once logins live there.
+      const piTeam = isPiToken(token()) && keys.indexOf("users") >= 0;
+      const sheetKeys = piTeam ? keys.filter(function (key) { return key !== "users"; }) : keys;
+      const both = await Promise.all([
+        apiGetMany(sheetKeys.map(function (key) { return { type: key }; })),
+        piTeam
+          ? piCall("/vjn/users", { auth: true }).catch(function (e) { return { error: e.message }; })
+          : null,
+      ]);
+      const results = both[0];
       const byKey = {};
-      keys.forEach(function (key, i) {
+      sheetKeys.forEach(function (key, i) {
         byKey[key] = results[i];
       });
+      if (piTeam) {
+        byKey.users = both[1];
+        if (!both[1].error) writeCached("users", undefined, both[1]);
+        results.push(both[1]);
+      }
       const unauthorized = results.find(function (res) {
         return res && res.error && /Unauthorized/i.test(res.error);
       });
@@ -1446,11 +1509,21 @@
     setButtonBusy(btn, true, "Signing in…");
     if (isInstalledApp() && queryNotifyPref() !== "off") await requestQueryNotifications();
     try {
-      const data = await apiPost({
-        formType: "adminLogin",
-        role: selectedLoginRole,
-        password: password,
-      });
+      let data;
+      try {
+        data = await piCall("/vjn/login", {
+          method: "POST",
+          body: JSON.stringify({ role: selectedLoginRole, password: password }),
+        });
+      } catch (e) {
+        if (!e.unsupported) throw e;
+        // Sandesha predates /vjn — the Sheet still holds the logins.
+        data = await apiPost({
+          formType: "adminLogin",
+          role: selectedLoginRole,
+          password: password,
+        });
+      }
       if (data.error || !data.token) {
         loginError(data.error || "Login failed.");
         return;
@@ -11054,7 +11127,13 @@ panels +
     }
     setPageBusy(true);
     try {
-      const data = await apiGet("users", true);
+      let data;
+      if (isPiToken(token())) {
+        data = await piCall("/vjn/users", { auth: true });
+        if (!data.error) writeCached("users", undefined, data);
+      } else {
+        data = await apiGet("users", true);
+      }
       if (data.error && /Unauthorized/i.test(data.error)) {
         logout();
         loginError(data.error);
@@ -11088,9 +11167,7 @@ panels +
     const btn = $("teamAddBtn");
     setButtonBusy(btn, true, "Adding…");
     try {
-      const data = await apiPost({
-        formType: "adminSaveUser",
-        token: token(),
+      const data = await saveUserAnywhere({
         displayName: $("teamDisplayName").value,
         role: $("teamRole").value,
         password: $("teamPassword").value,
@@ -11132,15 +11209,13 @@ panels +
     setButtonBusy(btn, true, "Saving…");
     try {
       const payload = {
-        formType: "adminSaveUser",
-        token: token(),
         id: $("teamEditId").value,
         displayName: $("teamEditDisplayName").value,
         role: $("teamEditRole").value,
       };
       const password = $("teamEditPassword").value;
       if (password) payload.password = password;
-      const data = await apiPost(payload);
+      const data = await saveUserAnywhere(payload);
       if (data.error) throw new Error(data.error);
       closeTeamUserEditor();
       await loadTeam();
@@ -11152,13 +11227,30 @@ panels +
     }
   }
 
+  /** Team writes go to Sandesha for Pi logins, to the Sheet for older ones. */
+  async function saveUserAnywhere(fields) {
+    if (!isPiToken(token())) {
+      return apiPost(Object.assign({ formType: "adminSaveUser", token: token() }, fields));
+    }
+    const data = await piCall("/vjn/users", { method: "POST", auth: true, body: JSON.stringify(fields) });
+    // Changing your own password signs out your other devices; this one gets a new login.
+    if (data && data.token) setToken(data.token);
+    return data;
+  }
+
   async function setTeamUserStatus(id, status) {
-    const data = await apiPost({
-      formType: "adminSetUserStatus",
-      token: token(),
-      id: id,
-      status: status,
-    });
+    const data = isPiToken(token())
+      ? await piCall("/vjn/users/status", {
+          method: "POST",
+          auth: true,
+          body: JSON.stringify({ id: id, status: status }),
+        })
+      : await apiPost({
+          formType: "adminSetUserStatus",
+          token: token(),
+          id: id,
+          status: status,
+        });
     if (data.error) throw new Error(data.error);
     await loadTeam();
   }

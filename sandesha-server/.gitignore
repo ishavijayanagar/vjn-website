@@ -73,6 +73,8 @@ Thumbs.db
 # JSON data files (personal config)
 schedules.json
 promo-jobs.json
+sandesha.db
+sandesha.db-*
 contacts.json
 groups.json
 qr-code.png

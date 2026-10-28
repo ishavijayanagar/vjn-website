@@ -1,5 +1,8 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const auth = require('./auth');
+const { openDb } = require('./db');
+const { createVjnUsers } = require('./vjn-users');
+const { createVjnRoutes } = require('./vjn-routes');
 const { createApiHandlers } = require('./api-handlers');
 const { createSettingsWizard } = require('./settings');
 const { createBulkSendWizard } = require('./bulk-send');
@@ -3107,6 +3110,28 @@ function serveStaticFile(req, res, parsed) {
   return true;
 }
 
+/** Tell Apps Script that tokens a user held before `before` are void. */
+async function notifySheetRevoke({ id, disabled, before }) {
+  const urlStr = String(process.env.VJN_APPS_SCRIPT_URL || '').trim();
+  if (!urlStr) throw new Error('VJN_APPS_SCRIPT_URL is not set on the Sandesha server.');
+  const res = await fetch(urlStr, {
+    method: 'POST',
+    body: JSON.stringify({ formType: 'vjnRevoke', secret: process.env.VJN_AUTH_SECRET || '', id, disabled, before }),
+    redirect: 'follow',
+  });
+  let data;
+  try { data = JSON.parse(await res.text()); } catch { data = { error: 'unreadable response' }; }
+  if (data.error) throw new Error(`The Sheet did not take the change (${data.error}) — nothing was changed.`);
+}
+
+const vjnUsers = createVjnUsers({
+  db: openDb(),
+  secret: process.env.VJN_AUTH_SECRET || '',
+  notifySheet: notifySheetRevoke,
+});
+const vjnRoutes = createVjnRoutes({ users: vjnUsers, readBody: readRequestBody, jsonResponse });
+auth.setLocalVjnVerifier((token) => vjnUsers.verify(token));
+
 function startSendServer() {
   if (sendServer) return;
 
@@ -3124,6 +3149,8 @@ function startSendServer() {
     if (req.method === 'GET' && isStaticAsset(parsed.pathname)) {
       if (serveStaticFile(req, res, parsed)) return;
     }
+
+    if (await vjnRoutes.handle(req, res, parsed)) return;
 
     if (req.method === 'POST' && parsed.pathname === '/auth/login') {
       try {
