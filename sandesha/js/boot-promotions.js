@@ -6,7 +6,7 @@ import {
   ensureSandeshaAuth,
   installUnauthorizedRedirect,
 } from './auth-bridge.js';
-import { refreshCore, getState } from './store.js';
+import { refreshCore, refreshSchedules, getState } from './store.js';
 import { renderPromoSchedule } from './pages/promo-schedule.js';
 import { renderPromoCompose } from './pages/promo-compose.js';
 import { updatePairingBanner } from './pairing-banner.js';
@@ -46,8 +46,20 @@ export async function bootPromotionsMessaging() {
 }
 
 export async function showSchedulePanel() {
-  await bootPromotionsMessaging();
+  if (booted) {
+    renderPromoSchedule();
+    return;
+  }
+  // The full boot also waits for /groups and /chats, which can take minutes (or
+  // fail) while WhatsApp loads. The schedule only needs the queue, so draw it
+  // from the last visit's copy at once, refresh it as soon as /schedules
+  // answers, and let the rest finish in the background.
+  await ensureSandeshaAuth();
+  if (getState().schedules.length) renderPromoSchedule();
+  await refreshSchedules();
+  updatePairingBanner(getState().health);
   renderPromoSchedule();
+  bootPromotionsMessaging().then(() => renderPromoSchedule()).catch(() => {});
 }
 
 export async function showSendPanel() {

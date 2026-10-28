@@ -148,6 +148,28 @@ export async function refreshCore(forceGroups = false) {
   });
 }
 
+/**
+ * Just what the Schedule panel needs: health and the queue. /groups and /chats
+ * ask WhatsApp Web for everything and can take minutes (or fail) on a Pi, so
+ * the schedule must not wait behind them. Throws if the queue cannot be read.
+ */
+export async function refreshSchedules() {
+  return runWithoutAuthRedirect(async () => {
+    const [health, schedules] = await Promise.allSettled([api('/health'), api('/schedules')]);
+    if (health.status === 'fulfilled') {
+      state.health = health.value;
+      state.healthError = false;
+    }
+    if (schedules.status === 'fulfilled' && schedules.value) {
+      state.schedules = schedules.value.schedules || schedules.value || [];
+      saveCoreCache();
+    }
+    notify();
+    if (schedules.status === 'rejected') throw schedules.reason;
+    return state;
+  });
+}
+
 /** Health only — cheap enough to poll. Marks the server unreachable on failure. */
 export async function refreshHealth() {
   try {
