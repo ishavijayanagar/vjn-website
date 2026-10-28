@@ -298,6 +298,7 @@ Everyday commands (all in `sandesha-server/`):
 ./sandesha.sh status           # running? WhatsApp connected? public URL?
 ./sandesha.sh update           # git pull; npm install / restart only if the backend changed
 ./sandesha.sh restart          # restart by hand
+./sandesha.sh free-port        # stop whatever holds port 42620 (start does this itself)
 ./sandesha.sh stop
 ./sandesha.sh logs             # follow the output
 ./sandesha.sh reset-whatsapp   # forget the WhatsApp login and link a phone again

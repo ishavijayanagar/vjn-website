@@ -28,6 +28,7 @@ usage() {
 Sandesha — WhatsApp backend
 
   ${NAME} update            git pull, then npm install / restart only if the backend changed
+  ${NAME} free-port         Stop whatever is using port 42620 (start does this automatically)
   ${NAME} start             Start it (and make sure the public URL is on)
   ${NAME} stop              Stop it gracefully (keeps the WhatsApp login)
   ${NAME} restart           Stop, then start (use after pulling new code)
@@ -92,6 +93,59 @@ stop_strays() {
   rm -f "$PID_FILE" .lock
 }
 
+# PIDs listening on the Sandesha port (whoever they belong to).
+port_pids() {
+  local out=""
+  if command -v ss >/dev/null 2>&1; then
+    out="$(ss -ltnpH "sport = :${PORT}" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2)"
+    # Another user's process only shows its pid to root.
+    if [[ -z "$out" ]] && ss -ltnH "sport = :${PORT}" 2>/dev/null | grep -q .; then
+      out="$(sudo -n ss -ltnpH "sport = :${PORT}" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2)"
+    fi
+  elif command -v lsof >/dev/null 2>&1; then
+    out="$(lsof -ti "tcp:${PORT}" -sTCP:LISTEN 2>/dev/null)"
+  elif command -v fuser >/dev/null 2>&1; then
+    out="$(fuser "${PORT}/tcp" 2>/dev/null | tr -s ' ' '\n')"
+  fi
+  printf '%s\n' "$out" | sort -u | grep -v '^$' || true
+}
+
+port_in_use() {
+  ss -ltnH "sport = :${PORT}" 2>/dev/null | grep -q . && return 0
+  [[ -n "$(port_pids)" ]]
+}
+
+# Stop whatever holds the port so Sandesha can start. Politely first (SIGTERM, so a
+# running Sandesha saves its WhatsApp login), SIGKILL only if it will not go.
+free_port() {
+  local main="" pids p cmd
+  use_systemd && main="$(systemctl show -p MainPID --value "$UNIT" 2>/dev/null)"
+  pids="$(port_pids | grep -vx "${main:-0}" || true)"
+  if [[ -z "$pids" ]]; then
+    if port_in_use; then
+      say "Port ${PORT} is in use but its owner is not visible to this user. Try: sudo ${NAME} free-port"
+      return 1
+    fi
+    return 0
+  fi
+  for p in $pids; do
+    cmd="$(ps -o args= -p "$p" 2>/dev/null | cut -c1-100)"
+    say "Port ${PORT} is in use by pid ${p} (${cmd:-unknown}) — stopping it..."
+    if kill -TERM "$p" 2>/dev/null || sudo -n kill -TERM "$p" 2>/dev/null; then :; fi
+    if ! wait_gone "$p" 30; then
+      say "  Still there after 30s — forcing it."
+      kill -9 "$p" 2>/dev/null || sudo -n kill -9 "$p" 2>/dev/null || true
+      wait_gone "$p" 5 || true
+    fi
+  done
+  rm -f .lock
+  if port_in_use; then
+    say "Port ${PORT} is still in use. Check: ss -ltnp | grep ${PORT}"
+    return 1
+  fi
+  say "Port ${PORT} is free."
+}
+
 check_prereqs() {
   command -v node >/dev/null 2>&1 || die "node not found. Install Node.js 18+."
   if [[ -z "${PUPPETEER_EXECUTABLE_PATH:-}" ]]; then
@@ -153,11 +207,13 @@ do_start() {
 
   if use_systemd; then
     stop_strays
+    free_port || die "could not free port ${PORT}."
     say "Starting Sandesha (systemd service)..."
     svc start || die "could not start the service"
     wait_for_api systemctl is-active --quiet "$UNIT"
   else
     rm -f .lock   # a power cut leaves a stale lock; nothing is running, so it is safe
+    free_port || die "could not free port ${PORT}."
     say "Starting Sandesha..."
     nohup node listen.js >>"$OUT_FILE" 2>&1 &
     echo $! >"$PID_FILE"
@@ -415,6 +471,7 @@ case "${1:-help}" in
   status)           do_status ;;
   logs)             do_logs ;;
   reset-whatsapp)   shift; do_reset_whatsapp "$@" ;;
+  free-port)        if port_in_use; then free_port; else say "Port ${PORT} is already free."; fi ;;
   update)           do_update ;;
   db)               do_db ;;
   backup)           do_backup ;;
