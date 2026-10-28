@@ -50,7 +50,7 @@ Group sets live in `groups.json`. Each key is a **set name** you use in commands
 
 ### Option A — Web dashboard (easiest)
 
-1. Start the bot: `./start.sh`
+1. Start the bot: `./sandesha.sh start`
 2. Open **http://127.0.0.1:42620/**
 3. Search your groups, tick checkboxes, enter a set name, click **Save set**
 
@@ -144,7 +144,7 @@ node listen.js
 
 **Option A — QR (default)**
 
-1. Run `./start.sh` or `node listen.js`
+1. Run `./sandesha.sh start` or `node listen.js`
 2. A QR code appears in the terminal (also saved as `qr-code.png`)
 3. On your phone: **WhatsApp → Linked Devices → Link a Device**
 4. Scan the QR code
@@ -328,7 +328,7 @@ node listen.js
 
 ### Windows
 
-Use `start-fresh.bat` in the project folder, or:
+Run these in the project folder:
 
 ```bat
 taskkill /F /IM node.exe

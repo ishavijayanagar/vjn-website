@@ -7,52 +7,31 @@ This repo holds two pieces:
 | this folder | The public static site plus the admin pages, published by GitHub Pages |
 | `sandesha-server/` | The Sandesha WhatsApp backend (Node). Runs on a local machine, reached over a Tailscale funnel. Excluded from the Pages build by `_config.yml` |
 
-## Run everything
+## Run the backend (Raspberry Pi)
 
-From this folder:
+On the Pi, from `sandesha-server/`:
 
 ```bash
-chmod +x dev.sh   # first time only
-./dev.sh
+./sandesha.sh start             # run in the background, public URL on
+./sandesha.sh status            # running? WhatsApp connected?
+./sandesha.sh restart           # after pulling new code
+./sandesha.sh stop
+./sandesha.sh logs              # follow the output (pairing code / QR show here)
+./sandesha.sh reset-whatsapp    # forget the WhatsApp login and link a phone again
 ```
 
-That starts the static site on http://localhost:8765 and the WhatsApp backend on port 42620 with its public tunnel, and stops both on Ctrl+C. Useful variants:
+Stopping is always graceful (SIGTERM), so the saved WhatsApp login survives a restart.
+See `sandesha-server/RASPBERRY_PI_SETUP.md` and `sandesha-server/SQLITE.md`.
 
-| Command | What it does |
-|---------|--------------|
-| `./dev.sh --restart` | Stop whatever is already running, then start fresh |
-| `./dev.sh --stop` | Stop both and exit |
-| `./dev.sh --no-tunnel` | Backend on localhost only, no public URL |
-| `./dev.sh --site-only` | Just the website |
-| `./dev.sh --backend-only` | Just the backend |
-| `./dev.sh --reset` | Re-link WhatsApp (new QR); implies `--restart` |
-| `PORT=8080 ./dev.sh` | Serve the site on another port |
-| `HOST=127.0.0.1 ./dev.sh` | Site on this laptop only (no phone/LAN) |
+## View the site locally
 
-By default anything already running is left alone, so a plain `./dev.sh` is safe to
-re-run. Use `--restart` after changing backend code, or when a previous session was
-killed abruptly and left a port occupied.
-
-Stopping is always graceful: the backend gets SIGTERM so it can close WhatsApp
-cleanly and keep its login, so `--restart` will not make you scan a new QR code.
-Combine flags as needed, e.g. `./dev.sh --restart --no-tunnel`.
-
-## Run the site on its own
-
-From this folder:
+The site is static. From this folder:
 
 ```bash
-chmod +x serve.sh   # first time only
-./serve.sh
+python3 -m http.server 8765
 ```
 
 Then open [http://localhost:8765/](http://localhost:8765/).
-
-Use another port if this one is busy:
-
-```bash
-PORT=8080 ./serve.sh
-```
 
 Set your Apps Script web app URL in `config.js` (see `setup-guide.md`) so programs, volunteering, forms, and the admin page work against your Google Sheet.
 
@@ -107,7 +86,7 @@ The Schedule, Send, and Messaging features need `sandesha-server/` running:
 ```bash
 cd sandesha-server
 npm install        # first time only
-./start.sh
+./sandesha.sh start
 ```
 
 It listens on `http://127.0.0.1:42620` and publishes a funnel URL that `config.js` points at. Its own configuration (`.env`), WhatsApp session (`.wwebjs_auth/`), and logs stay untracked — see `sandesha-server/.gitignore`. Full details in [`sandesha-server/README.md`](sandesha-server/README.md).

@@ -72,7 +72,7 @@ sandesha/
   bulk-send.js         WhatsApp !bulk wizard
   bulk-add-members.js  WhatsApp !addmembers wizard
   add-participants.js  Group member add logic
-  start.sh / start.bat Start scripts
+  sandesha.sh        Start / stop / reset-whatsapp script
   package.json
 
   docs/                Mobile web app (GitHub Pages + local serve)

@@ -176,7 +176,7 @@ The admin session lasts about 6 hours in that browser tab.
 - Set the password from the sheet: **Website → Set admin password**
 - Redeploy the web app as a **new version** after pasting the updated script
 - When Google asks for Drive access, click Allow
-- Serve the site over http (use `./serve.sh`), not as a local `file://` page
+- Serve the site over http (e.g. `python3 -m http.server 8765`), not as a local `file://` page
 
 ---
 

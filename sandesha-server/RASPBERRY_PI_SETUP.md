@@ -215,10 +215,11 @@ Run interactively the first time (not via systemd yet):
 
 ```bash
 cd ~/apps/vjn-website/sandesha-server
-./start.sh --no-tunnel
+./sandesha.sh start
+./sandesha.sh logs      # the QR / pairing code shows up here
 ```
 
-Use `--no-tunnel` for this first run so you are only dealing with the WhatsApp link; the funnel comes later in step 10.
+This starts Sandesha in the background (and turns the public URL on if Tailscale is set up). Press `Ctrl+C` to stop watching the logs; Sandesha keeps running.
 
 ### Scan the QR code
 
@@ -241,7 +242,7 @@ Open the image on your phone, or AirDrop/share it. Then in WhatsApp:
 **Option C — Reset and re-scan later**
 
 ```bash
-./start.sh --reset
+./sandesha.sh reset-whatsapp
 ```
 
 Wait until you see logs like:
@@ -252,7 +253,7 @@ Send server on http://127.0.0.1:42620
 Setup complete!
 ```
 
-Press `Ctrl+C` to stop — next step sets up auto-start.
+Stop it with `./sandesha.sh stop` when you are done testing — next step sets up auto-start.
 
 ---
 
@@ -262,9 +263,8 @@ On the Pi:
 
 ```bash
 # Start in background for a quick test
-./start.sh --no-tunnel &
-sleep 60
-curl http://127.0.0.1:42620/health
+./sandesha.sh start
+./sandesha.sh status
 ```
 
 Expect `"connected":true` in the health output. WhatsApp Web takes roughly a minute to load, longer on a Pi, so do not panic at `"state":"connecting"` on the first few tries.
@@ -283,47 +283,33 @@ You should get a reply within a few seconds.
 
 ## 9. Auto-start with systemd
 
-A ready-made unit ships in this folder at [`scripts/sandesha.service`](scripts/sandesha.service):
+Add Sandesha to the crontab so it starts after a reboot:
 
 ```bash
-cd ~/apps/vjn-website/sandesha-server
-sudo cp scripts/sandesha.service /etc/systemd/system/sandesha.service
-sudo nano /etc/systemd/system/sandesha.service   # only if your user or path differs
+crontab -e
+# add:
+@reboot sleep 30 && cd ~/apps/vjn-website/sandesha-server && ./sandesha.sh start
 ```
 
-It assumes user `pi` and `/home/pi/apps/vjn-website/sandesha-server`. If Chromium is at `chromium-browser` on your image, change `PUPPETEER_EXECUTABLE_PATH` to match.
-
-Enable and start:
+Everyday commands (all in `sandesha-server/`):
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now sandesha
-sudo systemctl status sandesha
-```
-
-Note the unit runs `listen.js` directly, **not** `start.sh` — so it does not bring up the tunnel. Tailscale Funnel is enabled separately in step 10 and persists on its own.
-
-Useful commands:
-
-```bash
-sudo systemctl restart sandesha    # restart bot
-sudo systemctl stop sandesha       # stop bot
-journalctl -u sandesha -f          # live service logs
-tail -f ~/apps/vjn-website/sandesha-server/sandesha.log
+./sandesha.sh status           # running? WhatsApp connected? public URL?
+./sandesha.sh restart          # after pulling new code
+./sandesha.sh stop
+./sandesha.sh logs             # follow the output
+./sandesha.sh reset-whatsapp   # forget the WhatsApp login and link a phone again
+tail -f sandesha.log           # the app's own log
 ```
 
 ### Stale lock after crash
 
-If the service fails with “Bot is already running”:
+`./sandesha.sh start` clears a stale lock itself. If it still says it is already running:
 
 ```bash
-sudo systemctl stop sandesha
-rm -f ~/apps/vjn-website/sandesha-server/.lock
-pkill -f "user-data-dir=.*wwebjs_auth" 2>/dev/null || true
-sudo systemctl start sandesha
+./sandesha.sh stop
+./sandesha.sh start
 ```
-
-The shipped unit already clears a stale `.lock` on start, so this is mostly for manual runs.
 
 ---
 
@@ -358,7 +344,7 @@ git commit -am "Point Sandesha API at the Raspberry Pi"
 git push
 ```
 
-Running `./start.sh` on the Pi edits `config.js` for you and prints an `ACTION NEEDED` line; you still have to commit and push. Pages redeploys in a minute or two.
+Pages redeploys in a minute or two after you push.
 
 As a stopgap you can override the URL per-browser with the gear icon on the Promotions page, which writes to `localStorage` — handy for testing before you push.
 
@@ -430,7 +416,7 @@ Each path should print the rule that ignores it. If one prints nothing, stop and
 ### Safe to commit
 
 - Source code (`listen.js`, `send.js`, `settings.js`, `scripts/`)
-- The guides, `.env.example`, and `scripts/sandesha.service`
+- The guides, `.env.example`, and `sandesha.sh`
 
 ---
 
@@ -463,8 +449,8 @@ Either way the API requires a Bearer token, so **never expose it without `SANDES
 | Chromium fails to start | Confirm `PUPPETEER_EXECUTABLE_PATH`, run `chromium --version` |
 | Out of memory / killed | Add swap (step 3), use Pi 4 2 GB+, close other services |
 | Session drops often | Use Ethernet; avoid Pi undervoltage (check `vcgencmd get_throttled`) |
-| QR expired | `./start.sh --reset --no-tunnel` and scan again quickly |
-| `Bot is already running` | `rm -f .lock`, stop duplicate systemd/manual processes |
+| QR expired | `./sandesha.sh reset-whatsapp` and scan again quickly |
+| `Bot is already running` | `rm -f .lock`, run `./sandesha.sh stop`, and make sure no old systemd service or manual process is running |
 | Repeated random disconnects | The laptop backend is probably still running — only one machine may hold the session |
 | Site works but Schedule/Send fail | `config.js` still points at the old URL; update and push, or set the gear-icon override |
 | Funnel gone after reboot | `sudo tailscale funnel --bg 42620` (the `--bg` form is what persists) |
@@ -504,30 +490,19 @@ Remember that a change to the Pi's public URL means editing `config.js` and push
 ## Quick reference
 
 ```bash
-# Manual start
-cd ~/apps/vjn-website/sandesha-server && ./start.sh
+cd ~/apps/vjn-website/sandesha-server
 
-# Service
-sudo systemctl status sandesha
-sudo systemctl restart sandesha
+./sandesha.sh start | stop | restart | status | logs
+./sandesha.sh reset-whatsapp        # re-link WhatsApp (scan the QR / enter the code again)
 
 # Logs
-tail -f ~/apps/vjn-website/sandesha-server/sandesha.log
-journalctl -u sandesha -f
+tail -f sandesha.log
 
 # Health (local, then public)
 curl http://127.0.0.1:42620/health
-curl https://sandesha-pi.tail2677db.ts.net/health
+curl https://sandesha-vjn-pi.tail2677db.ts.net/health
 
 # Funnel
 tailscale funnel status
 sudo tailscale funnel --bg 42620
-
-# Re-link WhatsApp
-sudo systemctl stop sandesha
-./start.sh --reset --no-tunnel
-# scan QR, then re-enable systemd
-sudo systemctl start sandesha
 ```
-
-See also: [SETUP_GUIDE.md](SETUP_GUIDE.md) for bot usage, commands, and API.

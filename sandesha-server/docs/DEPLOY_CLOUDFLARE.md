@@ -21,7 +21,7 @@ Sandesha stays bound to `127.0.0.1:42620` on the Pi. Cloudflare Tunnel forwards 
 
 ### A1. Prerequisites
 
-- Sandesha running on the Pi (`listen.js` via systemd or `./start.sh`)
+- Sandesha running on the Pi (`listen.js` via systemd or `./sandesha.sh start`)
 - `SANDESHA_ADMIN_PASSWORD` set in `.env` (see `.env.example`)
 
 ### A2. Install cloudflared on the Pi
@@ -93,7 +93,7 @@ sudo nano /etc/systemd/system/cloudflared-quick.service
 ```ini
 [Unit]
 Description=Cloudflare Quick Tunnel for Sandesha
-After=network-online.target sandesha.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]

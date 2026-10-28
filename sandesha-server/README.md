@@ -36,7 +36,7 @@ npm install
 
 ### 1. Configure Groups
 
-**Web dashboard** (after `./start.sh`): open **http://127.0.0.1:42620/** — search groups, save sets.
+**Web dashboard** (after `./sandesha.sh start`): open **http://127.0.0.1:42620/** — search groups, save sets.
 
 **WhatsApp:** send `!settings` in Me Commands — guided add/edit/delete.
 
@@ -62,7 +62,6 @@ Edit `contacts.json`:
 node listen.js
 
 # Or use the convenience script
-start-fresh.bat
 ```
 
 ### 4. Scan QR Code

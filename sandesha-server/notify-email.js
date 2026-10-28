@@ -307,7 +307,7 @@ async function sendDashboardUrlEmail(url, opts = {}) {
     `Local (on the server): ${localUrl}`,
     '',
     'Open the public link on your phone or laptop, then log in with your admin password.',
-    'Note: Quick Tunnel URLs change every time ./start.sh restarts the tunnel.',
+    'Note: Quick Tunnel URLs change every time the tunnel restarts.',
   ].join('\n');
 
   const html = `
@@ -316,7 +316,7 @@ async function sendDashboardUrlEmail(url, opts = {}) {
       <a href="${dashboardUrl}" style="font-size:18px;word-break:break-all">${dashboardUrl}</a>
     </p>
     <p>Open the public link, then log in with your admin password.</p>
-    <p style="color:#666;font-size:13px">Quick Tunnel URLs change every time <code>./start.sh</code> restarts the tunnel.</p>
+    <p style="color:#666;font-size:13px">Quick Tunnel URLs change every time the tunnel restarts.</p>
   `.trim();
 
   return sendNotifyEmail({

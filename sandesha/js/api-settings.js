@@ -67,7 +67,7 @@ function cardMarkup(defaultUrl, current, overridden) {
   return `
     <div class="card">
       <h2>Sandesha server</h2>
-      <p class="hint">Paste the public URL from <code>./start.sh</code> (Tailscale Funnel or tunnel). Saved on this device only.</p>
+      <p class="hint">Paste the public URL (Tailscale Funnel or tunnel) shown by <code>./sandesha.sh status</code>. Saved on this device only.</p>
       <div class="field">
         <label for="sandesha-api-url">API URL</label>
         <input type="url" id="sandesha-api-url" inputmode="url" autocomplete="off"

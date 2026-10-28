@@ -13,7 +13,7 @@ The app uses a teal theme, bottom navigation, and works best at phone width (375
 ## Use locally (Pi or laptop)
 
 1. Copy `.env.example` to `.env` and set `SANDESHA_ADMIN_PASSWORD`
-2. Start the bot: `./start.sh`
+2. Start the bot: `./sandesha.sh start`
 3. Open **http://127.0.0.1:42620/** in your browser
 4. Log in with your admin password
 

@@ -14,7 +14,7 @@
 #   SANDESHA_TUNNEL_MODE=named
 #   SANDESHA_PUBLIC_URL=https://sandesha.YOURDOMAIN.com
 #
-# Run: ./start.sh
+# Run: ./sandesha.sh start
 
 tunnel: REPLACE_WITH_TUNNEL_UUID
 credentials-file: /home/REPLACE_USER/.cloudflared/REPLACE_WITH_TUNNEL_UUID.json

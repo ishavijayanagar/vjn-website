@@ -98,3 +98,7 @@ reach.json
 reach.json.tmp
 reach-media/
 backups/
+
+# Written by sandesha.sh
+.sandesha.pid
+sandesha.out

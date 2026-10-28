@@ -556,7 +556,7 @@ function cancelReadyWatchdog() {
 function scheduleReadyWatchdog(c) {
   cancelReadyWatchdog();
   // Soft check only — do not force reconnect loops (they made things worse).
-  // If ready never comes, leave session alone; user can restart ./start.sh.
+  // If ready never comes, leave session alone; user can run ./sandesha.sh restart.
   readyWatchdogTimer = setTimeout(() => {
     readyWatchdogTimer = null;
     if (waLink.state === 'connected' || shuttingDown) return;
@@ -751,7 +751,7 @@ async function handleWhatsAppDisconnected(reason) {
 function scheduleWhatsAppReconnect(reason) {
   if (shuttingDown) return;
   if (reconnectAttempts >= MAX_RECONNECT) {
-    log(`Max reconnect attempts (${MAX_RECONNECT}) reached — dashboard stays up; restart ./start.sh or wait for manual retry`);
+    log(`Max reconnect attempts (${MAX_RECONNECT}) reached — dashboard stays up; run ./sandesha.sh restart or wait for manual retry`);
     setWaLink({ state: 'disconnected', reason: `max_reconnect:${reason}` });
     // Keep retrying slowly so the app never fully gives up while running
     if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -844,7 +844,7 @@ async function reconnectWhatsApp(reason) {
     }
     // A crashed page ("detached Frame") can leave its Chrome alive and holding
     // the profile lock, so every new launch fails with "browser is already
-    // running". Clear it the same way start.sh does before relaunching.
+    // running". Clear it the same way sandesha.sh does before relaunching.
     await stopStaleSessionBrowser();
 
     // LOGOUT / unpaired / broken phone pairing: clear LocalAuth for fresh QR/code
@@ -3574,7 +3574,7 @@ function startSendServer() {
 
   sendServer.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      log(`Port ${LISTEN_PORT} already in use. Run: ./start.sh  (or kill the process on port ${LISTEN_PORT})`);
+      log(`Port ${LISTEN_PORT} already in use. Run: ./sandesha.sh restart  (or kill the process on port ${LISTEN_PORT})`);
     } else {
       log(`HTTP server error: ${err.message}`);
     }

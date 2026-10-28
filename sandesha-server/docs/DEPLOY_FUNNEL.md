@@ -33,14 +33,14 @@ SANDESHA_ADMIN_PASSWORD=your-strong-password
 Start:
 
 ```bash
-./start.sh
+./sandesha.sh start
 ```
 
 You should see a stable Public URL. It is also emailed when `SANDESHA_NOTIFY_EMAIL` + SMTP are set, and written to `docs/config.js`.
 
 ## First-time Funnel approval
 
-`./start.sh` may print a link like `https://login.tailscale.com/f/funnel?node=…`. That page often returns **404 node not found** if the browser is signed into a different Google/Tailscale account than the laptop.
+`./sandesha.sh start` may print a link like `https://login.tailscale.com/f/funnel?node=…`. That page often returns **404 node not found** if the browser is signed into a different Google/Tailscale account than the laptop.
 
 **Skip that link** and enable Funnel from the admin console, signed in as the same account as `tailscale status` (this laptop: `prakash16180@gmail.com`):
 
@@ -60,7 +60,7 @@ You should see a stable Public URL. It is also emailed when `SANDESHA_NOTIFY_EMA
 
 ```bash
 sudo tailscale funnel --bg --yes 42620
-./start.sh
+./sandesha.sh start
 ```
 
 You can also start Funnel interactively once (`tailscale funnel 42620`) after HTTPS is enabled.
