@@ -27,6 +27,7 @@ usage() {
   cat <<EOT
 Sandesha — WhatsApp backend
 
+  ${NAME} update            git pull, then npm install / restart only if the backend changed
   ${NAME} start             Start it (and make sure the public URL is on)
   ${NAME} stop              Stop it gracefully (keeps the WhatsApp login)
   ${NAME} restart           Stop, then start (use after pulling new code)
@@ -239,6 +240,53 @@ The QR expires in about a minute; if it does, run this again.
 EOT
 }
 
+do_update() {
+  git rev-parse --git-dir >/dev/null 2>&1 || die "this folder is not a git checkout."
+  local old new changed
+  old="$(git rev-parse HEAD)"
+  say "Pulling..."
+  git pull --ff-only || die "git pull failed (local changes in the way?). Fix that, then run '${NAME} update' again."
+  new="$(git rev-parse HEAD)"
+  if [[ "$old" == "$new" ]]; then
+    say "Already up to date."
+    return 0
+  fi
+  say "Updated $(git rev-parse --short "$old") -> $(git rev-parse --short "$new")."
+
+  # Everything that changed in the repo, and the part of it that lives in this folder.
+  local all here backend=false deps=false
+  all="$(git diff --name-only "$old" "$new")"
+  here="$(git diff --name-only --relative "$old" "$new" -- .)"
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    case "$f" in
+      package.json|package-lock.json) deps=true; backend=true ;;
+      docs/*|tests/*|*.md|*.txt|.gitignore|.env.example|backups/*) ;;
+      *) backend=true ;;
+    esac
+  done <<<"$here"
+
+  if $deps; then
+    say "Dependencies changed — running npm install..."
+    npm install || die "npm install failed"
+  fi
+  if $backend; then
+    if [[ -n "$(running_pid)" ]]; then
+      say "Backend code changed — restarting."
+      do_stop
+      do_start
+    else
+      say "Backend code changed. Sandesha is not running — start it with '${NAME} start'."
+    fi
+  else
+    say "No backend changes — Sandesha keeps running as it is."
+  fi
+  grep -q "^apps-script.js$" <<<"$all" && say "NOTE: apps-script.js changed — paste it into Apps Script and Deploy -> New version."
+  grep -qv "^sandesha-server/" <<<"$all" && say "(Website files changed too — those are served by GitHub Pages; nothing to do on the Pi.)"
+  grep -q "^sandesha-server/sandesha.sh$" <<<"$all" && say "(This script itself was updated.)"
+  return 0
+}
+
 do_db() {
   [[ -f "$DB_FILE" ]] || die "no database at ${DB_FILE} (it is created the first time Sandesha starts)."
   node scripts/db-status.js || return 1
@@ -340,6 +388,7 @@ case "${1:-help}" in
   status)           do_status ;;
   logs)             do_logs ;;
   reset-whatsapp)   shift; do_reset_whatsapp "$@" ;;
+  update)           do_update ;;
   db)               do_db ;;
   backup)           do_backup ;;
   install-backup)   do_install_backup ;;
