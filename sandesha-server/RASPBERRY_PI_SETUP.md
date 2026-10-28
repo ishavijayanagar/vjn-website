@@ -283,13 +283,14 @@ You should get a reply within a few seconds.
 
 ## 9. Auto-start with systemd
 
-Add Sandesha to the crontab so it starts after a reboot:
-
 ```bash
-crontab -e
-# add:
-@reboot sleep 30 && cd ~/apps/vjn-website/sandesha-server && ./sandesha.sh start
+./sandesha.sh install-service   # writes /etc/systemd/system/sandesha.service for your user and path, enables it, starts it
+./sandesha.sh install-command   # optional: lets you type 'sandesha <command>' from any directory
 ```
+
+If a `sandesha` systemd service is already installed (from an earlier setup), keep it:
+`sandesha.sh` detects it and uses `systemctl` for start/stop/restart, `journalctl` for logs,
+and `status` shows whether it starts on boot. No change to the service is needed.
 
 Everyday commands (all in `sandesha-server/`):
 
