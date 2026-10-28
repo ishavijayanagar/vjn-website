@@ -24,7 +24,7 @@ const reach = require('./reach');
 const push = require('./push');
 // Summary activity events (job results, scheduled sends) also go out as Web Push.
 activity.setPushSender((audience, payload) => push.notify(audience, payload));
-const { isWhatsAppSessionError } = require('./wa-session');
+const { isWhatsAppSessionError, needsReconnect } = require('./wa-session');
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -788,6 +788,11 @@ const CHATS_CACHE_MS = 20 * 1000;
 let chatsCache = { at: 0, data: null, inflight: null };
 
 async function getChatsShared(force = false) {
+  if (waLink.state !== 'connected') {
+    const notReady = new Error('WhatsApp is still starting — try again in a moment');
+    notReady.code = 'WA_NOT_READY';
+    throw notReady;
+  }
   if (!force && chatsCache.data && Date.now() - chatsCache.at < CHATS_CACHE_MS) return chatsCache.data;
   if (chatsCache.inflight) return chatsCache.inflight;
   chatsCache.inflight = client.getChats()
@@ -804,6 +809,8 @@ async function getChatsShared(force = false) {
 
 function notifyWhatsAppSessionError(err, where) {
   if (!isWhatsAppSessionError(err)) return false;
+  // Still starting up: answer "try again" but leave the page alone to finish loading.
+  if (!needsReconnect(err, waLink.state)) return true;
   const msg = String(err?.message || err || 'unknown');
   log(`[WA session] ${where}: ${msg}`);
   setWaLink({ state: 'disconnected', reason: msg });
