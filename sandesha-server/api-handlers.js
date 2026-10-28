@@ -14,6 +14,7 @@ const { isWhatsAppSessionError } = require('./wa-session');
 const { createPromoJobs } = require('./promo-jobs');
 
 const GROUPS_CACHE_TTL_MS = 5 * 60 * 1000;
+const GROUPS_STALE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // a remembered list older than this is not trusted
 const JOB_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
 // The hourly send cap is 30, so a bigger list would just stop part-way.
@@ -79,6 +80,8 @@ function createApiHandlers(deps) {
     // (force) → the chat list. listen.js shares one cached, single-flight copy between
     // /groups and /chats: each getChats() is a heavy trip through WhatsApp Web.
     getChats = null,
+    // Where to remember the last group list so a restart does not start from nothing.
+    GROUPS_CACHE_FILE = null,
     pushSvc = push,
     PROMO_JOBS_FILE = path.join(__dirname, 'promo-jobs.json'),
     promoFetch,
@@ -87,6 +90,14 @@ function createApiHandlers(deps) {
 
   let groupsCache = { at: 0, data: null };
   let groupsInFlight = null;
+  if (GROUPS_CACHE_FILE) {
+    try {
+      const saved = JSON.parse(fs.readFileSync(GROUPS_CACHE_FILE, 'utf8'));
+      if (saved && Array.isArray(saved.data) && Date.now() - saved.at < GROUPS_STALE_MAX_MS) {
+        groupsCache = { at: saved.at, data: saved.data };
+      }
+    } catch { /* no saved list yet */ }
+  }
   const chatList = (force) => (getChats ? getChats(force) : client.getChats());
   let waContactsCache = { at: 0, data: null, index: null, loading: null };
   const WA_CONTACTS_CACHE_MS = 10 * 60 * 1000;
@@ -328,9 +339,17 @@ function createApiHandlers(deps) {
   }
 
   async function getGroupsEnriched(force = false) {
-    if (!force && groupsCache.data && Date.now() - groupsCache.at < GROUPS_CACHE_TTL_MS) {
+    if (!force && groupsCache.data) {
+      // Stale-while-revalidate: an old list now beats a fresh one in minutes.
+      if (Date.now() - groupsCache.at >= GROUPS_CACHE_TTL_MS) {
+        buildGroups(false).catch((err) => log(`[groups] background refresh failed: ${err.message}`));
+      }
       return groupsCache.data;
     }
+    return buildGroups(force);
+  }
+
+  function buildGroups(force) {
     // The page asks again while the first answer is still being built (it can take
     // minutes on a Pi): share that work instead of starting it over.
     if (groupsInFlight) return groupsInFlight;
@@ -349,6 +368,9 @@ function createApiHandlers(deps) {
         }));
         enriched.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         groupsCache = { at: Date.now(), data: enriched };
+        if (GROUPS_CACHE_FILE) {
+          try { fs.writeFileSync(GROUPS_CACHE_FILE, JSON.stringify(groupsCache)); } catch { /* best effort */ }
+        }
         return enriched;
       } catch (err) {
         if (isWhatsAppSessionError(err)) {

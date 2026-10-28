@@ -102,3 +102,5 @@ backups/
 # Written by sandesha.sh
 .sandesha.pid
 sandesha.out
+
+groups-cache.json

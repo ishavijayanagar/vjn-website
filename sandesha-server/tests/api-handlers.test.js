@@ -574,6 +574,47 @@ async function run() {
     assert.ok(peak > 1 && peak <= 4, `groups checked ${peak} at a time`);
   });
 
+  await test('getGroupsEnriched answers from an old list at once and refreshes in the background', async () => {
+    let chatCalls = 0;
+    const group = (name) => ({ isGroup: true, name, id: { _serialized: `${name}@g.us` }, fetchMessages: async () => [] });
+    const h = createApiHandlers(makeDeps({
+      client: { getChats: async () => { chatCalls += 1; return [group(chatCalls === 1 ? 'Old' : 'New')]; } },
+    }));
+    assert.strictEqual((await h.getGroupsEnriched())[0].name, 'Old');
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow() + 10 * 60 * 1000; // past the 5 minute freshness
+      const stale = await h.getGroupsEnriched();
+      assert.strictEqual(stale[0].name, 'Old', 'the old list is served without waiting');
+      await new Promise((r) => setTimeout(r, 20));
+      assert.strictEqual(chatCalls, 2, 'one refresh was started in the background');
+      assert.strictEqual((await h.getGroupsEnriched())[0].name, 'New');
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  await test('getGroupsEnriched remembers the list across a restart', async () => {
+    const file = path.join(os.tmpdir(), `groups-cache-${process.pid}-${Date.now()}.json`);
+    try {
+      const group = { isGroup: true, name: 'Remembered', id: { _serialized: 'r@g.us' }, fetchMessages: async () => [] };
+      const first = createApiHandlers(makeDeps({ client: { getChats: async () => [group] }, GROUPS_CACHE_FILE: file }));
+      assert.strictEqual((await first.getGroupsEnriched())[0].name, 'Remembered');
+      // "Restart": new handlers, WhatsApp not answering at all.
+      const second = createApiHandlers(makeDeps({
+        client: { getChats: () => new Promise(() => {}) },
+        GROUPS_CACHE_FILE: file,
+      }));
+      const list = await Promise.race([
+        second.getGroupsEnriched(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('waited for WhatsApp')), 500)),
+      ]);
+      assert.strictEqual(list[0].name, 'Remembered');
+    } finally {
+      try { fs.unlinkSync(file); } catch { /* ignore */ }
+    }
+  });
+
   await test('getGroupsEnriched uses the shared chat list when given one', async () => {
     let shared = 0;
     const h = createApiHandlers(makeDeps({

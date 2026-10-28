@@ -677,6 +677,7 @@ function wireClientEvents(c) {
         budget: sendBudget,
         onSessionError: notifyWhatsAppSessionError,
         getChats: getChatsShared,
+        GROUPS_CACHE_FILE: path.join(__dirname, 'groups-cache.json'),
       });
 
       startSendServer();

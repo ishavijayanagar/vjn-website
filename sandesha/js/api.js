@@ -117,6 +117,18 @@ export function setToken(value) {
   }
 }
 
+/**
+ * How long to wait before giving up. A server that never answers must end in an
+ * error the page can show, not a skeleton that never goes away. Generous where
+ * the Pi is genuinely slow (WhatsApp lists, sending, uploading).
+ */
+function timeoutFor(path) {
+  if (/^\/(groups|chats)(\?|\/|$)/.test(path)) return 180000;
+  if (/^\/(send|send-media|upload|bulk|add-members|members|volunteers|pairing|reach)/.test(path)) return 300000;
+  if (/^\/health/.test(path)) return 15000;
+  return 60000;
+}
+
 export async function api(path, options = {}) {
   const url = `${apiBase}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = { ...(options.headers || {}) };
@@ -129,14 +141,28 @@ export async function api(path, options = {}) {
   const t = getToken();
   if (t) headers.Authorization = `Bearer ${t}`;
 
+  // Our own deadline, joined with any signal the caller passed.
+  const ctl = new AbortController();
+  let timedOut = false;
+  const ms = options.timeoutMs || timeoutFor(path.startsWith('/') ? path : `/${path}`);
+  const timer = setTimeout(() => { timedOut = true; ctl.abort(); }, ms);
+  if (options.signal) {
+    if (options.signal.aborted) ctl.abort();
+    else options.signal.addEventListener('abort', () => ctl.abort(), { once: true });
+  }
+
   let res;
+  let text;
   try {
-    res = await fetch(url, { ...options, headers, signal: options.signal });
+    res = await fetch(url, { ...options, headers, signal: ctl.signal });
+    text = await res.text();
   } catch (err) {
+    if (timedOut) throw new Error('Sandesha is taking too long to answer — try again in a moment');
     if (err?.name === 'AbortError') throw err;
     throw new Error(`Cannot reach server at ${apiBase}`);
+  } finally {
+    clearTimeout(timer);
   }
-  const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = { error: text || res.statusText }; }
 
