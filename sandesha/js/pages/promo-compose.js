@@ -478,6 +478,7 @@ function bind(host) {
   });
 
   host.querySelector('#pcAud')?.addEventListener('click', () => {
+    if (!getState().groupsLoaded) toast('Groups are still loading — they will appear in the list in a moment', 'ok');
     openAudienceSheet(getTargetOptions(), draft.targets, (picked) => {
       draft.targets = picked;
       sync();

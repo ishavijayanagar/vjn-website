@@ -63,8 +63,16 @@ export async function showSchedulePanel() {
 }
 
 export async function showSendPanel() {
-  await bootPromotionsMessaging();
+  if (booted) {
+    renderPromoCompose();
+    return;
+  }
+  // The form needs nothing from WhatsApp to draw (the audience list is read when
+  // it is opened), and /groups and /chats can take minutes on the Pi. Draw it
+  // now and let the rest load in the background.
+  await ensureSandeshaAuth();
   renderPromoCompose();
+  bootPromotionsMessaging().catch(() => {});
 }
 
 export async function refreshMessagingData() {

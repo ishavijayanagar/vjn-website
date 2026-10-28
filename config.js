@@ -16,5 +16,11 @@ if (typeof window !== "undefined") {
   window.SANDESHA_CONFIG = window.SANDESHA_CONFIG || { apiUrl: SANDESHA_API_URL };
 }
 
+// Optional per-machine override (git-ignored). Only asked for on a developer machine,
+// so the live site never requests a file that is not there (a 404 in every console).
+if (typeof document !== "undefined" && /^(localhost|127\.|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|.*\.local$)/.test(location.hostname)) {
+  document.write('<script src="config.local.js"><\/script>');
+}
+
 // Queries page: WhatsApp button opens the contact/group picker
 // with the query text. Clicking a person's number opens that chat.

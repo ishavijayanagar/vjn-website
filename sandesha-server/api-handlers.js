@@ -76,6 +76,9 @@ function createApiHandlers(deps) {
     ZC_WEBHOOK_PORT = 42617,
     budget = null,
     onSessionError = null,
+    // (force) → the chat list. listen.js shares one cached, single-flight copy between
+    // /groups and /chats: each getChats() is a heavy trip through WhatsApp Web.
+    getChats = null,
     pushSvc = push,
     PROMO_JOBS_FILE = path.join(__dirname, 'promo-jobs.json'),
     promoFetch,
@@ -83,6 +86,8 @@ function createApiHandlers(deps) {
   } = deps;
 
   let groupsCache = { at: 0, data: null };
+  let groupsInFlight = null;
+  const chatList = (force) => (getChats ? getChats(force) : client.getChats());
   let waContactsCache = { at: 0, data: null, index: null, loading: null };
   const WA_CONTACTS_CACHE_MS = 10 * 60 * 1000;
   const apiJobs = new Map();
@@ -326,26 +331,39 @@ function createApiHandlers(deps) {
     if (!force && groupsCache.data && Date.now() - groupsCache.at < GROUPS_CACHE_TTL_MS) {
       return groupsCache.data;
     }
-    try {
-      const chats = await client.getChats();
-      const groups = chats.filter((c) => c.isGroup && c.name);
-      const enriched = [];
-      for (const g of groups) {
-        enriched.push(await enrichGroup(g, groups));
-      }
-      enriched.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      groupsCache = { at: Date.now(), data: enriched };
-      return enriched;
-    } catch (err) {
-      if (isWhatsAppSessionError(err)) {
-        onSessionError?.(err, 'getGroupsEnriched');
-        if (groupsCache.data) {
-          log('[groups] WhatsApp session lost — serving stale cache');
-          return groupsCache.data;
+    // The page asks again while the first answer is still being built (it can take
+    // minutes on a Pi): share that work instead of starting it over.
+    if (groupsInFlight) return groupsInFlight;
+    groupsInFlight = (async () => {
+      try {
+        const chats = await chatList(force);
+        const groups = chats.filter((c) => c.isGroup && c.name);
+        // A few at a time: each is a short look at the group's last message.
+        const enriched = new Array(groups.length);
+        let next = 0;
+        await Promise.all(Array.from({ length: Math.min(4, groups.length) }, async () => {
+          while (next < groups.length) {
+            const i = next++;
+            enriched[i] = await enrichGroup(groups[i], groups);
+          }
+        }));
+        enriched.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        groupsCache = { at: Date.now(), data: enriched };
+        return enriched;
+      } catch (err) {
+        if (isWhatsAppSessionError(err)) {
+          onSessionError?.(err, 'getGroupsEnriched');
+          if (groupsCache.data) {
+            log('[groups] WhatsApp session lost — serving stale cache');
+            return groupsCache.data;
+          }
         }
+        throw err;
+      } finally {
+        groupsInFlight = null;
       }
-      throw err;
-    }
+    })();
+    return groupsInFlight;
   }
 
   async function probeAiStatus() {

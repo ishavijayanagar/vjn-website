@@ -676,6 +676,7 @@ function wireClientEvents(c) {
         resolveParticipantWids,
         budget: sendBudget,
         onSessionError: notifyWhatsAppSessionError,
+        getChats: getChatsShared,
       });
 
       startSendServer();
@@ -775,6 +776,26 @@ function scheduleWhatsAppReconnect(reason) {
       scheduleWhatsAppReconnect(err.message);
     });
   }, delayMs);
+}
+
+// One chat list shared by /groups and /chats. getChats() walks every chat in WhatsApp
+// Web, which is slow on a Pi and made worse when several requests run it at once.
+const CHATS_CACHE_MS = 20 * 1000;
+let chatsCache = { at: 0, data: null, inflight: null };
+
+async function getChatsShared(force = false) {
+  if (!force && chatsCache.data && Date.now() - chatsCache.at < CHATS_CACHE_MS) return chatsCache.data;
+  if (chatsCache.inflight) return chatsCache.inflight;
+  chatsCache.inflight = client.getChats()
+    .then((data) => {
+      chatsCache = { at: Date.now(), data, inflight: null };
+      return data;
+    })
+    .catch((err) => {
+      chatsCache.inflight = null;
+      throw err;
+    });
+  return chatsCache.inflight;
 }
 
 function notifyWhatsAppSessionError(err, where) {
@@ -3550,7 +3571,7 @@ function startSendServer() {
       if (!requireAuth(req, res)) return;
       try {
         const limit = Math.min(parseInt(parsed.query.limit, 10) || 200, 500);
-        const chats = await client.getChats();
+        const chats = await getChatsShared(false);
         const sorted = chats
           .filter((c) => c?.name && c?.id?._serialized)
           .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0) || (b.pinned || 0) - (a.pinned || 0));

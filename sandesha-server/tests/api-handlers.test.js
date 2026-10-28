@@ -547,6 +547,43 @@ async function run() {
     assert.strictEqual(calls, 2);
   });
 
+  await test('getGroupsEnriched shares one run between simultaneous callers and looks at groups a few at a time', async () => {
+    let chatCalls = 0;
+    let running = 0;
+    let peak = 0;
+    const mkGroup = (n) => ({
+      isGroup: true,
+      name: `Group ${n}`,
+      id: { _serialized: `${n}@g.us` },
+      fetchMessages: async () => {
+        running += 1;
+        peak = Math.max(peak, running);
+        await new Promise((r) => setTimeout(r, 15));
+        running -= 1;
+        return [];
+      },
+    });
+    const h = createApiHandlers(makeDeps({
+      client: { getChats: async () => { chatCalls += 1; return Array.from({ length: 10 }, (_, i) => mkGroup(i)); } },
+    }));
+    const [a, b, c] = await Promise.all([h.getGroupsEnriched(), h.getGroupsEnriched(), h.getGroupsEnriched()]);
+    assert.strictEqual(chatCalls, 1, 'one trip through WhatsApp for three callers');
+    assert.strictEqual(a.length, 10);
+    assert.strictEqual(a, b);
+    assert.strictEqual(b, c);
+    assert.ok(peak > 1 && peak <= 4, `groups checked ${peak} at a time`);
+  });
+
+  await test('getGroupsEnriched uses the shared chat list when given one', async () => {
+    let shared = 0;
+    const h = createApiHandlers(makeDeps({
+      client: { getChats: async () => { throw new Error('should not be called'); } },
+      getChats: async () => { shared += 1; return [{ isGroup: true, name: 'G', id: { _serialized: '1@g.us' }, fetchMessages: async () => [] }]; },
+    }));
+    assert.strictEqual((await h.getGroupsEnriched(true)).length, 1);
+    assert.strictEqual(shared, 1);
+  });
+
   await test('GET /groups/inactive filters by days', async () => {
     const deps = makeDeps({
       client: {

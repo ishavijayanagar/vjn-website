@@ -71,7 +71,20 @@ export function getState() {
   return state;
 }
 
-export async function refreshCore(forceGroups = false) {
+// The page boots from two places and both call this: share one run, because each
+// is several slow WhatsApp calls on the Pi.
+let coreInFlight = null;
+
+export function refreshCore(forceGroups = false) {
+  if (coreInFlight && !forceGroups) return coreInFlight;
+  const run = loadCore(forceGroups).finally(() => {
+    if (coreInFlight === run) coreInFlight = null;
+  });
+  coreInFlight = run;
+  return run;
+}
+
+async function loadCore(forceGroups) {
   return runWithoutAuthRedirect(async () => {
   // Activity is admin-only; the promotions shell would just 403 on it.
   const wantActivity = typeof window === 'undefined'
