@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v171";
+const CACHE_NAME = "isha-vjn-v172";
 // Only unversioned files here: pages ask for "style.css?v=…" and each of
 // those is cached the first time it is fetched (see the fetch handler).
 const PRECACHE = [
@@ -11,6 +11,7 @@ const PRECACHE = [
   "./admin-promotions.html",
   "./admin-messaging.html",
   "./config.js",
+  "./public-data.js",
   "./whatsapp-validate.js",
   "./assets/logo.png",
   "./assets/icon-192.png",

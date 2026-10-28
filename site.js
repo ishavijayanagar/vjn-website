@@ -104,8 +104,7 @@
   async function applySiteContent() {
     if (typeof APPS_SCRIPT_URL === "undefined" || !APPS_SCRIPT_URL) return;
     try {
-      const res = await fetch(APPS_SCRIPT_URL + "?type=site");
-      const data = await res.json();
+      const data = await window.vjnPublic.get("site");
       const content = (data && data.content) || {};
 
       document.querySelectorAll("[data-site]").forEach(function (el) {

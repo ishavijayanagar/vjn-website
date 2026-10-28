@@ -190,6 +190,18 @@ async function run() {
     assert.strictEqual(saved.send_at, '2026-11-01 10:00');
   });
 
+  await test('every change to a post is queued for the Sheet copy', async () => {
+    const changes = [];
+    const promos = createPromos({ db: openDb(':memory:'), listingTtlMs: 0, onChange: (...a) => changes.push(a), fetchListings: async () => LISTINGS, now: () => T0 });
+    const { items } = await promos.list();
+    assert.ok(changes.length >= items.length && changes.every((c) => c[0] === 'promos' && c[1] === 'upsert'));
+    const before = changes.length;
+    await promos.save({ id: items[0].id, message: 'Join us' });
+    assert.strictEqual(changes.length, before + 1);
+    assert.strictEqual(changes.at(-1)[3].message, 'Join us');
+    assert.ok(!('event_image' in changes.at(-1)[3]), 'only the Sheet\'s own columns are copied');
+  });
+
   await test('Apps Script stops taking promotion writes once the Pi owns them', () => {
     const props = { VJN_PROMOS_ON_PI: '1' };
     const ctx = {

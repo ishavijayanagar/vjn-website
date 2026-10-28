@@ -51,7 +51,7 @@ function isOpenStatus(raw) {
   return !s || s === 'open' || s === 'active';
 }
 
-function createPromos({ db, fetchListings = async () => ({}), now = () => Date.now() }) {
+function createPromos({ db, fetchListings = async () => ({}), listingTtlMs = LISTING_TTL_MS, onChange = () => {}, now = () => Date.now() }) {
   const q = {
     all: db.prepare('SELECT * FROM promos'),
     byId: db.prepare('SELECT * FROM promos WHERE id = ?'),
@@ -69,12 +69,21 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
         event_status = @event_status, event_image = @event_image, event_open = @event_open WHERE id = @id`),
   };
 
+  const COLS = ['id', 'event_type', 'event_id', 'event_title', 'message', 'flyer_url', 'send_at', 'status', 'created_by',
+    'updated_at', 'sent_at', 'sent_by', 'target', 'wa_schedule_ids'];
+  /** Copy a changed post to the Sheet (the Promotions tab is the backup). */
+  function changed(row) {
+    const out = {};
+    for (const c of COLS) out[c] = row[c] === undefined || row[c] === null ? '' : String(row[c]);
+    onChange('promos', 'upsert', row.id, out);
+  }
+
   let listingCache = { at: 0, map: null };
   let listingLoading = null;
 
   /** key "programs:12" → listing. Stale or empty when the Sheet cannot be reached. */
   async function listings(force) {
-    if (!force && listingCache.map && now() - listingCache.at < LISTING_TTL_MS) return listingCache.map;
+    if (!force && listingCache.map && now() - listingCache.at < listingTtlMs) return listingCache.map;
     if (listingLoading) return listingLoading;
     listingLoading = (async () => {
       try {
@@ -87,7 +96,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
         return map;
       } catch {
         // Keep drawing the board from what was last seen; try again soon.
-        listingCache = { at: listingCache.map ? now() - LISTING_TTL_MS + 15000 : 0, map: listingCache.map };
+        listingCache = { at: listingCache.map ? now() - listingTtlMs + 15000 : 0, map: listingCache.map };
         return listingCache.map || {};
       } finally {
         listingLoading = null;
@@ -204,7 +213,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
           event_type: type, event_id: eventId, event_title: listing.title, flyer_url: listingImage(listing),
         }), listing);
         row.status = computeStatus(row, listing);
-        q.insert.run(row);
+        q.insert.run(row); changed(row);
       }
       for (const row of q.all.all()) {
         const listing = listingFor(map, row);
@@ -212,7 +221,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
         const next = withListing(row, listing);
         if (['event_title', 'event_date', 'event_location', 'event_status', 'event_image', 'event_open']
           .some((k) => next[k] !== row[k])) {
-          q.update.run(next);
+          q.update.run(next); changed(next);
         }
       }
     })();
@@ -284,7 +293,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
     }
     row.status = computeStatus(row, listing);
     row.updated_at = kolkata(now()).stamp;
-    q.update.run(row);
+    q.update.run(row); changed(row);
     return { success: true, item: toItem(row, listing) };
   }
 
@@ -303,7 +312,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
       created_by: (actor && actor.username) || '',
     }), listing);
     row.status = computeStatus(row, listing);
-    q.insert.run(row);
+    q.insert.run(row); changed(row);
     return { success: true, item: toItem(row, listing) };
   }
 
@@ -316,7 +325,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
     row.sent_by = source === 'sandesha' ? 'sandesha' : (actor && actor.username) || '';
     row.wa_schedule_ids = '';
     row.updated_at = row.sent_at;
-    q.update.run(row);
+    q.update.run(row); changed(row);
     return { success: true, item: await itemFor(row.id) };
   }
 
@@ -329,7 +338,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
     const map = await listings();
     row.status = computeStatus(row, listingFor(map, row));
     row.updated_at = kolkata(now()).stamp;
-    q.update.run(row);
+    q.update.run(row); changed(row);
     return { success: true, item: toItem(row, listingFor(map, row)) };
   }
 
@@ -358,7 +367,7 @@ function createPromos({ db, fetchListings = async () => ({}), now = () => Date.n
           sent_by: String(r.sent_by || ''),
           updated_at: String(r.updated_at || ''),
         };
-        q.insert.run(row);
+        q.insert.run(row); changed(row);
         added++;
       }
     })();

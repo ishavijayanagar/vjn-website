@@ -187,8 +187,9 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
+  <script src="public-data.js?v=1"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=nav-1"></script>
+  <script src="site.js?v=pi-data-1"></script>
   <script src="ptr.js?v=1"></script>
   <script>
     let allPrograms = [];
@@ -399,7 +400,7 @@
 
     async function loadPrograms() {
       try {
-        const res = await fetch(`${APPS_SCRIPT_URL}?type=programs`);
+        const res = { json: () => vjnPublic.get('programs') };
         const data = await res.json();
         allPrograms = sortProgramsBySoonest((data.items || []).filter(programListingStatusIsOpen));
         populateProgramSelect();
@@ -838,9 +839,7 @@
 
       btn.disabled = true; btn.textContent = 'Submitting...';
       try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({
+        await vjnPublic.post({
             formType: 'programInterest',
             name,
             phone,
@@ -849,8 +848,7 @@
             programId,
             searchKeyword,
             timestamp: new Date().toISOString()
-          })
-        });
+          });
         document.getElementById('formBody').style.display = 'none';
         document.getElementById('formSuccess').style.display = 'block';
         const successNote = document.getElementById('formSuccessProgramNote');

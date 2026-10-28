@@ -4,6 +4,14 @@ const { openDb } = require('./db');
 const { createVjnUsers } = require('./vjn-users');
 const { createVjnRoutes } = require('./vjn-routes');
 const { createPromos } = require('./promos');
+const { createListings } = require('./listings');
+const { createContent } = require('./content');
+const { createInquiries } = require('./inquiries');
+const { createEventVolunteers } = require('./event-volunteers');
+const { createMirror } = require('./mirror');
+const { createVjnApi } = require('./vjn-api');
+const { createReminders } = require('./reminders');
+const { createInbox } = require('./inbox');
 const { createApiHandlers } = require('./api-handlers');
 const { createSettingsWizard } = require('./settings');
 const { createBulkSendWizard } = require('./bulk-send');
@@ -3130,28 +3138,80 @@ async function notifySheetRevoke({ id, disabled, before }) {
   if (data.error) throw new Error(`The Sheet did not take the change (${data.error}) — nothing was changed.`);
 }
 
-/** Programs and volunteering listings, from the Sheet (the Pi never writes them). */
-async function fetchListings() {
+/** Post to the Sheet's Apps Script as the Pi (shared secret). */
+async function sheetCall(formType, payload) {
   const urlStr = String(process.env.VJN_APPS_SCRIPT_URL || '').trim();
   if (!urlStr) throw new Error('VJN_APPS_SCRIPT_URL is not set');
   const res = await fetch(urlStr, {
     method: 'POST',
-    body: JSON.stringify({ formType: 'vjnListings', secret: process.env.VJN_AUTH_SECRET || '' }),
+    body: JSON.stringify({ formType, secret: process.env.VJN_AUTH_SECRET || '', ...payload }),
     redirect: 'follow',
   });
-  const data = JSON.parse(await res.text());
+  let data;
+  try { data = JSON.parse(await res.text()); } catch { throw new Error('The Sheet sent an unreadable reply.'); }
   if (data.error) throw new Error(data.error);
   return data;
 }
 
 const vjnDb = openDb();
+const dataFlag = vjnDb.prepare("SELECT value FROM kv WHERE key = 'data_on_pi'");
+// Every change is copied to the Sheet in the background; the Sheet is the backup.
+const vjnMirror = createMirror({
+  db: vjnDb,
+  send: (ops) => sheetCall('vjnMirror', { ops }),
+  log,
+});
+const mirrorChange = (tbl, op, key, row) => vjnMirror.enqueue(tbl, op, key, row);
+let vjnEv = null;
+const vjnListings = createListings({
+  db: vjnDb,
+  evCounts: () => (vjnEv ? vjnEv.counts() : {}),
+  onChange: (resource, op, key, row) => mirrorChange(resource, op, key, row),
+});
+vjnEv = createEventVolunteers({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
+const vjnContent = createContent({ db: vjnDb, onChange: mirrorChange });
+const vjnInquiries = createInquiries({
+  db: vjnDb,
+  onChange: (tbl, op, key, row) => mirrorChange(tbl, op, key, row),
+});
+const vjnInbox = createInbox({
+  inquiries: vjnInquiries, ev: vjnEv, sheetCall, log, enabled: () => !!dataFlag.get(),
+});
+const vjnApi = createVjnApi({
+  listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv,
+  // Until scripts/import-data.js has run, the Sheet is still the record.
+  ready: () => !!dataFlag.get(),
+});
+const vjnReminders = createReminders({
+  db: vjnDb, ev: vjnEv, listings: vjnListings, notify: (audience, payload) => push.notify(audience, payload), log,
+});
 const vjnUsers = createVjnUsers({
   db: vjnDb,
   secret: process.env.VJN_AUTH_SECRET || '',
   notifySheet: notifySheetRevoke,
 });
-const vjnPromos = createPromos({ db: vjnDb, fetchListings });
-const vjnRoutes = createVjnRoutes({ users: vjnUsers, promos: vjnPromos, readBody: readRequestBody, jsonResponse });
+// Programs and volunteering are in this database now; posts are made from them directly.
+const vjnPromos = createPromos({
+  db: vjnDb,
+  listingTtlMs: 0,
+  onChange: mirrorChange,
+  fetchListings: async () => {
+    // Until the Sheet's data is copied in, the Sheet is still the record.
+    if (!dataFlag.get()) return sheetCall('vjnListings', {});
+    const pick = (i) => ({
+      id: String(i.id), title: i.title || '', date: i.date || '', startdate: i.startdate || '',
+      location: i.location || '', status: i.status || '', image: i.image || '',
+    });
+    return {
+      programs: vjnListings.list('programs', { includeHidden: true }).items.map(pick),
+      volunteering: vjnListings.list('volunteering', { includeHidden: true }).items.map(pick),
+    };
+  },
+});
+const vjnRoutes = createVjnRoutes({
+  users: vjnUsers, promos: vjnPromos, api: vjnApi, readBody: readRequestBody, jsonResponse,
+  drainInbox: () => vjnInbox.drain(), mirrorStats: () => vjnMirror.stats(), secret: process.env.VJN_AUTH_SECRET || '',
+});
 auth.setLocalVjnVerifier((token) => vjnUsers.verify(token));
 
 function startSendServer() {
@@ -3927,6 +3987,9 @@ function startScheduler() {
 
   // Run once immediately
   runSchedulerCheck();
+  vjnMirror.start();
+  vjnInbox.start();
+  vjnReminders.start();
 
   schedulerInterval = setInterval(() => {
     runSchedulerCheck();

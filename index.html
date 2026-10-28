@@ -207,8 +207,9 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
+  <script src="public-data.js?v=1"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=nav-1"></script>
+  <script src="site.js?v=pi-data-1"></script>
   <script src="ptr.js?v=1"></script>
   <script src="drafts.js?v=1"></script>
   <script>
@@ -301,17 +302,14 @@
 
       setHomeQueryLoading(true);
       try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({
+        await vjnPublic.post({
             formType: 'homeQuery',
             name,
             phone,
             area,
             query,
             timestamp: new Date().toISOString()
-          })
-        });
+          });
         document.getElementById('homeQueryFields').style.display = 'none';
         if (window.DraftKeeper) DraftKeeper.clear('query');
         document.getElementById('homeQuerySuccess').style.display = 'block';

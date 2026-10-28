@@ -16,13 +16,20 @@
  *   POST /vjn/promos/unmark-sent      (admin, promotions)    { id }
  *   GET  /vjn/promos/invite-messages  (admin, nurturing)     → { messages }
  *
+ *   POST /vjn/api            { formType, … }  any signed-in team — the Apps Script admin
+ *                            API (see vjn-api.js); 404 for a formType not handled here
+ *   GET  /vjn/sync-status    (admin)  { pending, oldest, lastError } — changes not yet copied to the Sheet
+ *   POST /vjn/internal/drain { secret }  Apps Script: collect rows the Sheet just received
+ *   GET  /public/programs|volunteering|site[?id=]   no sign-in — what the website shows
+ *   POST /public/submit      { formType, … }  the visitor forms
+ *
  * The admin routes take the VJN token as "Authorization: Bearer v1.…".
  */
 
 const FAIL_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILS = 10;
 
-function createVjnRoutes({ users, promos = null, readBody, jsonResponse, now = () => Date.now() }) {
+function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, mirrorStats = null, secret = '', readBody, jsonResponse, now = () => Date.now() }) {
   // Failed sign-ins per client address, so the public URL cannot be used to
   // guess passwords at speed.
   const fails = new Map();
@@ -61,9 +68,66 @@ function createVjnRoutes({ users, promos = null, readBody, jsonResponse, now = (
     }
   }
 
+  /** The website's own reads and visitor forms — no sign-in. */
+  async function handlePublic(req, res, parsed) {
+    const p = parsed.pathname;
+    try {
+      if (req.method === 'GET' && p.startsWith('/public/')) {
+        const out = api.publicGet(p.slice('/public/'.length), String((parsed.query && parsed.query.id) || '').trim());
+        if (out === undefined) jsonResponse(res, 404, { error: 'Not found' });
+        else jsonResponse(res, 200, out);
+      } else if (req.method === 'POST' && p === '/public/submit') {
+        const out = api.publicSubmit(await body(req));
+        if (out === undefined) jsonResponse(res, 404, { error: 'Not found' });
+        else jsonResponse(res, 200, out);
+      } else {
+        jsonResponse(res, 404, { error: 'Not found' });
+      }
+    } catch (err) {
+      jsonResponse(res, err.status || 400, { error: err.message });
+    }
+    return true;
+  }
+
+  async function handleApi(req, res) {
+    const auth = adminSession(req, ['admin', 'programs', 'promotions', 'nurturing']);
+    if (auth.error) {
+      jsonResponse(res, auth.status, { error: auth.error });
+      return true;
+    }
+    try {
+      const out = api.admin(auth.session, await body(req));
+      if (out === undefined) jsonResponse(res, 404, { error: 'Not handled here' });
+      else jsonResponse(res, 200, out);
+    } catch (err) {
+      jsonResponse(res, err.status || 400, { error: err.message });
+    }
+    return true;
+  }
+
   async function handle(req, res, parsed) {
     const p = parsed.pathname;
+    if (api && p.startsWith('/public/')) return handlePublic(req, res, parsed);
     if (!p.startsWith('/vjn/')) return false;
+    if (api && p === '/vjn/api' && req.method === 'POST') return handleApi(req, res);
+    // How far behind the Sheet copy is (admin).
+    if (mirrorStats && p === '/vjn/sync-status' && req.method === 'GET') {
+      const auth = adminSession(req);
+      if (auth.error) jsonResponse(res, auth.status, { error: auth.error });
+      else jsonResponse(res, 200, mirrorStats());
+      return true;
+    }
+    // Apps Script saying "I just wrote rows for you" (a Google Form response).
+    if (drainInbox && p === '/vjn/internal/drain' && req.method === 'POST') {
+      const given = String((await body(req)).secret || '');
+      if (!secret || given !== secret) {
+        jsonResponse(res, 403, { error: 'Forbidden' });
+      } else {
+        drainInbox();
+        jsonResponse(res, 200, { ok: true });
+      }
+      return true;
+    }
 
     if (p === '/vjn/login' && req.method === 'POST') {
       const key = clientKey(req);

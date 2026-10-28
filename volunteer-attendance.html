@@ -379,8 +379,9 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
+  <script src="public-data.js?v=1"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=nav-1"></script>
+  <script src="site.js?v=pi-data-1"></script>
   <script src="ptr.js?v=1"></script>
   <script src="drafts.js?v=1"></script>
   <script>
@@ -498,9 +499,7 @@
       btn.disabled = true;
       btn.textContent = 'Submitting...';
       try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({
+        await vjnPublic.post({
             formType: 'volunteerAttendance',
             name,
             phone: phoneCheck.normalized,
@@ -509,8 +508,7 @@
             programName: selectedProgram.title || '',
             programId: selectedProgram.id || '',
             timestamp: new Date().toISOString()
-          })
-        });
+          });
         if (window.DraftKeeper) DraftKeeper.clear('attendance');
         document.getElementById('attendanceForm').hidden = true;
         document.getElementById('attFormSuccess').style.display = 'block';
@@ -542,7 +540,7 @@
       const state = document.getElementById('attendanceState');
       const form = document.getElementById('attendanceForm');
       try {
-        const res = await fetch(`${APPS_SCRIPT_URL}?type=programs`);
+        const res = { json: () => vjnPublic.get('programs') };
         const data = await res.json();
         openPrograms = data.items || [];
 

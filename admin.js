@@ -327,11 +327,19 @@
       body: JSON.stringify(payload),
     });
     const text = await res.text();
+    let reply;
     try {
-      return rejectIfAuthEnded(JSON.parse(text));
+      reply = rejectIfAuthEnded(JSON.parse(text));
     } catch (e) {
       throw new Error("Could not read the server response. Redeploy the Apps Script and try again.");
     }
+    // A Google Form made or connected by Apps Script: the Pi keeps the sign-up
+    // details, so hand them over before the page reloads the list.
+    if (reply && Array.isArray(reply.needs) && reply.needs.length && window.PiPromos && window.PiPromos.isPiToken(payload.token)) {
+      const kept = await window.PiPromos.route({ formType: "adminSetVolunteerForm", token: payload.token, needs: reply.needs });
+      if (kept && kept.error) throw new Error(kept.error);
+    }
+    return reply;
   }
 
   /* ───────── sign-in on Sandesha ─────────
@@ -399,9 +407,9 @@
    * fixed overhead). Falls back to parallel single reads on a script that
    * predates adminGetMany. */
   async function apiGetMany(reads) {
-    // Promotion reads are answered by the Pi for Pi logins; the rest by the Sheet.
+    // Reads the Pi owns are answered by the Pi for Pi logins; the rest by the Sheet.
     const onPi = function (r) {
-      return isPiToken(token()) && (r.type === "promotions" || r.type === "inviteMessages");
+      return !!window.PiPromos && window.PiPromos.readsOnPi(r.type, token());
     };
     if (!reads.some(onPi)) return apiGetManySheet(reads);
     const sheetReads = reads.filter(function (r) { return !onPi(r); });

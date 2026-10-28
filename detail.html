@@ -191,10 +191,11 @@
 
   <script src="whatsapp-validate.js"></script>
   <script src="config.js"></script>
+  <script src="public-data.js?v=1"></script>
   <script src="protect.js?v=selectable-v1"></script>
-  <script src="site.js?v=nav-1"></script>
+  <script src="site.js?v=pi-data-1"></script>
   <script src="ptr.js?v=1"></script>
-  <script src="ie-gate.js?v=1"></script>
+  <script src="ie-gate.js?v=2"></script>
   <script src="drafts.js?v=1"></script>
   <script>
     function escapeHtmlAttr(s) {
@@ -266,7 +267,7 @@
       const layout = document.getElementById('detail-layout');
 
       try {
-        const res = await fetch(`${APPS_SCRIPT_URL}?type=${itemType === 'program' ? 'programs' : 'volunteering'}&id=${itemId}`);
+        const res = { json: () => vjnPublic.get(itemType === 'program' ? 'programs' : 'volunteering', itemId) };
         const data = await res.json();
 
         if (!data.item) {
@@ -503,9 +504,7 @@
       btn.textContent = 'Submitting...';
 
       try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({
+        await vjnPublic.post({
             formType: 'programVolunteer',
             name,
             phone,
@@ -587,10 +586,7 @@
                 timestamp: new Date().toISOString()
               };
 
-        await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
+        await vjnPublic.post(payload);
 
         document.getElementById('formBody').style.display = 'none';
         document.getElementById('formSuccess').style.display = 'block';

@@ -63,12 +63,14 @@
   }
 
   async function post(payload) {
-    var res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
-    var data;
-    try {
-      data = JSON.parse(await res.text());
-    } catch (e) {
-      throw new Error("Could not read the server response. Redeploy Apps Script and try again.");
+    var data = window.PiPromos ? await window.PiPromos.route(payload) : undefined;
+    if (data === undefined) {
+      var res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      try {
+        data = JSON.parse(await res.text());
+      } catch (e) {
+        throw new Error("Could not read the server response. Redeploy Apps Script and try again.");
+      }
     }
     if (data.error) throw new Error(data.error);
     return data;
@@ -209,8 +211,7 @@
     async function load() {
       clearMsg();
       try {
-        var res = await fetch(APPS_SCRIPT_URL + "?type=site&t=" + Date.now());
-        var c = ((await res.json()) || {}).content || {};
+        var c = ((await window.vjnPublic.get("site", "", { fresh: true })) || {}).content || {};
         var d = c.banner_until ? new Date(c.banner_until) : null;
         onEl.checked = c.banner_enabled === "1";
         linkEl.value = c.banner_link || "";

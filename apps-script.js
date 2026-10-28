@@ -243,6 +243,10 @@ const VJN_REVOKED_PREFIX = "vjn_rev_";
 // Set by vjnExportPromos_: the Pi owns promotion posts from then on, and the
 // Promotions tab is left as a read-only record of what was there.
 const VJN_PROMOS_ON_PI_PROP = "VJN_PROMOS_ON_PI";
+// Set by vjnExportAll_: the Pi owns programs, volunteering, site text,
+// enquiries and event volunteers. The tabs are then a copy the Pi keeps up to
+// date (vjnMirror), read when the Pi is down; the Sheet takes no admin edits.
+const VJN_DATA_ON_PI_PROP = "VJN_DATA_ON_PI";
 const PUBLIC_CACHE_TTL = 90;
 const CACHE_PROGRAMS = "pub_programs_v3";
 const CACHE_VOLUNTEER = "pub_volunteer_v3";
@@ -464,6 +468,18 @@ function doPost(e) {
     }
     if (formType === "vjnListings") {
       return json_(vjnListings_(data));
+    }
+    if (formType === "vjnExportAll") {
+      return json_(vjnExportAll_(data));
+    }
+    if (formType === "vjnMirror") {
+      return json_(vjnMirror_(data));
+    }
+    if (formType === "vjnInboxList") {
+      return json_(vjnInboxList_(data));
+    }
+    if (formType === "vjnInboxAck") {
+      return json_(vjnInboxAck_(data));
     }
     if (formType === "adminLogin") {
       return json_(adminLogin(data));
@@ -979,6 +995,269 @@ function vjnListings_(data) {
   return out;
 }
 
+/**
+ * Need-row changes made by the form functions. While the Pi owns the data the
+ * Sheet is only a copy, so instead of writing them here they are handed back
+ * to the page, which gives them to the Pi (adminSetVolunteerForm).
+ */
+function needRelay_(need, extra) {
+  return {
+    event_id: String(need.event_id),
+    event_title: need.event_title || "",
+    event_date: need.event_date || "",
+    needed: String(need.needed || ""),
+    volunteer_form_id: need.volunteer_form_id || "",
+    volunteer_form_short_url: need.volunteer_form_short_url || "",
+    volunteer_form_fields: need.volunteer_form_fields || "",
+    volunteer_form_template: need.volunteer_form_template || "",
+  };
+}
+
+/** Ask the Pi to collect rows the Sheet just received (form responses). Best effort. */
+function pokePi_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const base = String(props.getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
+    if (!base) return;
+    UrlFetchApp.fetch(base + "/vjn/internal/drain", {
+      method: "post",
+      contentType: "application/json",
+      muteHttpExceptions: true,
+      payload: JSON.stringify({ secret: vjnSecret_() }),
+    });
+  } catch (err) {
+    // The Pi collects them on its own within minutes.
+  }
+}
+
+function dataOnPi_() {
+  return PropertiesService.getScriptProperties().getProperty(VJN_DATA_ON_PI_PROP) === "1";
+}
+
+/** An admin edit reached the Sheet while the Pi owns this data. */
+function dataMovedError_() {
+  throw new Error("Sandesha is offline, so this can't be saved right now. Try again in a minute.");
+}
+
+/** Which tab and key column each mirrored table lives in. */
+function vjnTable_(tbl) {
+  if (tbl === "programs") return { sheet: PROGRAMS_SHEET, headers: PROGRAM_HEADERS.concat(["id"]), key: "id" };
+  if (tbl === "volunteering") return { sheet: VOLUNTEER_SHEET, headers: VOLUNTEER_HEADERS.concat(["id"]), key: "id" };
+  if (tbl === "site") return { sheet: SITE_SHEET, headers: ["key", "value"], key: "key" };
+  if (tbl === "programTitles") return { sheet: PROGRAM_TITLES_SHEET, headers: PROGRAM_TITLE_HEADERS, key: "title" };
+  if (tbl === "promos") return { sheet: PROMOTIONS_SHEET, headers: PROMO_HEADERS, key: "id" };
+  if (tbl === "ev") return { sheet: EVENT_VOLUNTEERS_SHEET, headers: EV_HEADERS.concat(["pi_synced"]), key: "row_id" };
+  const m = String(tbl).match(/^inquiries:(.+)$/);
+  const def = m ? inquiryDefByKey_(m[1]) : null;
+  if (def) return { sheet: def.sheet, headers: def.headers.concat(["id"]), key: "id", inquiry: def };
+  throw new Error("Unknown table " + tbl);
+}
+
+function sheetHeadersLower_(sheet) {
+  return sheet
+    .getRange(1, 1, 1, sheet.getLastColumn() || 1)
+    .getValues()[0]
+    .map(function (h) {
+      return h.toString().trim().toLowerCase();
+    });
+}
+
+/**
+ * The Pi's changes, copied into the Sheet. ops: [{ tbl, op: upsert|delete, key, row }].
+ * A row is found by its key column (id / row_id / key / title), so it does not
+ * matter where it sits in the tab.
+ */
+function vjnMirror_(data) {
+  requireVjnSecret_(data);
+  const ops = Array.isArray(data.ops) ? data.ops : [];
+  const byTbl = {};
+  ops.forEach(function (op) {
+    (byTbl[op.tbl] = byTbl[op.tbl] || []).push(op);
+  });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    Object.keys(byTbl).forEach(function (tbl) {
+      mirrorTable_(tbl, byTbl[tbl]);
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  invalidatePublicCache_();
+  return { success: true, applied: ops.length };
+}
+
+function mirrorTable_(tbl, ops) {
+  const t = vjnTable_(tbl);
+  ensureSheet_(t.sheet, t.headers);
+  const sheet = ss_().getSheetByName(t.sheet);
+  const headers = sheetHeadersLower_(sheet);
+  const keyIx = headers.indexOf(t.key);
+  if (keyIx < 0) throw new Error(t.sheet + " has no " + t.key + " column.");
+  const lastRow = sheet.getLastRow();
+  const keys = lastRow > 1 ? sheet.getRange(2, keyIx + 1, lastRow - 1, 1).getValues() : [];
+  const rowOf = {};
+  keys.forEach(function (r, i) {
+    const k = String(r[0]).trim();
+    if (k) rowOf[k] = i + 2;
+  });
+  const removals = [];
+  ops.forEach(function (op) {
+    const key = String(op.key);
+    if (op.op === "delete") {
+      if (rowOf[key]) removals.push(rowOf[key]);
+      return;
+    }
+    const row = op.row || {};
+    const at = rowOf[key];
+    const current = at ? sheet.getRange(at, 1, 1, headers.length).getValues()[0] : null;
+    const values = headers.map(function (h, i) {
+      if (h === t.key) return key;
+      if (h === "pi_synced") return "1";
+      if (row[h] !== undefined && row[h] !== null) return String(row[h]);
+      return current ? current[i] : "";
+    });
+    if (at) {
+      sheet.getRange(at, 1, 1, headers.length).setValues([values]);
+    } else {
+      sheet.appendRow(values);
+      rowOf[key] = sheet.getLastRow();
+    }
+  });
+  removals
+    .sort(function (a, b) {
+      return b - a;
+    })
+    .forEach(function (r) {
+      sheet.deleteRow(r);
+    });
+}
+
+/**
+ * One-off copy of everything the Pi will own (scripts/import-data.js). Gives
+ * every existing row an id first (its position, which is what the pages have
+ * been using), so later rows without an id are known to be new.
+ */
+function vjnExportAll_(data) {
+  requireVjnSecret_(data);
+  const out = { programs: [], volunteering: [], site: [], programTitles: [], inquiries: {}, ev: [] };
+
+  [["programs", PROGRAMS_SHEET, PROGRAM_HEADERS], ["volunteering", VOLUNTEER_SHEET, VOLUNTEER_HEADERS]].forEach(function (r) {
+    ensureSheet_(r[1], r[2].concat(["id"]));
+    const sheet = ss_().getSheetByName(r[1]);
+    const rows = sheet.getDataRange().getValues();
+    const headers = sheetHeadersLower_(sheet);
+    const idIx = headers.indexOf("id");
+    for (let i = 1; i < rows.length; i++) {
+      if (!rows[i][0]) continue;
+      const item = rowToItem_(headers, rows[i], i);
+      if (idIx >= 0 && String(rows[i][idIx]).trim()) item.id = String(rows[i][idIx]).trim();
+      else sheet.getRange(i + 1, idIx + 1).setValue(String(i));
+      out[r[0]].push(item);
+    }
+  });
+
+  const siteSheet = ensureSheet_(SITE_SHEET, ["key", "value"]);
+  siteSheet.getDataRange().getValues().forEach(function (row, i) {
+    if (i > 0 && String(row[0] || "").trim()) out.site.push({ key: String(row[0]).trim(), value: row[1] === undefined || row[1] === null ? "" : String(row[1]) });
+  });
+
+  ensureSheet_(PROGRAM_TITLES_SHEET, PROGRAM_TITLE_HEADERS);
+  ss_().getSheetByName(PROGRAM_TITLES_SHEET).getDataRange().getValues().forEach(function (row, i) {
+    if (i > 0 && String(row[0] || "").trim()) out.programTitles.push({ title: String(row[0]).trim(), active: String(row[1] || "yes").trim() });
+  });
+
+  INQUIRY_DEFS.forEach(function (def) {
+    const sheet = ensureSheet_(def.sheet, def.headers.concat(["id"]));
+    const rows = sheet.getDataRange().getValues();
+    const headers = sheetHeadersLower_(sheet);
+    const idIx = headers.indexOf("id");
+    out.inquiries[def.key] = [];
+    for (let i = 1; i < rows.length; i++) {
+      if (!rows[i].some(function (c) { return String(c || "").trim() !== ""; })) continue;
+      const item = { id: String(i) };
+      headers.forEach(function (h, ix) {
+        if (h !== "id") item[h] = rows[i][ix] === undefined || rows[i][ix] === null ? "" : String(rows[i][ix]).trim();
+      });
+      if (idIx >= 0 && String(rows[i][idIx]).trim()) item.id = String(rows[i][idIx]).trim();
+      else sheet.getRange(i + 1, idIx + 1).setValue(String(i));
+      out.inquiries[def.key].push(item);
+    }
+  });
+
+  ensureSheet_(EVENT_VOLUNTEERS_SHEET, EV_HEADERS.concat(["pi_synced"]));
+  const ev = loadEventVolunteers_();
+  const evSyncIx = ev.headers.indexOf("pi_synced");
+  ev.rows.forEach(function (r) {
+    if (evSyncIx >= 0) ev.sheet.getRange(r._row, evSyncIx + 1).setValue("1");
+    const row = {};
+    Object.keys(r).forEach(function (k) {
+      if (k.charAt(0) !== "_") row[k] = r[k];
+    });
+    out.ev.push(row);
+  });
+
+  PropertiesService.getScriptProperties().setProperty(VJN_DATA_ON_PI_PROP, "1");
+  return out;
+}
+
+/** Submissions made while the Pi was unreachable: rows with no id yet. */
+function vjnInboxList_(data) {
+  requireVjnSecret_(data);
+  const out = [];
+  INQUIRY_DEFS.forEach(function (def) {
+    const sheet = ss_().getSheetByName(def.sheet);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    const headers = sheetHeadersLower_(sheet);
+    const idIx = headers.indexOf("id");
+    if (idIx < 0) return;
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+    rows.forEach(function (row, i) {
+      if (String(row[idIx]).trim()) return;
+      if (!row.some(function (c) { return String(c || "").trim() !== ""; })) return;
+      const rec = {};
+      headers.forEach(function (h, ix) {
+        if (h !== "id") rec[h] = row[ix] === undefined || row[ix] === null ? "" : String(row[ix]).trim();
+      });
+      out.push({ tbl: "inquiries:" + def.key, row: i + 2, data: rec });
+    });
+  });
+  // Volunteers added by a Google Form response (or a form being connected)
+  // while the Pi was not told: rows with a row_id but not yet marked synced.
+  const evSheet = ss_().getSheetByName(EVENT_VOLUNTEERS_SHEET);
+  if (evSheet && evSheet.getLastRow() > 1) {
+    const eh = sheetHeadersLower_(evSheet);
+    const syncIx = eh.indexOf("pi_synced");
+    const rowIdIx = eh.indexOf("row_id");
+    if (syncIx >= 0 && rowIdIx >= 0) {
+      evSheet.getRange(2, 1, evSheet.getLastRow() - 1, eh.length).getValues().forEach(function (row, i) {
+        if (!String(row[rowIdIx]).trim() || String(row[syncIx]).trim()) return;
+        const rec = {};
+        eh.forEach(function (h, ix) {
+          if (h !== "pi_synced") rec[h] = row[ix] === undefined || row[ix] === null ? "" : String(row[ix]).trim();
+        });
+        out.push({ tbl: "ev", row: i + 2, data: rec });
+      });
+    }
+  }
+  return { rows: out };
+}
+
+/** The Pi took these rows in and gave them ids; write the ids so they are not sent again. */
+function vjnInboxAck_(data) {
+  requireVjnSecret_(data);
+  const acks = Array.isArray(data.acks) ? data.acks : [];
+  acks.forEach(function (a) {
+    const t = vjnTable_(a.tbl);
+    const sheet = ss_().getSheetByName(t.sheet);
+    if (!sheet) return;
+    const col = a.tbl === "ev" ? "pi_synced" : "id";
+    const ix = sheetHeadersLower_(sheet).indexOf(col);
+    if (ix >= 0) sheet.getRange(Number(a.row), ix + 1).setValue(a.tbl === "ev" ? "1" : String(a.id));
+  });
+  return { success: true };
+}
+
 function adminLogin(data) {
   if (loginsOnPi_()) return { error: "Sign-in has moved. Reload the page and try again." };
   bootstrapAdminUser_(getAdminPassword_());
@@ -1379,9 +1658,17 @@ function applyListingAutoClose_(sheet, sheetName, headers, rowIndex1Based, row) 
   const startTime = programStartTimeFromRow_(headers, row);
   if (!isPastEventStart_(startDate, startTime)) return row;
   const closedValue = sheetName === VOLUNTEER_SHEET ? "inactive" : "Closed";
-  sheet.getRange(rowIndex1Based, statusIx + 1).setValue(closedValue);
+  // The Pi closes listings itself and copies the result here.
+  if (!dataOnPi_()) sheet.getRange(rowIndex1Based, statusIx + 1).setValue(closedValue);
   row[statusIx] = closedValue;
   return row;
+}
+
+/** A row's id: its id column once the Pi has copied the tab, else its position. */
+function listingRowId_(headers, row, position) {
+  const ix = headers.indexOf("id");
+  const v = ix >= 0 ? String(row[ix] === undefined || row[ix] === null ? "" : row[ix]).trim() : "";
+  return v || String(position);
 }
 
 function rowToItem_(headers, row, id) {
@@ -1461,6 +1748,7 @@ function adminSaveItem(data) {
     resource === "volunteering"
       ? requireRole_(data.token, ["admin", "nurturing"])
       : requireRole_(data.token, ["admin", "programs"]);
+  if (dataOnPi_()) dataMovedError_();
   const sheetName = sheetNameForResource_(resource);
   ensureSheet_(sheetName, expectedHeadersFor_(sheetName));
   const sheet = ss_().getSheetByName(sheetName);
@@ -1518,6 +1806,7 @@ function statusValueFromRow_(headers, row) {
 function adminClearClosed(data) {
   const resource = String(data.resource || "programs");
   if (resource === "volunteering") requireRole_(data.token, ["admin", "nurturing"]);
+  if (dataOnPi_()) dataMovedError_();
   else requireRole_(data.token, ["admin", "programs"]);
   const sheetName = sheetNameForResource_(resource);
   if (sheetName === PROGRAMS_SHEET) {
@@ -1562,6 +1851,7 @@ function adminClearClosed(data) {
 function adminDeleteItem(data) {
   const resource = String(data.resource || "programs");
   if (resource === "volunteering") requireRole_(data.token, ["admin", "nurturing"]);
+  if (dataOnPi_()) dataMovedError_();
   else requireRole_(data.token, ["admin", "programs"]);
   const sheetName = sheetNameForResource_(resource);
   const sheet = ss_().getSheetByName(sheetName);
@@ -1636,6 +1926,7 @@ function listProgramTitles_() {
 /** Adds a name to ProgramTitles (re-activates it if it was switched off). */
 function adminAddProgramTitle(data) {
   requireRole_(data.token, ["admin"]);
+  if (dataOnPi_()) dataMovedError_();
   const title = stripInvisibleChars_(String(data.title || "").replace(/\u00a0/g, " ")).replace(/\s+/g, " ").trim();
   if (!title) throw new Error("Enter a program name.");
   ensureSheet_(PROGRAM_TITLES_SHEET, PROGRAM_TITLE_HEADERS);
@@ -2503,6 +2794,7 @@ function getSiteContent() {
 
 function adminSaveSite(data) {
   requireRole_(data.token, ["admin", "promotions"]);
+  if (dataOnPi_()) dataMovedError_();
   const incoming = data.content || {};
   const sheet = ensureSheet_(SITE_SHEET, ["key", "value"]);
   const keys = Object.keys(SITE_DEFAULTS);
@@ -2596,7 +2888,7 @@ function getAllItems(sheetName, includeHidden) {
       }
     }
 
-    const item = rowToItem_(headers, row, i);
+    const item = rowToItem_(headers, row, listingRowId_(headers, row, i));
     if (sheetName === PROGRAMS_SHEET || sheetName === VOLUNTEER_SHEET) {
       enrichListingDates_(item, headers, row);
     }
@@ -2627,7 +2919,17 @@ function getSingleItem(sheetName, id, includeHidden) {
   const headers = rows[0].map(function (h) {
     return h.toString().trim().toLowerCase();
   });
-  const rowIndex = parseInt(id, 10);
+  let rowIndex = parseInt(id, 10);
+  const idCol = headers.indexOf("id");
+  if (idCol >= 0) {
+    rowIndex = -1;
+    for (let r = 1; r < rows.length; r++) {
+      if (String(rows[r][idCol]).trim() === String(id).trim()) {
+        rowIndex = r;
+        break;
+      }
+    }
+  }
 
   if (rowIndex < 1 || rowIndex >= rows.length) return { item: null };
 
@@ -2792,6 +3094,8 @@ function parseInquiryItems_(def, rows) {
     headers.forEach(function (h, idx) {
       item[h] = row[idx] === undefined || row[idx] === null ? "" : String(row[idx]).trim();
     });
+    if (item.id === "" || headers.indexOf("id") < 0) item.id = String(i);
+    item.sheet = def.key;
     item.status = inquiryStatusLabel_(item.status);
     items.push(item);
   }
@@ -2938,6 +3242,7 @@ function inquiryDefByKey_(key) {
 
 function adminUpdateInquiry(data) {
   requireRole_(data.token, ["admin", "nurturing"]);
+  if (dataOnPi_()) dataMovedError_();
   const def = inquiryDefByKey_(data.sheet);
   if (!def) throw new Error("Unknown inquiry type.");
   const sheet = ensureSheet_(def.sheet, def.headers);
@@ -2977,6 +3282,7 @@ function adminUpdateInquiry(data) {
  */
 function adminInquiriesAddedToGroup(data) {
   requireRole_(data.token, ["admin", "nurturing"]);
+  if (dataOnPi_()) dataMovedError_();
   const items = Array.isArray(data && data.items) ? data.items : [];
   const groupName = String((data && data.group) || "").trim() || "WhatsApp group";
   const stamp = groupName + " · " + nowIsoKolkata_().slice(0, 10);
@@ -4005,6 +4311,7 @@ function getVolunteerNeeds_() {
 
 function adminSaveVolunteerNeed(data) {
   const session = requireRole_(data.token, ["admin", "nurturing"]);
+  if (dataOnPi_()) dataMovedError_();
   const eventId = String((data && data.eventId) || "").trim();
   if (!eventId) throw new Error("eventId required.");
   const snap = evProgramSnapshot_(eventId);
@@ -4041,6 +4348,7 @@ function adminSaveVolunteerNeed(data) {
 
 function adminAddEventVolunteer(data) {
   const session = requireRole_(data.token, ["admin", "nurturing", "programs"]);
+  if (dataOnPi_()) dataMovedError_();
   const eventId = String((data && data.eventId) || "").trim();
   const name = String((data && data.name) || "").trim();
   const phone = evDigits_(data && data.phone);
@@ -4103,6 +4411,7 @@ function adminAddEventVolunteer(data) {
 
 function adminUpdateEventVolunteer(data) {
   requireRole_(data.token, ["admin", "nurturing", "programs"]);
+  if (dataOnPi_()) dataMovedError_();
   const loaded = loadEventVolunteers_();
   const row = evFindVolunteer_(loaded, data && data.rowId);
   if (!row) throw new Error("Volunteer row not found.");
@@ -4133,6 +4442,7 @@ function adminUpdateEventVolunteer(data) {
 
 function adminDeleteEventVolunteer(data) {
   requireRole_(data.token, ["admin", "nurturing", "programs"]);
+  if (dataOnPi_()) dataMovedError_();
   const loaded = loadEventVolunteers_();
   const row = evFindVolunteer_(loaded, data && data.rowId);
   if (!row) throw new Error("Volunteer row not found.");
@@ -4142,6 +4452,7 @@ function adminDeleteEventVolunteer(data) {
 
 function adminMarkVolunteersInGroup(data) {
   requireRole_(data.token, ["admin", "nurturing"]);
+  if (dataOnPi_()) dataMovedError_();
   const ids = (data && data.rowIds) || [];
   const field = data && data.field === "inviteSent" ? "invite_sent" : "in_wa_group";
   if (!ids.length) return { success: true, updated: 0 };
@@ -4178,6 +4489,7 @@ function ensureAttendanceTrigger_() {
 }
 
 function remindAttendance() {
+  if (dataOnPi_()) return; // Sandesha sends these now (sandesha-server/reminders.js)
   const props = PropertiesService.getScriptProperties();
   const base = String(props.getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
   const secret = String(props.getProperty("SANDESHA_INTERNAL_TOKEN") || "");
@@ -4254,6 +4566,7 @@ function ensureProgramReminderTrigger_() {
 }
 
 function remindUpcomingPrograms() {
+  if (dataOnPi_()) return; // Sandesha sends these now (sandesha-server/reminders.js)
   const props = PropertiesService.getScriptProperties();
   const base = String(props.getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
   const secret = String(props.getProperty("SANDESHA_INTERNAL_TOKEN") || "");
@@ -4449,6 +4762,7 @@ function adminCreateProgramVolunteerForm(data) {
   let form;
   let storedFields = "";
   let programSnaps = {};   // hoisted — used later in multi-program persistence
+  const relayNeeds = [];   // need rows for the Pi to keep (see needRelay_)
 
   // ── Template path: copy master form + update slot/program choices ────────
   const templateId = String((data && data.templateId) || "").trim();
@@ -4709,6 +5023,10 @@ function adminCreateProgramVolunteerForm(data) {
       const n = s._needObj;
       n.volunteer_form_id = formId;
       n.volunteer_form_short_url = shortUrl;
+      if (dataOnPi_()) {
+        relayNeeds.push(needRelay_(n));
+        return;
+      }
       if (n._row) evWriteRow_(loaded, n);
       else evAppendRow_(loaded, n);
     });
@@ -4725,11 +5043,19 @@ function adminCreateProgramVolunteerForm(data) {
     need.volunteer_form_fields = storedFields;
     need.volunteer_form_template = templateId || "";
     need.updated_at = now;
-    if (need._row) evWriteRow_(loaded, need);
+    if (dataOnPi_()) relayNeeds.push(needRelay_(need));
+    else if (need._row) evWriteRow_(loaded, need);
     else evAppendRow_(loaded, need);
   }
 
-  return { success: true, formId: formId, shortUrl: shortUrl, formFields: storedFields, templateId: templateId };
+  return {
+    success: true,
+    formId: formId,
+    shortUrl: shortUrl,
+    formFields: storedFields,
+    templateId: templateId,
+    needs: relayNeeds,
+  };
 }
 
 /* ── Connect an existing Google Form ─────────────────────────────────────────
@@ -4990,7 +5316,10 @@ function adminConnectProgramVolunteerForm(data) {
     need.volunteer_form_fields = "connected";
     need.volunteer_form_template = "";
     need.updated_at = nowIsoKolkata_();
-    if (need._row) evWriteRow_(loaded, need);
+    const relayNeed = dataOnPi_() ? needRelay_(need) : null;
+    if (relayNeed) {
+      // The Pi stores it (the page hands it over). Nothing to write here.
+    } else if (need._row) evWriteRow_(loaded, need);
     else evAppendRow_(loaded, need);
 
     // Bring in everyone who already answered — once per phone number.
@@ -5024,8 +5353,10 @@ function adminConnectProgramVolunteerForm(data) {
       Logger.log("Could not install form trigger: " + e.message);
     }
 
+    if (fresh.length && dataOnPi_()) pokePi_();
     return {
       success: true,
+      needs: relayNeed ? [relayNeed] : [],
       formId: formId,
       shortUrl: shortUrl,
       formFields: ["connected"],
@@ -5071,7 +5402,10 @@ function onVolunteerFormSubmit(e) {
       const dupC = loaded.rows.some(function (r) {
         return r.kind === "volunteer" && String(r.event_id) === row.event_id && evDigits_(r.phone) === row.phone;
       });
-      if (!dupC) evAppendRow_(loaded, row);
+      if (!dupC) {
+        evAppendRow_(loaded, row);
+        if (dataOnPi_()) pokePi_();
+      }
       return;
     }
 
@@ -5193,6 +5527,7 @@ function onVolunteerFormSubmit(e) {
         updated_at: now,
       });
     }
+    if (dataOnPi_()) pokePi_();
   } catch (err) {
     Logger.log("onVolunteerFormSubmit error: " + err.message);
   }

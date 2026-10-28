@@ -48,6 +48,47 @@ const MIGRATIONS = [
      event_open INTEGER NOT NULL DEFAULT 0
    )`,
   `CREATE INDEX promos_event ON promos (event_type, event_id)`,
+  // 4 — programs and volunteering listings. Every sheet column lives in the
+  // JSON `data` (the Sheet's headers decide the fields); ids are the old row
+  // numbers and are never reused (see `counters`).
+  `CREATE TABLE listings (
+     resource TEXT NOT NULL,
+     id INTEGER NOT NULL,
+     data TEXT NOT NULL DEFAULT '{}',
+     PRIMARY KEY (resource, id)
+   )`,
+  `CREATE TABLE counters (name TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)`,
+  // 5 — site text and banner (Sheet tab "Site"), and the program-name list
+  `CREATE TABLE site_content (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`,
+  `CREATE TABLE program_titles (title TEXT PRIMARY KEY, active INTEGER NOT NULL DEFAULT 1)`,
+  // 6 — enquiries from the website forms (five Sheet tabs, one per `sheet`)
+  `CREATE TABLE inquiries (
+     sheet TEXT NOT NULL,
+     id INTEGER NOT NULL,
+     status TEXT NOT NULL DEFAULT 'Open',
+     data TEXT NOT NULL DEFAULT '{}',
+     PRIMARY KEY (sheet, id)
+   )`,
+  // 7 — Nurturing's event-volunteer pipeline (Sheet tab "EventVolunteers")
+  `CREATE TABLE ev_rows (
+     row_id TEXT PRIMARY KEY,
+     kind TEXT NOT NULL,
+     event_id TEXT NOT NULL DEFAULT '',
+     data TEXT NOT NULL DEFAULT '{}'
+   )`,
+  `CREATE INDEX ev_rows_event ON ev_rows (event_id, kind)`,
+  // 8 — changes still to be copied to the Sheet (the Sheet is the backup)
+  `CREATE TABLE sync_queue (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     tbl TEXT NOT NULL,
+     op TEXT NOT NULL,
+     key TEXT NOT NULL,
+     payload TEXT NOT NULL DEFAULT '{}',
+     created_at INTEGER NOT NULL,
+     attempts INTEGER NOT NULL DEFAULT 0,
+     last_error TEXT NOT NULL DEFAULT ''
+   )`,
+  `CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {

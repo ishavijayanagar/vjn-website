@@ -27,8 +27,7 @@
     if (upcomingPromise) return upcomingPromise;
     if (typeof APPS_SCRIPT_URL === 'undefined') return Promise.resolve(null);
     const today = new Date().toISOString().slice(0, 10);
-    upcomingPromise = fetch(`${APPS_SCRIPT_URL}?type=programs`)
-      .then((r) => r.json())
+    upcomingPromise = window.vjnPublic.get('programs')
       .then((data) => {
         const items = (data.items || [])
           .filter((p) => IE_RE.test(p.title || ''))
