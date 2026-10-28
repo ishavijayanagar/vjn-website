@@ -9,12 +9,14 @@ const { createPromoJobs } = require('../promo-jobs');
 
 const SHEET_URL = 'https://script.google.com/macros/s/abc123/exec';
 
-function setup({ sheetError = '', failRow = -1 } = {}) {
+function setup({ sheetError = '', failRow = -1, failTargets = [] } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'promo-jobs-'));
   const rows = [];
   const cancelled = [];
   const sheetCalls = [];
   let nextId = 1;
+  const delivered = [];
+  let gaps = 0;
   const jobs = createPromoJobs({
     file: path.join(dir, 'promo-jobs.json'),
     MEDIA_DIR: dir,
@@ -25,6 +27,11 @@ function setup({ sheetError = '', failRow = -1 } = {}) {
       return row;
     },
     cancelSchedule: async (id) => { cancelled.push(String(id)); },
+    sendTo: async (target, payload) => {
+      if (failTargets.includes(target)) throw new Error(`${target} not found`);
+      delivered.push([target, payload.message, payload.filePath]);
+    },
+    sendGap: async () => { gaps += 1; },
     fetchImpl: async (url, opts) => {
       const payload = JSON.parse(opts.body);
       sheetCalls.push(payload);
@@ -35,7 +42,7 @@ function setup({ sheetError = '', failRow = -1 } = {}) {
       return { text: async () => JSON.stringify(data) };
     },
   });
-  return { dir, jobs, rows, cancelled, sheetCalls };
+  return { dir, jobs, rows, cancelled, sheetCalls, delivered, gapCount: () => gaps };
 }
 
 function input(extra = {}) {
@@ -180,6 +187,47 @@ async function run() {
     await job.done;
     assert.strictEqual(t.jobs.list()[0].id, job.id);
     assert.strictEqual(t.jobs.list()[0].status, 'done');
+  });
+
+  await test('send job: delivers to each audience in turn with a gap between, then drops what it replaces', async () => {
+    const t = setup();
+    const job = t.jobs.start({
+      kind: 'send', title: 'Hi', message: 'Hello', filePath: 'upload_3.jpg',
+      recipients: [{ target: 'A' }, { target: 'B' }, { target: 'C' }], previousIds: ['4'],
+    }, null);
+    assert.strictEqual(job.status, 'running');
+    assert.strictEqual(job.total, 3);
+    await job.done;
+    assert.strictEqual(job.status, 'done');
+    assert.deepStrictEqual([job.sent, job.failed], [3, 0]);
+    assert.deepStrictEqual(t.delivered.map((d) => d[0]), ['A', 'B', 'C']);
+    assert.strictEqual(t.delivered[0][2], 'upload_3.jpg');
+    assert.strictEqual(t.gapCount(), 2, 'a gap between audiences, none after the last');
+    assert.deepStrictEqual(t.cancelled, ['4']);
+  });
+
+  await test('send job: one failure is reported but the rest still go; all failing is a failed job', async () => {
+    const t = setup({ failTargets: ['B'] });
+    const job = t.jobs.start({ kind: 'send', message: 'Hi', recipients: [{ target: 'A' }, { target: 'B' }, { target: 'C' }], previousIds: ['9'] }, null);
+    await job.done;
+    assert.strictEqual(job.status, 'done');
+    assert.deepStrictEqual([job.sent, job.failed], [2, 1]);
+    assert.match(job.error, /1 of 3 failed: B not found/);
+    assert.deepStrictEqual(t.cancelled, ['9'], 'sent something, so the replaced rows go');
+
+    const t2 = setup({ failTargets: ['A', 'B'] });
+    const job2 = t2.jobs.start({ kind: 'send', message: 'Hi', recipients: [{ target: 'A' }, { target: 'B' }], previousIds: ['9'] }, null);
+    await job2.done;
+    assert.strictEqual(job2.status, 'failed');
+    assert.deepStrictEqual(t2.cancelled, [], 'nothing was sent, so the queued rows stay');
+  });
+
+  await test('send job: rejects bad input, and a server that cannot send says so', async () => {
+    const t = setup();
+    assert.throws(() => t.jobs.start({ kind: 'send', message: 'Hi', recipients: [] }, null), /audience/);
+    assert.throws(() => t.jobs.start({ kind: 'send', message: ' ', recipients: [{ target: 'A' }] }, null), /message or attach/);
+    const bare = createPromoJobs({ file: path.join(t.dir, 'x.json'), MEDIA_DIR: t.dir, createSchedule: async () => ({}), cancelSchedule: async () => {} });
+    assert.throws(() => bare.start({ kind: 'send', message: 'Hi', recipients: [{ target: 'A' }] }, null), /cannot send from a job/);
   });
 
   if (failed) {

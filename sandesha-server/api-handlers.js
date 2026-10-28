@@ -80,6 +80,9 @@ function createApiHandlers(deps) {
     // (force) → the chat list. listen.js shares one cached, single-flight copy between
     // /groups and /chats: each getChats() is a heavy trip through WhatsApp Web.
     getChats = null,
+    // Delivery for "send" jobs, supplied by listen.js (the safety-checked send path).
+    sendToTarget = null,
+    sendGap = async () => {},
     // Where to remember the last group list so a restart does not start from nothing.
     GROUPS_CACHE_FILE = null,
     pushSvc = push,
@@ -823,12 +826,15 @@ function createApiHandlers(deps) {
     savePromoLocal,
     createSchedule: async (body, actor) => (await createScheduleRow(body, actor)).schedule,
     cancelSchedule: async (id, actor) => cancelScheduleRow(id, actor),
+    sendTo: sendToTarget,
+    sendGap,
   });
 
   /** What the board needs to know about a job — no token, no flyer bytes. */
   function publicJob(j) {
     return {
       id: j.id, kind: j.kind || 'post', promoId: j.promoId, title: j.title, sendAt: j.sendAt,
+      total: j.total, sent: j.sent, failed: j.failed,
       status: j.status, step: j.step, error: j.error, ids: j.ids,
       createdAt: j.createdAt, updatedAt: j.updatedAt,
     };

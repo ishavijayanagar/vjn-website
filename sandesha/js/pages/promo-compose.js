@@ -64,10 +64,14 @@ let sending = false;
  * A picked-but-not-uploaded file can't be kept; the person is told to re-add it.
  */
 const SAVED_DRAFT_KEY = 'vjn-compose-draft';
+// True while a send is running on the server: the draft is no longer "unfinished",
+// and saving it again would offer to send the same message twice after a reload.
+let handedOver = false;
 const SAVED_DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 let restoredNotice = '';
 
 function persistDraft() {
+  if (handedOver) return;
   try {
     const empty = !draft.message.trim() && !draft.targets.length && !draft.replacingIds.length
       && !draft.keepFilePath && !draft.file;
@@ -743,22 +747,35 @@ function writeQueueJobs(list) {
   try { localStorage.setItem(QUEUE_JOBS_KEY, JSON.stringify(list)); } catch { /* storage off */ }
 }
 
-function rememberQueueJob(id, title, snapshot) {
+function rememberQueueJob(id, title, snapshot, kind = 'queue') {
   const list = readQueueJobs().filter((j) => j.id !== id);
-  list.push({ id, title, snapshot, at: Date.now() });
+  list.push({ id, kind, title, snapshot, at: Date.now() });
   writeQueueJobs(list);
 }
 
+/** Remove a job from the list and return it — once, so two watchers cannot both report it. */
+function takeQueueJob(id) {
+  const list = readQueueJobs();
+  const entry = list.find((j) => j.id === id);
+  if (!entry) return null;
+  writeQueueJobs(list.filter((j) => j.id !== id));
+  return entry;
+}
+
+// A send this page is following live; the background check leaves those alone.
+const followingIds = new Set();
+
 /** Titles of schedules still being created on the server, for the Schedule tab. */
 export function pendingQueueTitles() {
-  return readQueueJobs().map((j) => j.title || 'Message');
+  return readQueueJobs().filter((j) => j.kind !== 'send').map((j) => j.title || 'Message');
 }
 
 function restoreDraftFrom(snapshot) {
   if (!snapshot) return;
+  handedOver = false;
   draft.message = String(snapshot.message || '');
   draft.targets = Array.isArray(snapshot.targets) ? snapshot.targets : [];
-  draft.later = true;
+  draft.later = snapshot.later === undefined ? true : !!snapshot.later;
   draft.runAt = String(snapshot.runAt || '');
   draft.replacingIds = Array.isArray(snapshot.replacingIds) ? snapshot.replacingIds.map(String) : [];
   draft.keepFilePath = String(snapshot.keepFilePath || '');
@@ -769,7 +786,7 @@ function restoreDraftFrom(snapshot) {
 
 async function pollQueueJobs() {
   queuePollTimer = 0;
-  const pending = readQueueJobs();
+  const pending = readQueueJobs().filter((j) => !followingIds.has(j.id));
   if (!pending.length) return;
   let jobs;
   try {
@@ -778,32 +795,49 @@ async function pollQueueJobs() {
     watchQueueJobs(8000);
     return;
   }
-  const keep = [];
   let finished = false;
+  let waiting = false;
   for (const entry of pending) {
     const job = jobs.find((j) => j.id === entry.id);
     if (!job) {
       // The server forgot it (restart + 48h) or it never landed: stop waiting.
-      if (Date.now() - entry.at < QUEUE_JOB_MAX_AGE_MS) keep.push(entry);
+      if (Date.now() - entry.at >= QUEUE_JOB_MAX_AGE_MS) takeQueueJob(entry.id);
+      else waiting = true;
       continue;
     }
     if (job.status === 'running') {
-      keep.push(entry);
+      waiting = true;
       continue;
     }
+    if (!takeQueueJob(entry.id)) continue;
     finished = true;
-    api(`/promo-jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' }).catch(() => {});
+    settleJob(entry, job, false);
+  }
+  if (finished) window.dispatchEvent(new CustomEvent('sandesha:refresh'));
+  if (waiting) watchQueueJobs(2500);
+}
+
+/** Report how a handed-over job ended (the entry is already taken off the list). */
+function settleJob(entry, job, live) {
+  api(`/promo-jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' }).catch(() => {});
+  const title = entry.title || 'your message';
+  if (entry.kind === 'send') {
     if (job.status === 'done') {
-      const n = (job.ids || []).length;
-      toast(`${entry.title || 'Message'} scheduled${n > 1 ? ` for ${n} lists` : ''}`, 'ok');
+      if (job.failed) toast(`Sent ${job.sent}, failed ${job.failed}`, 'err', 8000);
+      else toast(job.sent === 1 ? 'Message sent' : `Sent to ${job.sent} audiences`, 'ok');
     } else {
-      toast(`Could not schedule “${entry.title || 'your message'}”: ${job.error || 'something went wrong'}. Your message is back in Compose.`, 'err', 12000);
+      toast(`Could not send “${title}”: ${job.error || 'something went wrong'}. Your message is back in Compose.`, 'err', 12000);
       restoreDraftFrom(entry.snapshot);
     }
+    return;
   }
-  writeQueueJobs(keep);
-  if (finished) window.dispatchEvent(new CustomEvent('sandesha:refresh'));
-  if (keep.length) watchQueueJobs(2500);
+  if (job.status === 'done') {
+    const n = (job.ids || []).length;
+    toast(`${entry.title || 'Message'} scheduled${n > 1 ? ` for ${n} lists` : ''}`, 'ok');
+  } else {
+    toast(`Could not schedule “${title}”: ${job.error || 'something went wrong'}. Your message is back in Compose.`, 'err', 12000);
+    restoreDraftFrom(entry.snapshot);
+  }
 }
 
 /** Start (or continue) checking on handed-over schedules. Safe to call any time. */
@@ -865,6 +899,12 @@ async function saveScheduleHere(text, preUploadedPath = '') {
   }
 }
 
+/**
+ * Send now: hand the whole fan-out to Sandesha (see promo-jobs.js "send" jobs).
+ * Only the attachment upload happens from this phone. The server delivers to each
+ * audience with the safety gap between chats and keeps going if the phone sleeps
+ * or the tab closes; while this screen stays open it shows the progress.
+ */
 async function sendNow(text) {
   const recipients = shuffled(sendRecipients(draft.targets));
   if (!recipients.length) {
@@ -883,8 +923,134 @@ async function sendNow(text) {
   if (recipients.length > 1) prog.hidden = false;
 
   try {
-    let filePath = null;
+    let filePath = draft.keepFilePath || null;
     if (draft.file) {
+      label.textContent = 'Uploading attachment…';
+      prog.hidden = false;
+      const up = await uploadFile(draft.file);
+      filePath = up.filePath;
+    }
+    const title = (text || draft.keepFileName || (draft.file && draft.file.name) || 'Message').trim().slice(0, 60);
+    let started;
+    try {
+      started = await api('/promo-jobs', {
+        method: 'POST',
+        body: JSON.stringify({
+          kind: 'send',
+          title,
+          message: text,
+          filePath: filePath || '',
+          recipients: recipients.map((r) => ({ target: r.value })),
+          previousIds: draft.replacingIds,
+        }),
+      });
+    } catch (err) {
+      // A Sandesha that predates send jobs reads this as a Board post.
+      if (/promoId required|sheet\.url|sheet\.token/i.test(err.message || '')) {
+        return await sendNowHere(text, filePath || '');
+      }
+      throw err;
+    }
+    const id = started.job.id;
+    rememberQueueJob(id, title, {
+      message: text,
+      targets: draft.targets,
+      later: false,
+      runAt: draft.runAt,
+      replacingIds: draft.replacingIds,
+      keepFilePath: filePath || '',
+      keepFileName: draft.file ? draft.file.name : draft.keepFileName,
+    }, 'send');
+    handedOver = true;
+    try { sessionStorage.removeItem(SAVED_DRAFT_KEY); } catch { /* storage off */ }
+    toast('With Sandesha now — it carries on even if you leave', 'info', 4000);
+    await followSendJob(id, recipients.length);
+  } catch (err) {
+    toast(err.message || 'Send failed', 'err');
+  } finally {
+    sending = false;
+    delivered = false;
+    handedOver = false;
+    const p = panel();
+    const pg = p?.querySelector('#pcProg');
+    if (pg) pg.hidden = true;
+    const fl = p?.querySelector('#pcProgFill');
+    if (fl) fl.style.width = '0%';
+    renderPromoCompose();
+  }
+}
+
+/** Show a running send's progress; report how it ended. */
+async function followSendJob(id, total) {
+  followingIds.add(id);
+  const started = Date.now();
+  let misses = 0;
+  try {
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (Date.now() - started > 20 * 60 * 1000) return; // the background check takes over
+      let job;
+      try {
+        job = ((await api('/promo-jobs')).jobs || []).find((j) => j.id === id);
+      } catch {
+        continue; // a dropped connection must not end the follow
+      }
+      if (!job) {
+        if (++misses > 5 || !readQueueJobs().some((j) => j.id === id)) return;
+        continue;
+      }
+      const done = (job.sent || 0) + (job.failed || 0);
+      const p = panel();
+      if (job.status === 'running') {
+        const fl = p?.querySelector('#pcProgFill');
+        const lb = p?.querySelector('#pcProgTxt');
+        if (fl) fl.style.width = `${Math.round((done / total) * 100)}%`;
+        if (lb) lb.textContent = `Sending ${Math.min(done + 1, total)} of ${total}…`;
+        continue;
+      }
+      const entry = takeQueueJob(id);
+      if (!entry) return;
+      settleJob(entry, job, true);
+      if (job.status === 'done') {
+        delivered = true;
+        sync();
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        handedOver = false;
+        draft.replacingIds = [];
+        draft.message = '';
+        forgetKeptFile();
+        setFileSilently(null);
+        persistDraft();
+        window.dispatchEvent(new CustomEvent('promo:board-show'));
+        window.dispatchEvent(new CustomEvent('sandesha:refresh'));
+      }
+      return;
+    }
+  } finally {
+    followingIds.delete(id);
+  }
+}
+
+async function sendNowHere(text, preUploadedPath = '') {
+  const recipients = shuffled(sendRecipients(draft.targets));
+  if (!recipients.length) {
+    toast('No valid audience', 'err');
+    return;
+  }
+
+  const host = panel();
+  const prog = host.querySelector('#pcProg');
+  const fill = host.querySelector('#pcProgFill');
+  const label = host.querySelector('#pcProgTxt');
+
+  busy(true, 'Sending…');
+  toast(recipients.length === 1 ? 'Sending…' : `Sending to ${recipients.length} audiences — progress below`, 'info', 4000);
+  sync();
+  if (recipients.length > 1) prog.hidden = false;
+
+  try {
+    let filePath = preUploadedPath || null;
+    if (draft.file && !preUploadedPath) {
       label.textContent = 'Uploading attachment…';
       prog.hidden = false;
       const up = await uploadFile(draft.file);

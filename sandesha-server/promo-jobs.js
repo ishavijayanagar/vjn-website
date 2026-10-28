@@ -3,9 +3,11 @@
 /**
  * Scheduling, run here instead of in the browser.
  *
- * Two kinds of job. A Board post (default) also saves its slot to the sheet/DB.
+ * Three kinds of job. A Board post (default) also saves its slot to the sheet/DB.
  * A "queue" job (the Send tab's Schedule) just creates the schedule rows and
  * drops the ones it replaces; the attachment is already uploaded by then.
+ * A "send" job (the Send tab's Send now) delivers to each audience in turn with
+ * the safety gap between chats, so it keeps going if the phone sleeps.
  *
  * Scheduling a board post is several slow steps — fetch the flyer, queue one
  * row per list, write the slot back to the sheet, drop the rows it replaced.
@@ -28,6 +30,10 @@ function createPromoJobs(deps) {
     MEDIA_DIR,
     createSchedule,
     cancelSchedule,
+    // (target, { message, filePath }, actor) → delivers to one audience (a set fans out inside).
+    sendTo = null,
+    // Pause between audiences; the server's own safety spacing.
+    sendGap = async () => {},
     // (token, fields) → saves the post in this server's own database. Used
     // instead of the Sheet when the person signed in on the Pi.
     savePromoLocal = null,
@@ -83,6 +89,7 @@ function createPromoJobs(deps) {
    */
   function start(input, actor) {
     if (input && input.kind === 'queue') return startQueue(input, actor);
+    if (input && input.kind === 'send') return startSend(input, actor);
     const promoId = String(input.promoId || '').trim();
     if (!promoId) throw new Error('promoId required');
     const sheet = input.sheet || {};
@@ -141,6 +148,63 @@ function createPromoJobs(deps) {
     save();
     job.done = runQueue(job, { ...input, rows, runAt }, actor).catch(() => {});
     return job;
+  }
+
+  /** The Send tab's Send now: each audience in turn, spaced like the scheduler does. */
+  function startSend(input, actor) {
+    if (!sendTo) throw new Error('This Sandesha cannot send from a job');
+    const recipients = Array.isArray(input.recipients) ? input.recipients.filter((r) => r && r.target) : [];
+    if (!recipients.length) throw new Error('Choose at least one audience');
+    if (!String(input.message || '').trim() && !input.filePath) throw new Error('Write a message or attach something');
+
+    const job = {
+      id: `pj-${now()}-${Math.random().toString(36).slice(2, 7)}`,
+      kind: 'send',
+      promoId: `send-${now()}`,
+      title: String(input.title || '').slice(0, 200),
+      sendAt: '',
+      status: 'running',
+      step: 'send',
+      error: '',
+      ids: [],
+      total: recipients.length,
+      sent: 0,
+      failed: 0,
+      createdAt: new Date(now()).toISOString(),
+      updatedAt: new Date(now()).toISOString(),
+      createdBy: actor ? { role: actor.role, name: actor.name } : null,
+    };
+    jobs.push(job);
+    save();
+    job.done = runSend(job, { ...input, recipients }, actor).catch(() => {});
+    return job;
+  }
+
+  async function runSend(job, input, actor) {
+    const previousIds = (input.previousIds || []).map(String);
+    let firstError = '';
+    for (let i = 0; i < input.recipients.length; i++) {
+      update(job, { step: `send ${i + 1}/${input.recipients.length}` });
+      try {
+        await sendTo(input.recipients[i].target, { message: input.message, filePath: input.filePath || '' }, actor);
+        job.sent += 1;
+      } catch (err) {
+        job.failed += 1;
+        if (!firstError) firstError = err.message || 'Send failed';
+        log(`[promo-jobs] ${job.id} → ${input.recipients[i].target}: ${firstError}`);
+      }
+      update(job, {});
+      if (i < input.recipients.length - 1) {
+        try { await sendGap(); } catch { /* a gap that fails must not stop the rest */ }
+      }
+    }
+    // Sending it now supersedes whatever was queued for this message.
+    if (job.sent > 0) for (const id of previousIds) await cancelQuietly(id, actor);
+    update(job, {
+      status: job.sent > 0 ? 'done' : 'failed',
+      step: 'done',
+      error: job.failed ? `${job.failed} of ${job.total} failed: ${firstError}` : '',
+    });
   }
 
   async function runQueue(job, input, actor) {

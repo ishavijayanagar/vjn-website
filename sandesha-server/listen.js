@@ -12,6 +12,7 @@ const { createMirror } = require('./mirror');
 const { createVjnApi } = require('./vjn-api');
 const { createReminders } = require('./reminders');
 const { createInbox } = require('./inbox');
+const { pruneMedia } = require('./media-prune');
 const { createApiHandlers } = require('./api-handlers');
 const { createSettingsWizard } = require('./settings');
 const { createBulkSendWizard } = require('./bulk-send');
@@ -678,6 +679,8 @@ function wireClientEvents(c) {
         onSessionError: notifyWhatsAppSessionError,
         getChats: getChatsShared,
         GROUPS_CACHE_FILE: path.join(__dirname, 'groups-cache.json'),
+        sendToTarget: deliverNowToTarget,
+        sendGap: safety.sendGap,
       });
 
       startSendServer();
@@ -4004,6 +4007,45 @@ async function fanOutScheduleInner(schedule) {
   });
 }
 
+/**
+ * "Send now" from a job: one audience. A set fans out to its groups, spaced and
+ * with the caption varied per chat, exactly like the interactive /send path.
+ */
+async function deliverNowToTarget(target, { message, filePath }, actor) {
+  const members = loadSets()[String(target).toLowerCase()];
+  if (!members) {
+    await withSendContext({ via: 'manual', actor, message }, () =>
+      deliverSchedule(target, { message, filePath }, { varyText: false }));
+    return;
+  }
+  const corrId = `set-${Date.now()}`;
+  const order = safety.shuffled(members);
+  const failures = [];
+  await withSendContext({ via: 'manual', corrId, actor }, async () => {
+    for (let i = 0; i < order.length; i++) {
+      try {
+        await deliverSchedule(order[i], { message, filePath }, { varyText: true });
+      } catch (err) {
+        failures.push({ target: order[i], error: err.message });
+        log(`[SEND] set "${target}" → ${order[i]}: ${err.message}`);
+      }
+      if (i < order.length - 1) await safety.sendGap();
+    }
+  });
+  const sent = order.length - failures.length;
+  activity.recordEvent({
+    category: 'send',
+    type: failures.length ? (sent ? 'warn' : 'err') : 'ok',
+    ok: !failures.length,
+    title: `Sent to ${sent} of ${order.length} groups in "${target}"`,
+    detail: failures.length ? `${failures.length} failed` : '',
+    target, count: sent, via: 'manual', corrId, actor,
+    meta: { message, set: target, total: order.length, sent, failures },
+    push: true,
+  });
+  if (!sent) throw new Error(failures[0]?.error || 'Nothing was sent');
+}
+
 /** Drop a scheduled attachment once no remaining row points at it. */
 function dropScheduleMedia(filePath, remaining) {
   const abs = String(filePath || '');
@@ -4020,6 +4062,11 @@ function startScheduler() {
 
   // Run once immediately
   runSchedulerCheck();
+  const pruneUploads = () => pruneMedia({
+    dir: MEDIA_DIR, referenced: loadSchedules().map((s) => s.filePath), log,
+  });
+  pruneUploads();
+  setInterval(pruneUploads, 6 * 3600e3).unref();
   vjnMirror.start();
   vjnInbox.start();
   vjnReminders.start();
