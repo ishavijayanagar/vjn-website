@@ -18,6 +18,7 @@ PID_FILE=".sandesha.pid"
 OUT_FILE="sandesha.out"
 SESSION_DIR="$(pwd)/.wwebjs_auth/session"
 UNIT="sandesha"
+DB_FILE="${SANDESHA_DB_FILE:-$(pwd)/sandesha.db}"
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
@@ -32,6 +33,10 @@ Sandesha — WhatsApp backend
   ${NAME} status            Running? WhatsApp connected? public URL? starts on boot?
   ${NAME} logs              Follow the output (pairing code / QR appear here)
   ${NAME} reset-whatsapp    Forget the WhatsApp login and link a new phone  [-y to skip the prompt]
+  ${NAME} db                Database: size, rows per table, latest backup, changes waiting for the Sheet
+  ${NAME} backup            Safe copy of the database into backups/ (keeps the newest 14)
+  ${NAME} install-backup    Back up automatically every night at 3am (cron)
+  ${NAME} restore <file>    Put a backup back (stops Sandesha, restores, starts it)
   ${NAME} install-command   Make 'sandesha' work from any directory
   ${NAME} install-service   Start on boot and restart on crash (systemd)
   ${NAME} help              This list
@@ -234,6 +239,47 @@ The QR expires in about a minute; if it does, run this again.
 EOT
 }
 
+do_db() {
+  [[ -f "$DB_FILE" ]] || die "no database at ${DB_FILE} (it is created the first time Sandesha starts)."
+  node scripts/db-status.js || return 1
+  local last; last="$(ls -1t "$(dirname "$DB_FILE")"/backups/sandesha-*.db 2>/dev/null | head -1)"
+  if [[ -n "$last" ]]; then say "Latest backup: ${last}"; else say "Latest backup: none yet — run '${NAME} backup'"; fi
+  crontab -l 2>/dev/null | grep -q "backup-db.js" && say "Nightly backup: on" || say "Nightly backup: OFF — run '${NAME} install-backup'"
+}
+
+do_backup() {
+  check_prereqs
+  node scripts/backup-db.js
+}
+
+do_install_backup() {
+  local line="0 3 * * * cd $(pwd) && node scripts/backup-db.js >> $(pwd)/backups.log 2>&1"
+  if crontab -l 2>/dev/null | grep -q "scripts/backup-db.js"; then
+    say "Nightly backup is already set up."
+    return 0
+  fi
+  ( crontab -l 2>/dev/null; echo "$line" ) | crontab - || die "could not write the crontab"
+  say "Done: the database is backed up every night at 3am into $(pwd)/backups/"
+}
+
+do_restore() {
+  local f="${1:-}"
+  [[ -n "$f" ]] || { say "Usage: ${NAME} restore <backup file>   (see: ls backups/)"; return 1; }
+  [[ -f "$f" ]] || die "no such file: ${f}"
+  say "This replaces the current database with ${f}."
+  say "Anything saved since that backup is lost (a safety copy of the current one is kept)."
+  read -r -p "Continue? [y/N] " ans
+  [[ "$ans" == "y" || "$ans" == "Y" ]] || { say "Cancelled."; return 0; }
+  local was_running=false
+  [[ -n "$(running_pid)" ]] && was_running=true
+  if $was_running; then do_stop; fi
+  [[ -f "$DB_FILE" ]] && cp "$DB_FILE" "${DB_FILE}.before-restore"
+  cp "$f" "$DB_FILE"
+  rm -f "${DB_FILE}-wal" "${DB_FILE}-shm"
+  say "Restored."
+  if $was_running; then do_start; fi
+}
+
 do_install_command() {
   local target=/usr/local/bin/sandesha
   if [[ "$(id -u)" -eq 0 ]]; then ln -sf "$SCRIPT" "$target"; else sudo ln -sf "$SCRIPT" "$target"; fi
@@ -294,6 +340,10 @@ case "${1:-help}" in
   status)           do_status ;;
   logs)             do_logs ;;
   reset-whatsapp)   shift; do_reset_whatsapp "$@" ;;
+  db)               do_db ;;
+  backup)           do_backup ;;
+  install-backup)   do_install_backup ;;
+  restore)          shift; do_restore "$@" ;;
   install-command)  do_install_command ;;
   install-service)  do_install_service ;;
   help|-h|--help)   usage ;;

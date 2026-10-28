@@ -62,6 +62,16 @@ Do the earlier SQLITE steps first if you have not (logins, promotions): `VJN_AUT
 - Changes made on the Pi while Google is unreachable wait in `sync_queue` and are copied
   as soon as it is reachable again.
 
+## Everyday commands
+
+```bash
+sandesha db                # size, rows per table, latest backup, changes waiting for the Sheet
+sandesha backup            # safe copy into backups/ (newest 14 kept)
+sandesha install-backup    # nightly 3am backup (cron)
+sandesha restore <file>    # put a backup back
+```
+(`sandesha` is `./sandesha.sh` after `./sandesha.sh install-command`.)
+
 ## Restore
 
 Stop Sandesha, copy a file from `backups/` over `sandesha.db` (and delete
