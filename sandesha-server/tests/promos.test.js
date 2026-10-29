@@ -70,6 +70,28 @@ async function run() {
     assert.strictEqual(r.item.status, 'due');
   });
 
+  await test('a future slot is not sent just because an earlier mark said so', async () => {
+    const t = setup();
+    const ie = (await t.promos.list()).items.find((i) => i.event_id === '1');
+    await t.promos.save({ id: ie.id, message: 'Join IE', send_at: '2026-10-28 16:00' });
+    let r = await t.promos.markSent(ie.id, 'sandesha');
+    assert.strictEqual(r.item.status, 'ready', 'bot mark before the slot is not a delivery');
+    r = await t.promos.save({
+      id: ie.id, message: 'Join IE', send_at: '2026-10-28 18:00', wa_schedule_ids: 'sched-1',
+    });
+    assert.strictEqual(r.item.status, 'ready');
+    assert.strictEqual(r.item.sent_at, '');
+    t.tick(8 * 3600e3); // 19:00, past 18:00
+    r = await t.promos.markSent(ie.id, 'sandesha');
+    assert.strictEqual(r.item.status, 'sent');
+    r = await t.promos.markSent(ie.id, 'person');
+    // A hand mark stays sent even if the clock is moved back by a new future slot
+    // only when nothing is queued. Re-queue drops it.
+    r = await t.promos.save({ id: ie.id, send_at: '2026-10-29 01:15', wa_schedule_ids: 'sched-2' });
+    assert.notStrictEqual(r.item.status, 'sent');
+    assert.strictEqual(r.item.wa_schedule_ids, 'sched-2');
+  });
+
   await test('at most 4 posts a day; the same post can move within its day', async () => {
     const t = setup();
     const ids = [];

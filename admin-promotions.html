@@ -30,8 +30,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Instrument+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="admin-promotions.css?v=sets-5"/>
-  <link rel="stylesheet" href="sandesha/css/embedded.css?v=6"/>
+  <link rel="stylesheet" href="admin-promotions.css?v=promo-live"/>
+  <link rel="stylesheet" href="sandesha/css/embedded.css?v=toast-1"/>
   <link rel="stylesheet" href="banner-form.css?v=2"/>
   <script src="config.js"></script>
   <script src="public-data.js?v=1"></script>
@@ -86,6 +86,29 @@
       <div class="promo-panel" id="sandeshaReach" aria-label="Message reach"></div>
       <div class="promo-panel" id="sandeshaServer" aria-label="Settings">
         <div id="promoSetsHost"></div>
+        <section class="ios-block" id="promoActivityEntry">
+          <h2 class="ios-caption">WhatsApp</h2>
+          <div class="ios-group">
+            <button type="button" class="ios-row-btn" id="promoActivityOpen">
+              <span class="pa-copy">
+                <span class="pa-title">Sandesha activities</span>
+                <span class="pa-sub">Sends, schedules and member changes from this team.</span>
+              </span>
+              <svg class="pa-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+          </div>
+        </section>
+        <div id="promoActivity" hidden>
+          <button type="button" class="pa-back" id="promoActivityBack">Settings</button>
+          <h2 class="pa-heading">Sandesha activities</h2>
+          <div class="pa-filters" role="tablist" aria-label="Result">
+            <button type="button" class="on" data-pa-status="all">All</button>
+            <button type="button" data-pa-status="ok">Success</button>
+            <button type="button" data-pa-status="fail">Failed</button>
+          </div>
+          <p class="pa-meta" id="promoActivityMeta"></p>
+          <div id="promoActivityList"></div>
+        </div>
         <section class="ios-block">
           <h2 class="ios-caption">Account</h2>
           <div class="ios-group promo-account">
@@ -211,7 +234,7 @@
             <input type="date" id="composeDate" class="compose-date"/>
             <p class="compose-date-hint" id="composeDateHint" aria-live="polite"></p>
             <label class="compose-label" for="composeTime">Time</label>
-            <select id="composeTime"></select>
+            <input type="time" id="composeTime" class="compose-time" step="60" autocomplete="off"/>
 
             <span class="compose-label">Audience</span>
             <button type="button" class="compose-aud" id="composeAud">
@@ -237,7 +260,7 @@
 
   <script src="ptr.js?v=1"></script>
   <script src="drafts.js?v=1"></script>
-  <script src="admin-promotions.js?v=pi-promos-2"></script>
-  <script type="module" src="sandesha/js/promo-shell.js?v=32"></script>
+  <script src="admin-promotions.js?v=promo-live"></script>
+  <script type="module" src="sandesha/js/promo-shell.js?v=33"></script>
 </body>
 </html>

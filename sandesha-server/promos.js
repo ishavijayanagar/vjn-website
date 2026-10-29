@@ -120,8 +120,25 @@ function createPromos({ db, fetchListings = async () => ({}), listingTtlMs = LIS
     return snap;
   }
 
+  /** Sandesha still has a row for this post, so it has not gone out. */
+  function stillQueued(row) {
+    return !!normalizeScheduleIds(row.wa_schedule_ids);
+  }
+
+  function slotInFuture(row) {
+    const key = sendAtKey(row.send_at);
+    if (!key) return false;
+    const t = kolkata(now());
+    return key > `${t.ymd} ${t.hm}`;
+  }
+
   function computeStatus(row, listing) {
-    if (normalizeStatus(row.status) === 'sent') return 'sent';
+    const storedSent = normalizeStatus(row.status) === 'sent';
+    // An earlier mark must not survive a new queue, and a bot mark made before
+    // the slot (a missing row used to look like a send) is not a delivery.
+    // A person marking it by hand, after the queue was cleared, still counts.
+    const prematureBot = storedSent && slotInFuture(row) && String(row.sent_by || '') === 'sandesha';
+    if (storedSent && !stillQueued(row) && !prematureBot) return 'sent';
     const hasCopy = String(row.message || '').trim();
     const hasFlyer = flyerSource(row, listing);
     if (hasCopy && hasFlyer) {
@@ -287,6 +304,12 @@ function createPromos({ db, fetchListings = async () => ({}), listingTtlMs = LIS
     }
     if (data.wa_schedule_ids !== undefined) row.wa_schedule_ids = normalizeScheduleIds(data.wa_schedule_ids);
     if (data.clear_sent) {
+      row.sent_at = '';
+      row.sent_by = '';
+      row.status = 'ready';
+    }
+    // Queuing it again means this slot has not gone out.
+    if (stillQueued(row) && normalizeStatus(row.status) === 'sent') {
       row.sent_at = '';
       row.sent_by = '';
       row.status = 'ready';

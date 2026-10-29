@@ -174,15 +174,43 @@ public_url() {
     } catch {} });'
 }
 
+# Capture the full status first. Piping straight into grep -q can SIGPIPE
+# tailscale, and with pipefail that looks like "funnel is off" when it is on.
+funnel_points_here() {
+  local st
+  st="$(tailscale funnel status 2>/dev/null || true)"
+  grep -qE "127\\.0\\.0\\.1:${PORT}|localhost:${PORT}" <<<"$st"
+}
+
+# After Wi-Fi returns, tailscaled sits in NoState for a few seconds.
+# `tailscale funnel` then exits immediately with "unexpected state: NoState".
+# sudo hits the same state, so do not tell the user to re-run it as root.
+tailscale_running() {
+  tailscale status --json 2>/dev/null | node -e '
+    let d = ""; process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => { try {
+      process.exit(JSON.parse(d).BackendState === "Running" ? 0 : 1);
+    } catch { process.exit(1); } });'
+}
+
 ensure_funnel() {
   command -v tailscale >/dev/null 2>&1 || { say "  (tailscale not installed — local only)"; return 0; }
-  if ! tailscale funnel status 2>/dev/null | grep -q "127.0.0.1:${PORT}\|localhost:${PORT}"; then
+  local url err i
+  if ! funnel_points_here; then
     say "  Turning the public URL on (tailscale funnel)..."
-    timeout 20 tailscale funnel --bg --yes "$PORT" >/dev/null 2>&1 \
-      || timeout 20 sudo -n tailscale funnel --bg --yes "$PORT" >/dev/null 2>&1 \
-      || say "  Could not enable Funnel automatically. Run once: sudo tailscale funnel --bg --yes ${PORT}"
+    for ((i = 1; i <= 15; i++)); do
+      tailscale_running && break
+      sleep 2
+    done
+    err="$(timeout 20 tailscale funnel --bg --yes "$PORT" 2>&1)" || true
+    if ! funnel_points_here; then
+      say "  Could not enable Funnel automatically."
+      [[ -n "${err:-}" ]] && say "  ${err}"
+      say "  Wait until 'tailscale status' shows this machine online, then run: tailscale funnel --bg --yes ${PORT}"
+      return 0
+    fi
   fi
-  local url; url="$(public_url)"
+  url="$(public_url)"
   [[ -n "$url" ]] && say "  Public URL: ${url}"
 }
 

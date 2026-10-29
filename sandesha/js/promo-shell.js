@@ -14,7 +14,9 @@ import { renderPromoSets } from './pages/promo-sets.js?v=3';
 import { toast } from './toast.js';
 
 import { setComposeMode, watchQueueJobs } from './pages/promo-compose.js';
+import { renderPromoSchedule } from './pages/promo-schedule.js';
 import { renderPromoReach } from './pages/promo-reach.js';
+import { bindPromoActivity, closePromoActivity } from './promo-activity.js';
 // Registers window.SandeshaPromo for admin-promotions.js (a classic script).
 import './promo-relay.js';
 import { subscribe, getState, refreshCore, refreshHealth } from './store.js';
@@ -200,6 +202,7 @@ function setMode(mode) {
     const host = $('sandeshaReach');
     if (host) renderPromoReach(host);
   } else if (mode === 'server') {
+    bindPromoActivity();
     renderPromoSets($('promoSetsHost'));
     const host = $('sandeshaApiHost') || $('sandeshaServer');
     if (host) {
@@ -216,7 +219,10 @@ function setMode(mode) {
       });
     }
   } else if (mode === 'board' && prev !== 'board') {
+    closePromoActivity();
     window.dispatchEvent(new CustomEvent('promo:board-show'));
+  } else if (mode !== 'server') {
+    closePromoActivity();
   }
 }
 
@@ -281,13 +287,21 @@ function startHealthPolling() {
 async function wirePromoNotifications() {
   const btn = $('notifyBtn');
   if (!btn) return;
-  // admin-promotions.js binds a placeholder toast here — drop it.
   btn.onclick = null;
-  if (!pushSupported()) { btn.hidden = true; return; }
   btn.hidden = false;
+
+  if (!pushSupported()) {
+    btn.classList.add('is-off');
+    btn.title = 'Push alerts need Chrome or an installed app';
+    btn.addEventListener('click', () => {
+      toast('Use Chrome and install Promotions as an app for alerts before scheduled sends', 'info', 4500);
+    });
+    return;
+  }
 
   async function paint() {
     const s = await pushState();
+    btn.classList.remove('is-busy');
     btn.classList.toggle('is-on', s === 'on');
     btn.classList.toggle('is-off', s !== 'on');
     btn.setAttribute('aria-pressed', s === 'on' ? 'true' : 'false');
@@ -297,13 +311,21 @@ async function wirePromoNotifications() {
     btn.disabled = s === 'denied';
   }
   btn.addEventListener('click', async () => {
+    if (btn.classList.contains('is-busy')) return;
+    btn.classList.add('is-busy');
     btn.disabled = true;
     const s = await pushState();
     try {
-      if (s === 'on') { await pushDisable(); toast('Notifications off', 'ok'); }
-      else { await pushEnable(); toast('Notifications on — you’ll be told before scheduled sends', 'ok'); }
+      if (s === 'on') {
+        await pushDisable();
+        toast('Notifications turned off', 'ok', 3500);
+      } else {
+        toast('Turning notifications on…', 'info', 2000);
+        await pushEnable();
+        toast('Notifications on — you’ll get a heads-up ~15 min before each scheduled send', 'ok', 4500);
+      }
     } catch (err) {
-      toast(err.message || 'Could not change notifications', 'err');
+      toast(err.message || 'Could not change notifications', 'err', 4500);
     }
     await paint();
   });
@@ -317,15 +339,42 @@ setMode(initialMode());
 subscribe(syncSandeshaDot);
 syncSandeshaDot();
 watchSandeshaLink();
+startLiveRefresh();
+bindPromoActivity();
 // After admin-promotions.js bindChrome() so we win the notify button.
 if (document.readyState === 'complete') wirePromoNotifications();
 else window.addEventListener('load', wirePromoNotifications, { once: true });
 
 window.addEventListener('sandesha:refresh', async () => {
-  if (currentMode === 'board') return;
+  if (currentMode === 'board') {
+    window.dispatchEvent(new CustomEvent('promo:board-show'));
+    return;
+  }
   await refreshMessagingData();
   if (currentMode === 'schedule') showSchedulePanel().catch(() => {});
 });
+
+/** Keep Schedule / Reach in step with the server while the tab stays open. */
+let liveRefreshTimer = null;
+function startLiveRefresh() {
+  if (liveRefreshTimer) return;
+  const tick = async () => {
+    if (document.hidden || !getVjnToken()) return;
+    if (currentMode === 'schedule') {
+      try {
+        await refreshMessagingData();
+        renderPromoSchedule();
+      } catch { /* toast inside refresh */ }
+    } else if (currentMode === 'reach') {
+      const host = $('sandeshaReach');
+      if (host?.classList.contains('is-active')) renderPromoReach(host);
+    }
+  };
+  liveRefreshTimer = setInterval(tick, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) tick();
+  });
+}
 
 window.addEventListener('promo:goto', (ev) => {
   const mode = ev.detail?.mode;

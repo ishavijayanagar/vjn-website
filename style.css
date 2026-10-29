@@ -13956,24 +13956,7 @@ html.bsheet-lock, html.bsheet-lock body { overflow: hidden; }
   .bsheet, .bsheet-overlay { transition: none; }
 }
 
-.admin-toast {
-  position: fixed;
-  left: 50%;
-  bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px));
-  z-index: 1400;
-  max-width: min(90vw, 420px);
-  padding: 0.65rem 1rem;
-  border-radius: 12px;
-  background: #3b2a1e;
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transform: translate(-50%, 1rem);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.admin-toast.show { opacity: 1; transform: translate(-50%, 0); }
+/* Admin toast — see unified card styles below (.admin-toast). */
 
 .vpr-list { display: flex; flex-direction: column; gap: 0.55rem; }
 .vpr-row {
@@ -15835,14 +15818,19 @@ html.admin-deeplink #adminApp::before {
 #inquiriesPanel a.inq-menu-item,
 #inquiriesPanel a.inq-menu-item:visited { color: #2c2a26; }
 
-/* ── Toast — light floating status card ─────────────────────────────── */
+/* ── Toast — light floating status card (admin + shared sizing) ─────── */
 .admin-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1400;
   display: flex;
   align-items: center;
   gap: 0.75rem;
   width: max-content;
-  max-width: min(calc(100vw - 24px), 400px);
-  padding: 0.7rem 1rem 0.7rem 0.7rem;
+  min-width: min(100%, 17.5rem);
+  max-width: min(calc(100vw - 20px), 480px);
+  padding: 0.8rem 1.15rem 0.8rem 0.75rem;
   border-radius: 18px;
   background: #fff;
   color: #2c2a26;
@@ -15852,12 +15840,17 @@ html.admin-deeplink #adminApp::before {
     0 10px 24px -8px rgba(46, 35, 26, 0.22),
     0 24px 48px -18px rgba(46, 35, 26, 0.3);
   transform: translate(-50%, 1.2rem) scale(0.96);
-  pointer-events: auto;
+  opacity: 0;
+  pointer-events: none;
   cursor: default;
   transition: opacity 0.2s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .admin-toast:not(.show) { pointer-events: none; }
-.admin-toast.show { transform: translate(-50%, 0) scale(1); }
+.admin-toast.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
 .admin-toast-ico {
   flex-shrink: 0;
   width: 2.1rem;
@@ -17757,25 +17750,41 @@ body.programs-page .program-card .share-btn::after { content: ""; position: abso
 }
 .pd-share svg { width: 15px; height: 15px; }
 
-/* Toast */
+/* Toast — same card language as admin, for public pages */
 .site-toast {
   position: fixed;
   left: 50%;
   bottom: calc(24px + var(--safe-bottom));
   z-index: 400;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: #181818;
-  color: #f8f8f8;
-  font-size: 0.88rem;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  width: max-content;
+  min-width: min(100%, 12rem);
+  max-width: min(calc(100vw - 20px), 480px);
+  padding: 0.8rem 1.2rem;
+  border-radius: 18px;
+  background: #fff;
+  color: #2c2a26;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow:
+    0 0 0 1px rgba(44, 42, 38, 0.06),
+    0 10px 24px -8px rgba(46, 35, 26, 0.22),
+    0 24px 48px -18px rgba(46, 35, 26, 0.28);
   opacity: 0;
-  transform: translate(-50%, 8px);
+  transform: translate(-50%, 10px) scale(0.97);
   pointer-events: none;
-  transition: opacity 200ms ease-out, transform 200ms var(--ease-out);
+  transition: opacity 200ms ease-out, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.site-toast.show { opacity: 1; transform: translate(-50%, 0); }
-@media (prefers-reduced-motion: reduce) { .site-toast { transition: opacity 160ms ease-out; transform: translate(-50%, 0); } }
+.site-toast.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-toast { transition: opacity 160ms ease-out; transform: translate(-50%, 0); }
+  .site-toast.show { transform: translate(-50%, 0); }
+}
 /* Share sits beside the title, above the whole-card link layer */
 body.programs-page .program-card-share { flex: none; position: relative; z-index: 2; margin-top: 2px; }
 /* Card head: date tile, title and share all centred on one line */

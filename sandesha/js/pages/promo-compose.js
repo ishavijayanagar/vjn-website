@@ -223,7 +223,7 @@ function toLocalInput(date) {
 
 function defaultRunAt() {
   const d = new Date(Date.now() + 60 * 60 * 1000);
-  d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+  d.setSeconds(0, 0);
   return toLocalInput(d);
 }
 
@@ -231,7 +231,7 @@ function quickRunAt(kind) {
   const d = new Date();
   if (kind === 'hour') {
     d.setHours(d.getHours() + 1);
-    d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+    d.setSeconds(0, 0);
   } else if (kind === 'evening') {
     if (d.getHours() >= 19) d.setDate(d.getDate() + 1);
     d.setHours(19, 0, 0, 0);
@@ -359,7 +359,7 @@ export function renderPromoCompose() {
       <span class="eyebrow">Deliver at</span>
       <label class="picker as-input">
         <div class="body">
-          <input type="datetime-local" class="inp" id="pcWhen" value="${escapeHtml(draft.runAt)}" aria-label="Delivery time"/>
+          <input type="datetime-local" class="inp" id="pcWhen" step="60" value="${escapeHtml(draft.runAt)}" aria-label="Delivery time"/>
           <div class="sub" id="pcWhenSub"></div>
         </div>
       </label>

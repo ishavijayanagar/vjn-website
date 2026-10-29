@@ -1064,9 +1064,9 @@ function createApiHandlers(deps) {
     // that happen while the admin UI is closed still show up. Older scheduled
     // deliveries (before activity.jsonl existed) are back-filled from
     // delivered.json so the feed isn't empty on first upgrade.
-    // Admin sees every team; Nurturing sees only what its own team started.
+    // Admin sees every team. Nurturing and Promotions see only what their own team started.
     if (pathname === '/activity' && req.method === 'GET') {
-      if (!requireAuthFn(req, res, ['admin', 'nurturing'])) return true;
+      if (!requireAuthFn(req, res, ['admin', 'nurturing', 'promotions'])) return true;
       const limit = Math.max(1, Math.min(500, parseInt(parsed.query.limit, 10) || 150));
       const sinceIso = String(parsed.query.since || '');
       const role = callerRole(req);

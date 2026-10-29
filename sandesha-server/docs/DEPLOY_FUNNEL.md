@@ -59,9 +59,11 @@ You should see a stable Public URL. It is also emailed when `SANDESHA_NOTIFY_EMA
 3. On this laptop:
 
 ```bash
-sudo tailscale funnel --bg --yes 42620
+tailscale funnel --bg --yes 42620
 ./sandesha.sh start
 ```
+
+Run that as your user, not with `sudo`. Right after Wi-Fi reconnects, Tailscale is briefly in `NoState`, and both `sudo tailscale funnel` and a too-early `tailscale funnel` exit with `unexpected state: NoState`. Wait until `tailscale status` shows this machine, then run it again. `./sandesha.sh start` waits for that state itself.
 
 You can also start Funnel interactively once (`tailscale funnel 42620`) after HTTPS is enabled.
 

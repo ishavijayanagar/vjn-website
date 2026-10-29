@@ -424,7 +424,7 @@ async function run() {
     assert.strictEqual(data.contacts.alice, '919876543210');
   });
 
-  await test('GET /activity returns a newest-first list, admin only', async () => {
+  await test('GET /activity returns a newest-first list for admin, nurturing and promotions', async () => {
     const deps = makeDeps({
       loadDelivered: () => [
         { target: '111@g.us', sentAt: '2020-01-01T00:00:00.000Z', sourceId: 'old-1' },
@@ -432,14 +432,13 @@ async function run() {
     });
     const h = createApiHandlers(deps);
 
-    // non-admin is refused by the auth gate
-    let refused = false;
+    let askedRoles = null;
     const res0 = mockRes();
     await h.handleRequest({ method: 'GET' }, res0, { pathname: '/activity', query: {} }, (_r, _s, roles) => {
-      if (roles && roles.includes('admin')) { refused = true; return false; }
-      return true;
+      askedRoles = roles;
+      return false;
     });
-    assert.ok(refused, 'route must ask for the admin role');
+    assert.deepStrictEqual(askedRoles, ['admin', 'nurturing', 'promotions']);
 
     const res = mockRes();
     const ok = await h.handleRequest(

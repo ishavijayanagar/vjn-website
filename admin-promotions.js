@@ -103,6 +103,8 @@
   // Retry needs what was typed, which the server does not hand back.
   const jobInputs = {};
   let pollTimer = 0;
+  let boardRefreshTimer = 0;
+  const BOARD_REFRESH_MS = 30000;
   let stickyToast = null;
   const MARK_SPIN = '<span class="mark-spin" aria-hidden="true"></span>';
 
@@ -650,7 +652,7 @@
   function pickStatusMarkup(item) {
     const s = normalizeStatus(item.status);
     const when = formatPickScheduleWhen(item.send_at);
-    if (s === "sent") {
+    if (shownAsSent(item)) {
       return (
         '<span class="pick-status pick-status--ready">' +
         '<span class="pick-status-kind">Sent</span></span>'
@@ -695,7 +697,8 @@
   function annotate(list) {
     let nextMarked = false;
     return list.map(function (item) {
-      const status = normalizeStatus(item.status);
+      let status = normalizeStatus(item.status);
+      if (status === "sent" && !shownAsSent(item)) status = isPastSlot(item.send_at) ? "due" : "ready";
       let state = "soon";
       let note = "";
       if (status === "sent") {
@@ -716,7 +719,7 @@
   function promosOnDate(ymd, includeSent) {
     return items
       .filter(function (item) {
-        if (!includeSent && normalizeStatus(item.status) === "sent") return false;
+        if (!includeSent && shownAsSent(item)) return false;
         return splitSendAt(item.send_at).date === ymd;
       })
       .sort(function (a, b) {
@@ -922,20 +925,52 @@
       return false;
     }
 
+    function stillHolding(item) {
+      if (liveSources.has(String(item.id))) return true;
+      return scheduleIdsOf(item).some(function (id) {
+        return live.has(String(id));
+      });
+    }
+
+    // The chip said Sent while the Pi still had the row. Clear that mark.
+    // clear_sent is the existing save flag; it does not cancel the queue.
+    let changed = false;
+    const premature = items.filter(function (item) {
+      return normalizeStatus(item.status) === "sent" && stillHolding(item);
+    });
+    for (const item of premature) {
+      try {
+        const data = await apiPost({
+          formType: "adminSavePromotion",
+          token: token(),
+          id: item.id,
+          clear_sent: true,
+        });
+        if (!data.error) {
+          changed = true;
+          const idx = items.findIndex(function (row) {
+            return String(row.id) === String(item.id);
+          });
+          if (idx >= 0 && data.item) items[idx] = data.item;
+        }
+      } catch (e) {
+        /* try again on the next load */
+      }
+    }
+
     const done = queued.filter(function (item) {
-      // Queued again since it last went out — the board is waiting on the new
-      // row, not reporting the old send.
-      if (liveSources.has(String(item.id))) return false;
+      // Still on the queue, or the slot has not arrived — not a delivery.
+      // An older delivered.json row must not mark the new slot sent.
+      if (stillHolding(item)) return false;
+      if (!isPastSlot(item.send_at)) return false;
       if (delivered.has(String(item.id))) return true;
       if (!scheduleIdsOf(item).length) return false;
-      if (!isPastSlot(item.send_at)) return false;
       return scheduleIdsOf(item).every(function (id) {
         return !live.has(String(id));
       });
     });
-    if (!done.length) return false;
+    if (!done.length && !changed) return changed;
 
-    let changed = false;
     for (const item of done) {
       try {
         const data = await apiPost({
@@ -977,6 +1012,18 @@
     return !isNaN(target.getTime()) && target.getTime() <= Date.now();
   }
 
+  /**
+   * The green Sent chip. A stored "sent" is not enough: the slot may still be
+   * ahead, or Sandesha may still be holding the row (the 5:16 PM stamp is the
+   * earlier mark, not this slot going out).
+   */
+  function shownAsSent(item) {
+    if (!item || normalizeStatus(item.status) !== "sent") return false;
+    if (scheduleIdsOf(item).length) return false;
+    if (!isPastSlot(item.send_at) && String(item.sent_by || "") === "sandesha") return false;
+    return true;
+  }
+
   function nextFreeHm(ymd) {
     const used = {};
     promosOnDate(ymd, true).forEach(function (item) {
@@ -989,16 +1036,22 @@
     return "10:00";
   }
 
-  function fillTimeSelect() {
-    const sel = $("composeTime");
-    if (!sel || sel.options.length) return;
-    const parts = [];
-    for (let mins = 0; mins < 24 * 60; mins += 15) {
-      const hm = pad2(Math.floor(mins / 60)) + ":" + pad2(mins % 60);
-      const clock = formatHmAmPm(hm);
-      parts.push('<option value="' + hm + '">' + clock.time + " " + clock.mer + "</option>");
-    }
-    sel.innerHTML = parts.join("");
+  /** HH:MM from the compose time field (any minute, not just 15-min steps). */
+  function readComposeHm() {
+    const el = $("composeTime");
+    const raw = el && el.value ? String(el.value).trim() : "";
+    const m = raw.match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return "10:00";
+    const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+    const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+    return pad2(h) + ":" + pad2(min);
+  }
+
+  function setComposeTimeHm(hm) {
+    const el = $("composeTime");
+    if (!el) return;
+    const m = String(hm || "").match(/^(\d{1,2}):(\d{2})/);
+    el.value = m ? pad2(Math.min(23, parseInt(m[1], 10))) + ":" + m[2] : "10:00";
   }
 
   /* ───────── tabs ───────── */
@@ -1146,7 +1199,7 @@
       return;
     }
     const sent = list.filter(function (p) {
-      return normalizeStatus(p.status) === "sent";
+      return shownAsSent(p);
     }).length;
     const late = list.filter(function (p) {
       return normalizeStatus(p.status) === "due";
@@ -1349,6 +1402,24 @@
     load(false).catch(function () {});
   });
 
+  function boardVisible() {
+    const app = $("app");
+    return app && !app.classList.contains("is-sandesha-mode");
+  }
+
+  function tickBoardRefresh() {
+    if (document.hidden || !token() || !boardVisible()) return;
+    if (reconciling) return;
+    load(false).catch(function () {});
+    pollJobs();
+  }
+
+  function startBoardPolling() {
+    if (boardRefreshTimer) return;
+    boardRefreshTimer = setInterval(tickBoardRefresh, BOARD_REFRESH_MS);
+    document.addEventListener("visibilitychange", tickBoardRefresh);
+  }
+
   window.addEventListener("promo:edit-post", function (ev) {
     const id = ev && ev.detail && ev.detail.promoId;
     const item = find(id);
@@ -1512,7 +1583,7 @@
     sheetEl.classList.remove("is-picker");
     const clock = formatHmAmPm(splitSendAt(p.send_at).hm || "10:00");
     const flyer = flyerOf(p);
-    const sent = normalizeStatus(p.status) === "sent";
+    const sent = shownAsSent(p);
     sheetEl.innerHTML =
       '<div class="grab"></div>' +
       '<div class="sh-top"><div class="sh-art">' +
@@ -2005,8 +2076,7 @@
       dateEl.min = today;
       dateEl.value = next;
     }
-    const timeEl = $("composeTime");
-    if (timeEl) timeEl.value = nextFreeHm(next);
+    setComposeTimeHm(nextFreeHm(next));
     syncComposeDays();
   }
 
@@ -2046,7 +2116,6 @@
     pendingFlyer = null;
     flyerOverride = "";
     composeTargets = [];
-    fillTimeSelect();
     $("composeTitle").textContent = item.event_title || "Compose post";
     $("composeMeta").textContent = [item.event_date, item.event_location].filter(Boolean).join(" · ");
     $("composeMessage").value = item.message || "";
@@ -2064,6 +2133,7 @@
     const initialDate =
       sendParts.date && sendParts.date >= today ? sendParts.date : today;
     setComposeDate(initialDate);
+    if (sendParts.hm) setComposeTimeHm(sendParts.hm);
     syncComposeCount();
     syncComposeDays();
     syncComposeWhen();
@@ -2178,7 +2248,7 @@
         err.hidden = false;
         return;
       }
-      job.hm = ($("composeTime") && $("composeTime").value) || nextFreeHm(job.ymd);
+      job.hm = readComposeHm() || nextFreeHm(job.ymd);
     }
     closeCompose();
     if (wantSchedule) setView(viewIndexForYmd(job.ymd));
@@ -2540,9 +2610,7 @@
       }
       location.href = "admin.html";
     };
-    $("notifyBtn").onclick = function () {
-      toast("Alerts stay on when this page is installed as an app", null);
-    };
+    /* Notifications bell is owned by sandesha/js/promo-shell.js (Web Push). */
     const hdr = document.querySelector(".hdr");
     if (hdr && listEl) {
       const compact = function () {
@@ -2652,6 +2720,7 @@
       await load(true);
       watchComposeDraft();
       pollJobs();
+      startBoardPolling();
     } catch (e) {
       listEl.removeAttribute("aria-busy");
       listEl.innerHTML = emptyHtml(
