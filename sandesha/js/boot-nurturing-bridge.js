@@ -64,7 +64,7 @@ window.VjnVol = {
   isReady: () => authed,
 
   async listGroups() {
-    const data = await api('/groups');
+    const data = await api('/groups?brief=1');
     const rows = Array.isArray(data) ? data : (data && data.groups) || [];
     return rows
       .map((g) => ({ jid: g.jid || (g.id && g.id._serialized) || g.id, name: g.name || g.jid, participants: g.participants }))

@@ -25,6 +25,7 @@ state.json
 
 # Media files
 media/
+site-media/
 *.png
 !docs/icons/*.png
 *.jpg

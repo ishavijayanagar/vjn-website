@@ -1,14 +1,12 @@
 /**
  * Boot Sandesha Schedule + Send panels inside admin-promotions.html.
- * Promotions role: Schedule and Send only (no Settings tools).
+ * The board does not call this. Schedule and Send load their own screens.
  */
 import {
   ensureSandeshaAuth,
   installUnauthorizedRedirect,
 } from './auth-bridge.js';
-import { refreshCore, refreshSchedules, getState } from './store.js';
-import { renderPromoSchedule } from './pages/promo-schedule.js';
-import { renderPromoCompose } from './pages/promo-compose.js';
+import { refreshSchedules, refreshHealth, getState, ensureGroups, ensureSets } from './store.js?v=34';
 import { updatePairingBanner } from './pairing-banner.js';
 import { toast } from './toast.js';
 
@@ -20,6 +18,7 @@ export function resetPromotionsBoot() {
   bootPromise = null;
 }
 
+/** Auth and health only. Groups are loaded by the tab that needs names. */
 export async function bootPromotionsMessaging() {
   if (booted) return;
   if (bootPromise) return bootPromise;
@@ -30,7 +29,7 @@ export async function bootPromotionsMessaging() {
     window.SANDESHA_EMBEDDED_MODE = 'promotions';
 
     await ensureSandeshaAuth();
-    await refreshCore(false);
+    await refreshHealth();
 
     updatePairingBanner(getState().health);
     booted = true;
@@ -46,33 +45,23 @@ export async function bootPromotionsMessaging() {
 }
 
 export async function showSchedulePanel() {
-  if (booted) {
-    renderPromoSchedule();
-    return;
-  }
-  // The full boot also waits for /groups and /chats, which can take minutes (or
-  // fail) while WhatsApp loads. The schedule only needs the queue, so draw it
-  // from the last visit's copy at once, refresh it as soon as /schedules
-  // answers, and let the rest finish in the background.
   await ensureSandeshaAuth();
+  const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=34');
   if (getState().schedules.length) renderPromoSchedule();
   await refreshSchedules();
   updatePairingBanner(getState().health);
   renderPromoSchedule();
-  bootPromotionsMessaging().then(() => renderPromoSchedule()).catch(() => {});
+  // Names for the rows. The queue is already on screen.
+  Promise.all([ensureGroups(), ensureSets()])
+    .then(() => renderPromoSchedule())
+    .catch(() => {});
 }
 
 export async function showSendPanel() {
-  if (booted) {
-    renderPromoCompose();
-    return;
-  }
-  // The form needs nothing from WhatsApp to draw (the audience list is read when
-  // it is opened), and /groups and /chats can take minutes on the Pi. Draw it
-  // now and let the rest load in the background.
   await ensureSandeshaAuth();
+  const { renderPromoCompose } = await import('./pages/promo-compose.js?v=34');
   renderPromoCompose();
-  bootPromotionsMessaging().catch(() => {});
+  refreshHealth().then((health) => updatePairingBanner(health)).catch(() => {});
 }
 
 /**
@@ -81,10 +70,13 @@ export async function showSendPanel() {
  * only happens when asked for.
  */
 export async function refreshMessagingData({ full = false } = {}) {
-  if (!booted && full) return;
   try {
-    if (full) await refreshCore(true);
-    else await refreshSchedules();
+    if (full) {
+      const { refreshCore } = await import('./store.js?v=34');
+      await refreshCore(true);
+    } else {
+      await refreshSchedules();
+    }
     updatePairingBanner(getState().health);
   } catch (err) {
     toast(err.message || 'Refresh failed', 'err');

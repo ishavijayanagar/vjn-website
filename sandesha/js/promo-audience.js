@@ -7,7 +7,7 @@
  * device frame, and it borrows the board's own sheet/scrim classes.
  */
 import { escapeHtml, escapeAttr } from './api.js';
-import { getState } from './store.js';
+import { getState } from './store.js?v=34';
 
 const SECTION_ORDER = ['set', 'group', 'community', 'announcement', 'contact'];
 const SECTION_LABELS = {

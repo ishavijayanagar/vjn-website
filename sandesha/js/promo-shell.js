@@ -7,23 +7,20 @@ import {
   refreshMessagingData,
   bootPromotionsMessaging,
   resetPromotionsBoot,
-} from './boot-promotions.js';
+} from './boot-promotions.js?v=34';
 import { installUnauthorizedRedirect, getVjnToken, ensureSandeshaAuth } from './auth-bridge.js';
 import { renderApiSettings, updateApiStatus } from './api-settings.js';
-import { renderPromoSets } from './pages/promo-sets.js?v=3';
 import { toast } from './toast.js';
-
-import { setComposeMode, watchQueueJobs } from './pages/promo-compose.js';
-import { renderPromoSchedule } from './pages/promo-schedule.js';
-import { renderPromoReach } from './pages/promo-reach.js';
-import { bindPromoActivity, closePromoActivity } from './promo-activity.js';
-// Registers window.SandeshaPromo for admin-promotions.js (a classic script).
-import './promo-relay.js';
-import { subscribe, getState, refreshCore, refreshHealth } from './store.js';
+import { subscribe, getState, refreshHealth } from './store.js?v=34';
 import {
   supported as pushSupported, state as pushState, enable as pushEnable,
   disable as pushDisable, syncOnLoad as syncPush, ensureServiceWorker,
 } from './push.js';
+// Registers window.SandeshaPromo for admin-promotions.js (a classic script).
+import './promo-relay.js?v=34';
+
+window.SANDESHA_EMBEDDED = true;
+window.SANDESHA_EMBEDDED_MODE = 'promotions';
 
 const MODES = ['board', 'schedule', 'send', 'banner', 'reach', 'server'];
 const MODE_KEY = 'promo_sandesha_mode';
@@ -194,16 +191,28 @@ function setMode(mode) {
     showSendPanel().catch((err) => {
       showPanelError('send', err?.message || 'Could not load send');
     });
-  } else if (mode === 'banner') {
+  } else   if (mode === 'banner') {
     const host = $('promoBanner');
-    if (host && !bannerUi) bannerUi = window.VjnBanner.mount(host, { token: getVjnToken });
-    else bannerUi?.reload();
+    ensureBannerForm().then(() => {
+      if (!host) return;
+      if (!bannerUi && window.VjnBanner) bannerUi = window.VjnBanner.mount(host, { token: getVjnToken });
+      else bannerUi?.reload();
+    }).catch((err) => {
+      showPanelError('banner', err?.message || 'Could not load the banner editor');
+    });
   } else if (mode === 'reach') {
     const host = $('sandeshaReach');
-    if (host) renderPromoReach(host);
+    if (host) {
+      import('./pages/promo-reach.js').then((m) => m.renderPromoReach(host)).catch((err) => {
+        showPanelError('reach', err?.message || 'Could not load reach');
+      });
+    }
   } else if (mode === 'server') {
-    bindPromoActivity();
-    renderPromoSets($('promoSetsHost'));
+    import('./promo-activity.js').then((m) => {
+      activityMod = m;
+      m.bindPromoActivity();
+    }).catch(() => {});
+    import('./pages/promo-sets.js?v=34').then((m) => m.renderPromoSets($('promoSetsHost'))).catch(() => {});
     const host = $('sandeshaApiHost') || $('sandeshaServer');
     if (host) {
       renderApiSettings(host, {
@@ -219,10 +228,10 @@ function setMode(mode) {
       });
     }
   } else if (mode === 'board' && prev !== 'board') {
-    closePromoActivity();
+    activityMod?.closePromoActivity();
     window.dispatchEvent(new CustomEvent('promo:board-show'));
   } else if (mode !== 'server') {
-    closePromoActivity();
+    activityMod?.closePromoActivity();
   }
 }
 
@@ -245,6 +254,39 @@ function initialMode() {
 }
 
 let linkSettled = false;
+/** Loaded the first time Settings opens. */
+let activityMod = null;
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === '1') resolve();
+      else existing.addEventListener('load', () => resolve(), { once: true });
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => { s.dataset.loaded = '1'; resolve(); };
+    s.onerror = () => reject(new Error('Could not load the banner editor'));
+    document.body.appendChild(s);
+  });
+}
+
+function ensureBannerForm() {
+  if (window.VjnBanner) return Promise.resolve();
+  const site = window.vjnPublic ? Promise.resolve() : loadScript('public-data.js?v=1');
+  return site.then(() => loadScript('banner-form.js?v=3'));
+}
+
+function resumeQueueJobs() {
+  let pending = false;
+  try {
+    pending = JSON.parse(localStorage.getItem('vjn_queue_jobs') || '[]').length > 0;
+  } catch { /* ignore */ }
+  if (!pending) return;
+  import('./pages/promo-compose.js?v=34').then((m) => m.watchQueueJobs()).catch(() => {});
+}
 
 function syncSandeshaDot() {
   const health = getState().health;
@@ -263,9 +305,9 @@ function syncSandeshaDot() {
 async function watchSandeshaLink() {
   try {
     await ensureSandeshaAuth();
-    // Schedules handed to the server before a reload still need their outcome shown.
-    watchQueueJobs();
-    await refreshCore(false);
+    // A send or schedule handed over before a reload still needs its outcome shown.
+    resumeQueueJobs();
+    await refreshHealth();
     syncPush().catch(() => {});
   } catch {
     /* disconnected — the red dot stays */
@@ -275,13 +317,26 @@ async function watchSandeshaLink() {
   startHealthPolling();
 }
 
-/** Keep the status honest after a Pi reboot or a dropped link — health only, visible tab only. */
+/** Linked: once a minute. Not linked: every 15s so the red dot shows up quickly. */
 let healthTimer = null;
 function startHealthPolling() {
   if (healthTimer) return;
-  const tick = () => { if (!document.hidden) refreshHealth().catch(() => {}); };
-  healthTimer = setInterval(tick, 15000);
-  document.addEventListener('visibilitychange', tick);
+  const arm = () => {
+    clearTimeout(healthTimer);
+    const linked = !!getState().health?.whatsapp?.connected;
+    healthTimer = setTimeout(tick, linked ? 60000 : 15000);
+  };
+  const tick = () => {
+    if (document.hidden) {
+      arm();
+      return;
+    }
+    refreshHealth().catch(() => {}).finally(arm);
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) tick();
+  });
+  arm();
 }
 
 async function wirePromoNotifications() {
@@ -340,7 +395,6 @@ subscribe(syncSandeshaDot);
 syncSandeshaDot();
 watchSandeshaLink();
 startLiveRefresh();
-bindPromoActivity();
 // After admin-promotions.js bindChrome() so we win the notify button.
 if (document.readyState === 'complete') wirePromoNotifications();
 else window.addEventListener('load', wirePromoNotifications, { once: true });
@@ -363,11 +417,15 @@ function startLiveRefresh() {
     if (currentMode === 'schedule') {
       try {
         await refreshMessagingData();
+        const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=34');
         renderPromoSchedule();
       } catch { /* toast inside refresh */ }
     } else if (currentMode === 'reach') {
       const host = $('sandeshaReach');
-      if (host?.classList.contains('is-active')) renderPromoReach(host);
+      if (host?.classList.contains('is-active')) {
+        const { renderPromoReach } = await import('./pages/promo-reach.js');
+        renderPromoReach(host);
+      }
     }
   };
   liveRefreshTimer = setInterval(tick, 30000);
@@ -381,7 +439,8 @@ window.addEventListener('promo:goto', (ev) => {
   if (mode) setMode(mode);
 });
 
-window.addEventListener('promo:compose', (ev) => {
+window.addEventListener('promo:compose', async (ev) => {
+  const { setComposeMode } = await import('./pages/promo-compose.js?v=34');
   setComposeMode(!!ev.detail?.later);
   setMode('send');
 });

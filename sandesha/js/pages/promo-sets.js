@@ -5,7 +5,7 @@
  * Compose and Schedule can post to in one go (Sandesha paces the fan-out).
  * Sets live on the Sandesha server (`/sets`), keyed by a lowercase name.
  */
-import { getState, saveSets, subscribe, refreshCore } from '../store.js';
+import { getState, saveSets, subscribe, ensureGroups, ensureSets } from '../store.js?v=34';
 import { escapeHtml, escapeAttr } from '../api.js';
 import { toast } from '../toast.js';
 
@@ -92,7 +92,7 @@ async function retry() {
   getState().loadError = '';
   renderList();
   try {
-    await refreshCore(false);
+    await Promise.all([ensureSets(), ensureGroups()]);
   } catch {
     /* refreshCore records loadError; the subscriber re-renders */
   }

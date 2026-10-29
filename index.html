@@ -16,7 +16,7 @@
   <!-- Main font: start it now instead of after style.css is parsed -->
   <link rel="preconnect" href="https://static.sadhguru.org" crossorigin/>
   <link rel="preload" href="https://static.sadhguru.org/assets/fonts/WF-028154-009464-000050.woff" as="font" type="font/woff" crossorigin/>
-  <link rel="stylesheet" href="style.css?v=toast-1"/>
+  <link rel="stylesheet" href="style.css?v=split-1"/>
 </head>
 <body class="home-page">
 
@@ -54,10 +54,17 @@
       <picture>
         <source
           media="(max-width: 767px)"
-          srcset="assets/sg.jpg"
+          srcset="assets/sg.webp"
+          type="image/webp"
           width="923"
           height="1171"
           data-site-src="hero_image_mobile"
+        />
+        <source
+          media="(max-width: 767px)"
+          srcset="assets/sg.jpg"
+          width="923"
+          height="1171"
         />
         <img
           class="hero-photo"

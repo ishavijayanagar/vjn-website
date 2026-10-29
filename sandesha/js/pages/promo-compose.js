@@ -6,9 +6,10 @@
  * the point of the screen — you read the bubble, not the form.
  */
 import { api, uploadFile, escapeHtml, fetchMedia } from '../api.js';
-import { getState, getTargetOptions, loadChats } from '../store.js';
+import { getState, getTargetOptions, loadChats, ensureGroups, ensureSets } from '../store.js?v=34';
+import { scheduleTargets } from '../schedule-targets.js?v=34';
 import { toast } from '../toast.js';
-import { openAudienceSheet, audienceSummary, audienceTotal } from '../promo-audience.js';
+import { openAudienceSheet, audienceSummary, audienceTotal } from '../promo-audience.js?v=34';
 
 /**
  * Gap between chats on an interactive "Send now", per SENDING_SAFETY.md §5.
@@ -267,40 +268,7 @@ function bubbleHtml(raw) {
     .replace(/~([^~\n]+)~/g, '<s>$1</s>');
 }
 
-/** Sets stay whole so the server expands them once, not one row per group. */
-export function scheduleTargets(selections) {
-  const { sets, groups } = getState();
-  const out = [];
-  const seen = new Set();
-
-  for (const t of selections) {
-    if (!t?.value) continue;
-    if (t.type === 'set') {
-      const name = String(t.value);
-      const members = sets[name.toLowerCase()] || sets[name] || [];
-      if (!members.length) {
-        toast(`Set "${name}" has no groups`, 'err');
-        continue;
-      }
-      const key = `set:${name.toLowerCase()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ target: name, isSet: true });
-      continue;
-    }
-    const value = String(t.value);
-    if (!seen.has(value.toLowerCase())) {
-      seen.add(value.toLowerCase());
-      out.push({ target: value, isSet: false });
-    }
-    const g = (groups || []).find(
-      (x) => x.jid === value || (x.name && x.name.toLowerCase() === value.toLowerCase()),
-    );
-    if (g?.name) seen.add(String(g.name).toLowerCase());
-    if (g?.jid) seen.add(String(g.jid).toLowerCase());
-  }
-  return out;
-}
+export { scheduleTargets };
 
 /** Sets expand to their groups, because /send takes one recipient at a time. */
 function sendRecipients(selections) {
@@ -332,6 +300,8 @@ export function renderPromoCompose() {
   const host = panel();
   if (!host) return;
   loadChats(); // people for the audience list; not awaited
+  ensureGroups().catch(() => {});
+  ensureSets().catch(() => {});
   if (!draft.runAt) draft.runAt = defaultRunAt();
   if (restoredNotice) {
     toast(restoredNotice, 'ok');

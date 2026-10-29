@@ -12,6 +12,7 @@ const push = require('./push');
 const auth = require('./auth');
 const { isWhatsAppSessionError } = require('./wa-session');
 const { createPromoJobs } = require('./promo-jobs');
+const { saveImage, publicBase } = require('./site-media');
 
 const GROUPS_CACHE_TTL_MS = 5 * 60 * 1000;
 const GROUPS_STALE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // a remembered list older than this is not trusted
@@ -339,6 +340,34 @@ function createApiHandlers(deps) {
       daysInactive,
       status,
     };
+  }
+
+  /**
+   * Name, jid, and size only. Skips the last-message look that makes the full
+   * list take minutes on a Pi. Audience pickers and the activity log use this.
+   */
+  async function getGroupsBrief() {
+    if (groupsCache.data) {
+      return groupsCache.data.map((g) => ({
+        name: g.name,
+        jid: g.jid,
+        participants: g.participants,
+        announcement: g.announcement,
+        type: g.type,
+      }));
+    }
+    const chats = await chatList(false);
+    const groups = chats.filter((c) => c.isGroup && c.name);
+    return groups
+      .map((g) => ({
+        name: g.name,
+        jid: g.id && (g.id._serialized || g.id),
+        participants: getGroupParticipantCount(g),
+        announcement: isAnnouncementGroup(g),
+        type: getGroupTypeLabel(g, groups),
+      }))
+      .filter((g) => g.jid)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }
 
   async function getGroupsEnriched(force = false) {
@@ -824,6 +853,12 @@ function createApiHandlers(deps) {
     log,
     fetchImpl: promoFetch,
     savePromoLocal,
+    saveSiteImage: (flyer) => {
+      const base = publicBase();
+      if (!base) return '';
+      const saved = saveImage(flyer);
+      return `${base}/public/media/${saved.name}`;
+    },
     createSchedule: async (body, actor) => (await createScheduleRow(body, actor)).schedule,
     cancelSchedule: async (id, actor) => cancelScheduleRow(id, actor),
     sendTo: sendToTarget,
@@ -1493,6 +1528,7 @@ function createApiHandlers(deps) {
   return {
     handleRequest,
     getGroupsEnriched,
+    getGroupsBrief,
     warmContactIndex,
     invalidateGroupsCache: () => { groupsCache = { at: 0, data: null }; },
     invalidateContactIndex: () => { waContactsCache = { at: 0, data: null, index: null, loading: null }; },

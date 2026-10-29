@@ -203,6 +203,44 @@ export async function refreshSchedules() {
   });
 }
 
+/**
+ * Group names for pickers. /groups?brief=1 skips the last-message scan.
+ * One flight at a time; a cached list is already in state from the last visit.
+ */
+let groupsFlight = null;
+export function ensureGroups() {
+  if (groupsFlight) return groupsFlight;
+  groupsFlight = runWithoutAuthRedirect(async () => {
+    const value = await api('/groups?brief=1');
+    state.groups = (Array.isArray(value) ? value : []).sort((a, b) =>
+      (a.name || '').localeCompare(b.name || ''));
+    state.groupsLoaded = true;
+    state.loadError = '';
+    saveCoreCache();
+    notify();
+    return state.groups;
+  }).finally(() => {
+    groupsFlight = null;
+  });
+  return groupsFlight;
+}
+
+let setsFlight = null;
+export function ensureSets() {
+  if (setsFlight) return setsFlight;
+  setsFlight = runWithoutAuthRedirect(async () => {
+    const value = await api('/sets');
+    if (value) state.sets = value.sets || value || {};
+    state.setsLoaded = true;
+    saveCoreCache();
+    notify();
+    return state.sets;
+  }).finally(() => {
+    setsFlight = null;
+  });
+  return setsFlight;
+}
+
 /** Health only — cheap enough to poll. Marks the server unreachable on failure. */
 export async function refreshHealth() {
   try {

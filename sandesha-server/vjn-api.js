@@ -45,7 +45,12 @@ function createVjnApi({ listings, content, inquiries, ev, ready = () => true }) 
   const READS = {
     programs: { roles: ['admin', 'programs', 'promotions'], run: (d) => (d.id ? listings.get('programs', d.id, { includeHidden: true }) : listings.list('programs', { includeHidden: true })) },
     volunteering: { roles: ['admin', 'nurturing'], run: (d) => (d.id ? listings.get('volunteering', d.id, { includeHidden: true }) : listings.list('volunteering', { includeHidden: true })) },
-    inquiries: { roles: ['admin', 'nurturing'], run: (d) => (String(d.group || '').trim() ? inquiries.group(String(d.group).trim()) : inquiries.meta()) },
+    inquiries: { roles: ['admin', 'nurturing'], run: (d) => {
+      if (String(d.group || '').trim()) return inquiries.group(String(d.group).trim());
+      const meta = inquiries.meta();
+      if (d.knownStamp && String(d.knownStamp) === String(meta.stamp || '')) return { stamp: meta.stamp, unchanged: true };
+      return meta;
+    } },
     volunteerNeeds: { roles: ['admin', 'nurturing', 'programs'], run: () => ev.needs() },
     programTitles: { roles: ['admin', 'programs'], run: () => ({ titles: content.titles() }) },
   };
@@ -79,6 +84,21 @@ function createVjnApi({ listings, content, inquiries, ev, ready = () => true }) 
           }
         }),
       };
+    }
+    // New photos live on this Pi. No public address yet means the page still
+    // uploads to Drive, the way it always has.
+    if (type === 'adminUploadImage') {
+      const siteMedia = require('./site-media');
+      const base = String(data.publicBase || siteMedia.publicBase() || '').replace(/\/$/, '');
+      if (!base) return undefined;
+      need(session, ['admin', 'programs', 'promotions', 'nurturing']);
+      let saved;
+      try {
+        saved = siteMedia.saveImage(data);
+      } catch (err) {
+        throw new HttpError(err.status || 400, err.message);
+      }
+      return { success: true, url: `${base}/public/media/${saved.name}`, fileId: saved.name };
     }
     const roles = ROLES[type];
     if (!roles) return undefined;

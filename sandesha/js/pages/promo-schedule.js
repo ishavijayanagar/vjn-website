@@ -6,11 +6,10 @@
  * and cancels.
  */
 import { api, escapeHtml, escapeAttr, getApiBase, getToken } from '../api.js';
-import { getState, jidToName } from '../store.js';
+import { getState, jidToName } from '../store.js?v=34';
 import { toast } from '../toast.js';
 import { releaseBoardPost, markBoardPostSent } from '../vjn-sheet.js';
 import { openManualSendSheet } from '../manual-send.js';
-import { loadScheduleIntoCompose, pendingQueueTitles } from './promo-compose.js';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -137,6 +136,17 @@ function rowHtml(entry, now) {
     </div>`;
 }
 
+/** Titles of schedules still being created, kept in the same list Compose writes. */
+function pendingQueueTitles() {
+  try {
+    const list = JSON.parse(localStorage.getItem('vjn_queue_jobs') || '[]');
+    if (!Array.isArray(list)) return [];
+    return list.filter((j) => j && j.kind !== 'send').map((j) => j.title || 'Message');
+  } catch {
+    return [];
+  }
+}
+
 /** Schedules the server is still creating: shown at once, replaced by the real rows. */
 function pendingHtml() {
   return pendingQueueTitles()
@@ -252,13 +262,14 @@ function overdue(entry) {
  * flyer and the slot, and already re-queues Sandesha on save. Anything written
  * in Compose is reopened there instead.
  */
-function editSchedule(entry) {
+async function editSchedule(entry) {
   if (entry.sourceId) {
     window.dispatchEvent(new CustomEvent('promo:edit-post', {
       detail: { promoId: entry.sourceId },
     }));
     return;
   }
+  const { loadScheduleIntoCompose } = await import('./promo-compose.js?v=34');
   loadScheduleIntoCompose(entry, siblingsOf(entry).map((s) => s.id));
   window.dispatchEvent(new CustomEvent('promo:goto', { detail: { mode: 'send' } }));
 }

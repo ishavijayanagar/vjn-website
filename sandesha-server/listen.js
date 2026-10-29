@@ -3497,9 +3497,12 @@ function startSendServer() {
       if (!requireAuth(req, res)) return;
       try {
         const force = parsed.query.refresh === '1';
-        const groups = apiHandlers
-          ? await apiHandlers.getGroupsEnriched(force)
-          : [];
+        const brief = parsed.query.brief === '1';
+        const groups = !apiHandlers
+          ? []
+          : brief
+            ? await apiHandlers.getGroupsBrief()
+            : await apiHandlers.getGroupsEnriched(force);
         jsonResponse(res, 200, groups);
       } catch (err) {
         if (notifyWhatsAppSessionError(err, 'GET /groups')) {

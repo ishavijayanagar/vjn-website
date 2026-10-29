@@ -225,9 +225,9 @@
     return m ? m[1] : "";
   }
 
-  function fixDriveUrl(url) {
+  function fixDriveUrl(url, width) {
     const id = driveFileId(url);
-    if (id) return "https://drive.google.com/thumbnail?id=" + id + "&sz=w800";
+    if (id) return "https://drive.google.com/thumbnail?id=" + id + "&sz=w" + (width || 800);
     return url || "";
   }
 
@@ -537,7 +537,7 @@
     if (!url) return IMG;
     return (
       '<img src="' +
-      esc(fixDriveUrl(url)) +
+      esc(fixDriveUrl(url, 400)) +
       '" alt="" loading="lazy" referrerpolicy="no-referrer"/>'
     );
   }
@@ -2542,6 +2542,20 @@
   }
 
   /* ───────── load / boot ───────── */
+  let paintedStamp = "";
+
+  function boardStamp() {
+    return items.map(function (item) {
+      return [
+        item.id,
+        normalizeStatus(item.status),
+        item.send_at || "",
+        flyerOf(item),
+        item.target || "",
+      ].join("\t");
+    }).join("\n");
+  }
+
   function applyPromotions(data) {
     items = (data.items || []).map(function (item) {
       item.status = normalizeStatus(item.status);
@@ -2554,7 +2568,12 @@
     const dot = $("notifyDot");
     if (dot) dot.hidden = !due;
     listEl.removeAttribute("aria-busy");
+    const stamp = boardStamp();
+    if (paintedStamp && stamp === paintedStamp && listEl.querySelector(".row, .empty, .lib, .groupline")) {
+      return;
+    }
     render();
+    paintedStamp = boardStamp();
   }
 
   async function load(showLoading) {

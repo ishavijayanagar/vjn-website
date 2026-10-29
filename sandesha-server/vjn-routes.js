@@ -26,6 +26,9 @@
  * The admin routes take the VJN token as "Authorization: Bearer v1.…".
  */
 
+const fs = require('fs');
+const siteMedia = require('./site-media');
+
 const FAIL_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILS = 10;
 
@@ -68,11 +71,26 @@ function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, 
     }
   }
 
+  function requestOrigin(req) {
+    const env = String(process.env.SANDESHA_PUBLIC_URL || '').replace(/\/$/, '');
+    if (env) return env;
+    const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim() || 'https';
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+    return host ? `${proto}://${host}` : '';
+  }
+
   /** The website's own reads and visitor forms — no sign-in. */
   async function handlePublic(req, res, parsed) {
     const p = parsed.pathname;
     try {
-      if (req.method === 'GET' && p.startsWith('/public/')) {
+      if (req.method === 'GET' && p.startsWith('/public/media/')) {
+        const file = siteMedia.readFile(decodeURIComponent(p.slice('/public/media/'.length)));
+        if (!file) jsonResponse(res, 404, { error: 'Not found' });
+        else {
+          res.writeHead(200, { 'Content-Type': file.mime, 'Cache-Control': 'public, max-age=86400' });
+          fs.createReadStream(file.abs).pipe(res);
+        }
+      } else if (req.method === 'GET' && p.startsWith('/public/')) {
         const out = api.publicGet(p.slice('/public/'.length), String((parsed.query && parsed.query.id) || '').trim());
         if (out === undefined) jsonResponse(res, 404, { error: 'Not found' });
         else jsonResponse(res, 200, out);
@@ -96,7 +114,9 @@ function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, 
       return true;
     }
     try {
-      const out = api.admin(auth.session, await body(req));
+      const data = await body(req);
+      if (data.formType === 'adminUploadImage') data.publicBase = requestOrigin(req);
+      const out = api.admin(auth.session, data);
       if (out === undefined) jsonResponse(res, 404, { error: 'Not handled here' });
       else jsonResponse(res, 200, out);
     } catch (err) {
@@ -187,7 +207,10 @@ function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, 
     }
     try {
       if (p === '/vjn/promos' && req.method === 'GET') {
-        jsonResponse(res, 200, await promos.list({ dueOnly: String(parsed.query?.due || '') === '1' }));
+        jsonResponse(res, 200, await promos.list({
+          dueOnly: String(parsed.query?.due || '') === '1',
+          knownStamp: parsed.query?.known,
+        }));
       } else if (invite && req.method === 'GET') {
         jsonResponse(res, 200, promos.inviteMessages());
       } else if (req.method === 'POST') {

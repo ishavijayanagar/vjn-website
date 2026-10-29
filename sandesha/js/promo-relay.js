@@ -12,10 +12,9 @@
 import { api, uploadFile, getApiBase } from './api.js';
 import { ensureSandeshaAuth } from './auth-bridge.js';
 import { toast } from './toast.js';
-import { getState, getTargetOptions } from './store.js';
-import { openAudienceSheet, audienceSummary, audienceTotal } from './promo-audience.js';
-import { scheduleTargets } from './pages/promo-compose.js';
-import { bootPromotionsMessaging, refreshMessagingData } from './boot-promotions.js';
+import { getState, getTargetOptions, refreshHealth, ensureGroups, ensureSets } from './store.js?v=34';
+import { openAudienceSheet, audienceSummary, audienceTotal } from './promo-audience.js?v=34';
+import { scheduleTargets } from './schedule-targets.js?v=34';
 
 const DEFAULT_TARGET_KEY = 'promo_default_audience';
 
@@ -67,11 +66,12 @@ const SandeshaPromo = {
    */
   async ready() {
     await ensureSandeshaAuth();
-    bootPromotionsMessaging().catch(() => {});
+    refreshHealth().catch(() => {});
     return true;
   },
 
   async refresh() {
+    const { refreshMessagingData } = await import('./boot-promotions.js');
     await refreshMessagingData({ full: true });
   },
 
@@ -108,8 +108,18 @@ const SandeshaPromo = {
     return audienceTotal(targets || []);
   },
 
-  pick(preselected) {
-    if (!getState().groupsLoaded) toast('Groups are still loading — they will appear in the list in a moment', 'ok');
+  async pick(preselected) {
+    if (!getState().groupsLoaded || !getState().setsLoaded) {
+      toast('Loading groups…', 'ok');
+      try {
+        await Promise.all([ensureGroups(), ensureSets()]);
+      } catch (err) {
+        toast(err.message || 'Could not load groups', 'err');
+      }
+    } else {
+      ensureGroups().catch(() => {});
+      ensureSets().catch(() => {});
+    }
     return new Promise((resolve) => {
       openAudienceSheet(getTargetOptions(), preselected || [], (picked) => {
         rememberDefaultTargets(picked);

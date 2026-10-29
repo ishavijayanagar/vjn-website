@@ -19,6 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { localFile } = require('./site-media');
 
 const KEEP_MS = 48 * 60 * 60 * 1000;
 const APPS_SCRIPT_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
@@ -37,6 +38,8 @@ function createPromoJobs(deps) {
     // (token, fields) → saves the post in this server's own database. Used
     // instead of the Sheet when the person signed in on the Pi.
     savePromoLocal = null,
+    // (flyer) → public URL of a photo stored on this Pi, or '' to keep using Drive.
+    saveSiteImage = null,
     fetchImpl = (...args) => fetch(...args),
     log = () => {},
     now = () => Date.now(),
@@ -245,16 +248,23 @@ function createPromoJobs(deps) {
       if (flyer && flyer.base64) {
         update(job, { step: 'flyer' });
         mediaPath = writeMedia(Buffer.from(flyer.base64, 'base64'), flyer.mimeType);
-        // A flyer picked on the phone is new to Drive too, so the sheet can keep it.
-        const up = await appsScript(sheet.url, {
-          formType: 'adminUploadImage',
-          token: sheet.token,
-          base64: flyer.base64,
-          mimeType: flyer.mimeType,
-          filename: flyer.filename,
-        });
-        if (!up.url) throw new Error('Image upload failed.');
-        payload.flyer_url = up.url;
+        let url = '';
+        if (saveSiteImage) {
+          try { url = await saveSiteImage(flyer) || ''; } catch { url = ''; }
+        }
+        if (!url) {
+          // No Pi address for the photo — keep it on Drive, as before.
+          const up = await appsScript(sheet.url, {
+            formType: 'adminUploadImage',
+            token: sheet.token,
+            base64: flyer.base64,
+            mimeType: flyer.mimeType,
+            filename: flyer.filename,
+          });
+          if (!up.url) throw new Error('Image upload failed.');
+          url = up.url;
+        }
+        payload.flyer_url = url;
       } else if (flyer && flyer.url && input.runAt) {
         update(job, { step: 'flyer' });
         mediaPath = await downloadFlyer(sheet, flyer.url);
@@ -309,8 +319,10 @@ function createPromoJobs(deps) {
     return abs;
   }
 
-  /** Drive flyers come through Apps Script; anything else is fetched as-is. */
+  /** A photo stored here is read from disk. Drive flyers come through Apps Script; anything else is fetched as-is. */
   async function downloadFlyer(sheet, url) {
+    const local = localFile(url);
+    if (local) return writeMedia(fs.readFileSync(local.abs), local.mime);
     try {
       const data = await appsScript(sheet.url, { formType: 'adminGetImage', token: sheet.token, url });
       if (data.base64) return writeMedia(Buffer.from(data.base64, 'base64'), data.mimeType);

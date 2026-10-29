@@ -254,7 +254,7 @@ function createPromos({ db, fetchListings = async () => ({}), listingTtlMs = LIS
     });
   }
 
-  async function list({ dueOnly = false } = {}) {
+  async function list({ dueOnly = false, knownStamp } = {}) {
     const map = await listings();
     await sync(map);
     const items = sortRows(q.all.all().map((row) => toItem(row, listingFor(map, row))));
@@ -263,6 +263,10 @@ function createPromos({ db, fetchListings = async () => ({}), listingTtlMs = LIS
     for (const i of items) if (counts[i.status] !== undefined) counts[i.status]++;
     counts.needs_copy = counts.pending;
     const stamp = due.map((i) => i.id).sort().join('|');
+    // The 45s alert only needs the stamp. Skip the post bodies when nothing new is due.
+    if (dueOnly && knownStamp != null && String(knownStamp) !== '' && String(knownStamp) === stamp) {
+      return { stamp, unchanged: true };
+    }
     return { items: dueOnly ? due : items, due, counts, stamp };
   }
 

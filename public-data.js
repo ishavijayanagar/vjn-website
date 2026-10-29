@@ -12,7 +12,9 @@
 (function () {
   var TIMEOUT_MS = 4000;
   var BACKOFF_MS = 60 * 1000;
+  var CACHE_MS = 60 * 1000;
   var piDownUntil = 0;
+  var getCache = {};
 
   function piBase() {
     return String(window.SANDESHA_API_URL || "").replace(/\/$/, "");
@@ -34,20 +36,32 @@
     });
   }
 
+  function cacheKey(type, id) {
+    return type + "\n" + (id || "");
+  }
+
+  function remember(type, id, data) {
+    if (data && !data.error) getCache[cacheKey(type, id)] = { at: Date.now(), data: data };
+    return data;
+  }
+
   async function get(type, id, opts) {
+    var fresh = opts && opts.fresh;
+    var hit = getCache[cacheKey(type, id)];
+    if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return hit.data;
     var qs = id ? "?id=" + encodeURIComponent(id) : "";
-    var fresh = opts && opts.fresh ? (qs ? "&" : "?") + "t=" + Date.now() : "";
+    var bust = fresh ? (qs ? "&" : "?") + "t=" + Date.now() : "";
     if (usePi()) {
       try {
-        var res = await timed(piBase() + "/public/" + type + qs + fresh);
-        if (res.ok) return await res.json();
+        var res = await timed(piBase() + "/public/" + type + qs + bust);
+        if (res.ok) return remember(type, id, await res.json());
         if (res.status !== 404) throw new Error("HTTP " + res.status);
       } catch (e) {
         piDownUntil = Date.now() + BACKOFF_MS;
       }
     }
-    var sheet = await fetch(APPS_SCRIPT_URL + "?type=" + type + (id ? "&id=" + encodeURIComponent(id) : "") + (opts && opts.fresh ? "&t=" + Date.now() : ""));
-    return sheet.json();
+    var sheet = await fetch(APPS_SCRIPT_URL + "?type=" + type + (id ? "&id=" + encodeURIComponent(id) : "") + (fresh ? "&t=" + Date.now() : ""));
+    return remember(type, id, await sheet.json());
   }
 
   async function post(payload) {

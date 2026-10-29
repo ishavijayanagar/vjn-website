@@ -2992,6 +2992,16 @@ button.chip {
   justify-content: center;
   min-height: 48px;
 }
+#sandeshaServer #promoActivityOpen.ios-row-btn {
+  justify-content: space-between;
+  align-items: center;
+}
+#sandeshaServer #promoActivityOpen .pa-copy { flex: 1; min-width: 0; }
+#sandeshaServer #promoActivity {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-height: calc(100% - 8px);
+}
 #sandeshaServer .ios-row-btn.danger { color: var(--red); font-weight: 400; }
 #sandeshaServer .ios-row-btn:active { opacity: 0.55; }
 #sandeshaServer .ios-btn,

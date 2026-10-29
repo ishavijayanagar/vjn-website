@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v182";
+const CACHE_NAME = "isha-vjn-v183";
 // Only unversioned files here: pages ask for "style.css?v=…" and each of
 // those is cached the first time it is fetched (see the fetch handler).
 const PRECACHE = [
@@ -7,9 +7,6 @@ const PRECACHE = [
   "./programs.html",
   "./volunteering.html",
   "./detail.html",
-  "./admin.html",
-  "./admin-promotions.html",
-  "./admin-messaging.html",
   "./config.js",
   "./public-data.js",
   "./whatsapp-validate.js",
@@ -18,6 +15,7 @@ const PRECACHE = [
   "./assets/icon-512.png",
   "./assets/sadhguru-hero.jpg",
   "./assets/sg.jpg",
+  "./assets/sg.webp",
   "./assets/signature-40159.png"
 ];
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "static.sadhguru.org"];

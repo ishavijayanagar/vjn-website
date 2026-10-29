@@ -40,6 +40,7 @@
     const src = fixDriveUrl(url);
     if (el.tagName === "SOURCE") {
       el.setAttribute("srcset", src);
+      if (!/\.webp(\?|$)/i.test(src)) el.removeAttribute("type");
     } else if (el.tagName === "IMG") {
       el.referrerPolicy = "no-referrer";
       el.src = src;

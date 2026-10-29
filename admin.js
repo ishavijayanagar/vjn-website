@@ -474,7 +474,7 @@
   }
 
   function writeCached(type, extra, data) {
-    if (!data || data.error) return;
+    if (!data || data.error || data.unchanged) return;
     const key = readCacheKey(type, extra);
     try {
       localStorage.setItem(key, JSON.stringify(data));
@@ -756,7 +756,8 @@
     if (queryWatchBusy || !token() || !queryNotifyEnabled() || !canNotifyQueries()) return;
     queryWatchBusy = true;
     try {
-      const meta = await apiGet("inquiries", true);
+      const prevStamp = readInquiryStamp();
+      const meta = await apiGet("inquiries", true, prevStamp ? { knownStamp: prevStamp } : undefined);
       if (meta && meta.error && /Unauthorized/i.test(meta.error)) {
         stopAlertWatch();
         logout();
@@ -765,7 +766,7 @@
       }
       if (!meta || meta.error) return;
       const nextStamp = meta.stamp || stampFromGroups(meta.groups);
-      const prevStamp = readInquiryStamp();
+      if (meta.unchanged) return;
       if (!prevStamp) {
         writeInquiryStamp(nextStamp);
         return;
@@ -1223,12 +1224,18 @@
     try {
       // Team comes from Sandesha once logins live there.
       const piTeam = isPiToken(token()) && keys.indexOf("users") >= 0;
-      const sheetKeys = piTeam ? keys.filter(function (key) { return key !== "users"; }) : keys;
+      const wantNeeds = keys.indexOf("volunteerNeeds") >= 0;
+      const sheetKeys = keys.filter(function (key) {
+        if (wantNeeds && key === "volunteerNeeds") return false;
+        if (piTeam && key === "users") return false;
+        return true;
+      });
       const both = await Promise.all([
         apiGetMany(sheetKeys.map(function (key) { return { type: key }; })),
         piTeam
           ? piCall("/vjn/users", { auth: true }).catch(function (e) { return { error: e.message }; })
           : null,
+        wantNeeds ? fetchVolunteerNeeds().catch(function (e) { return { error: e.message }; }) : null,
       ]);
       const results = both[0];
       const byKey = {};
@@ -1239,6 +1246,10 @@
         byKey.users = both[1];
         if (!both[1].error) writeCached("users", undefined, both[1]);
         results.push(both[1]);
+      }
+      if (wantNeeds) {
+        byKey.volunteerNeeds = both[2];
+        results.push(both[2]);
       }
       const unauthorized = results.find(function (res) {
         return res && res.error && /Unauthorized/i.test(res.error);
@@ -1592,9 +1603,9 @@
     return "";
   }
 
-  function fixDriveUrl(url) {
+  function fixDriveUrl(url, width) {
     const id = driveFileId(url);
-    if (id) return "https://drive.google.com/thumbnail?id=" + id + "&sz=w800";
+    if (id) return "https://drive.google.com/thumbnail?id=" + id + "&sz=w" + (width || 800);
     return url;
   }
 
@@ -2208,11 +2219,12 @@
    * click listener) — a bare-letter avatar has nothing to expand, so it stays inert. */
   function listingAvatarHtml(item) {
     const raw = item && (item.image || item.flyer_image);
-    const img = raw ? fixDriveUrl(raw) : "";
+    const img = raw ? fixDriveUrl(raw, 400) : "";
+    const full = raw ? fixDriveUrl(raw) : "";
     if (img) {
       return (
         '<span class="inquiry-avatar has-image" role="button" tabindex="0" aria-label="View flyer" data-avatar-preview="' +
-        escapeHtml(img) +
+        escapeHtml(full) +
         '">' +
         '<img src="' + escapeHtml(img) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>' +
         "</span>"
@@ -2367,6 +2379,8 @@
   }
 
   async function loadList() {
+    const pre = listingPrefetch[currentResource];
+    const freshPre = pre && Array.isArray(pre.items) && Date.now() - pre.at < 60000;
     delete listingPrefetch[currentResource];
     setPageBusy(true);
     // "Add program"/"Add volunteering" opens an editor that expects the
@@ -2377,7 +2391,11 @@
     setStatus("");
     const resource = currentResource;
     const cached = readCached(resource);
-    if (cached && cached.items) {
+    if (freshPre) {
+      items = pre.items;
+      listLoadedFor = resource;
+      renderList();
+    } else if (cached && cached.items) {
       // Last visit's list straight away; the fresh one replaces it below.
       items = cached.items;
       listLoadedFor = resource;
@@ -2489,6 +2507,28 @@
   })();
   let volunteerNeeds = [];
   let volunteerNeedsLoading = false;
+  let volunteerNeedsPayload = null;
+  let volunteerNeedsAt = 0;
+  let volunteerNeedsInflight = null;
+
+  /** One volunteer-needs read shared by the nurturing hub alert and the hub counts. */
+  function fetchVolunteerNeeds() {
+    if (volunteerNeedsPayload && Date.now() - volunteerNeedsAt < 60000) {
+      return Promise.resolve(volunteerNeedsPayload);
+    }
+    if (volunteerNeedsInflight) return volunteerNeedsInflight;
+    volunteerNeedsInflight = apiGet("volunteerNeeds", true).then(function (data) {
+      if (data && !data.error) {
+        volunteerNeeds = data.items || [];
+        volunteerNeedsPayload = data;
+        volunteerNeedsAt = Date.now();
+      }
+      return data;
+    }).finally(function () {
+      volunteerNeedsInflight = null;
+    });
+    return volunteerNeedsInflight;
+  }
   let vnHandleEventId = "";
   let hubAttendanceQueue = [];
   let hubAttendanceIndex = 0;
@@ -2629,8 +2669,8 @@
     if (role() !== "nurturing") return;
     showHubAlertStackLoading();
     try {
-      const data = await apiGet("volunteerNeeds", true);
-      if (!data.error) volunteerNeeds = data.items || [];
+      const data = await fetchVolunteerNeeds();
+      if (data && !data.error) volunteerNeeds = data.items || [];
     } catch (e) {}
     maybeShowHubAttendanceAlerts();
     // maybeShow bails out early off the hub; never leave the placeholder up.
@@ -5942,7 +5982,7 @@ panels +
           '">' +
           '<span class="admin-flyer-card-thumb-wrap is-busy">' +
           '<img class="admin-flyer-card-thumb" src="' +
-          escapeHtml(t.thumbnail_url ? fixDriveUrl(t.thumbnail_url) : "") +
+          escapeHtml(t.thumbnail_url ? fixDriveUrl(t.thumbnail_url, 400) : "") +
           '" alt="" referrerpolicy="no-referrer"/>' +
           "</span>" +
           '<span class="admin-flyer-card-label">' +
@@ -10409,7 +10449,7 @@ panels +
     const flyer = promoFlyerUrl(item);
     const thumb = flyer
       ? '<img src="' +
-        escapeHtml(fixDriveUrl(flyer)) +
+        escapeHtml(fixDriveUrl(flyer, 400)) +
         '" alt="" loading="lazy" referrerpolicy="no-referrer"/>'
       : PROMO_IMG_ICON;
     const whereBits = [item.event_location, item.event_date].filter(Boolean).join(" · ");
@@ -10543,7 +10583,7 @@ panels +
           const status = normalizePromoClientStatus(item.status);
           const art = flyer
             ? '<img src="' +
-              escapeHtml(fixDriveUrl(flyer)) +
+              escapeHtml(fixDriveUrl(flyer, 400)) +
               '" alt="" loading="lazy" referrerpolicy="no-referrer"/>'
             : PROMO_IMG_ICON;
           return (
@@ -10830,7 +10870,7 @@ panels +
         const flyer = promoFlyerUrl(item);
         const thumb = flyer
           ? '<img src="' +
-            escapeHtml(fixDriveUrl(flyer)) +
+            escapeHtml(fixDriveUrl(flyer, 400)) +
             '" alt="" loading="lazy" referrerpolicy="no-referrer"/>'
           : '<span class="promo-pick-thumb-empty" aria-hidden="true"></span>';
         return (
@@ -11053,7 +11093,11 @@ panels +
     if (promoWatchBusy || !token() || !queryNotifyEnabled() || !canNotifyPromos()) return;
     promoWatchBusy = true;
     try {
-      const data = await apiGet("promotions", true, { due: "1" });
+      const prevStamp = readPromoDueStamp();
+      const data = await apiGet("promotions", true, {
+        due: "1",
+        knownStamp: prevStamp && prevStamp !== "empty" ? prevStamp : undefined,
+      });
       if (data && data.error && /Unauthorized/i.test(data.error)) {
         stopAlertWatch();
         logout();
@@ -11062,7 +11106,7 @@ panels +
       }
       if (!data || data.error) return;
       const nextStamp = data.stamp || "";
-      const prevStamp = readPromoDueStamp();
+      if (data.unchanged) return;
       if (!prevStamp) {
         writePromoDueStamp(nextStamp || "empty");
         return;
