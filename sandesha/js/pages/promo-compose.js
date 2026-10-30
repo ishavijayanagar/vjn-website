@@ -247,12 +247,21 @@ function plural(n, word) {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
+/** Minute precision: the current minute is still allowed; earlier ones are not. */
+function isPastWhen(value) {
+  if (!value) return false;
+  const when = new Date(value);
+  if (Number.isNaN(when.getTime())) return false;
+  return when.getTime() < Math.floor(Date.now() / 60000) * 60000;
+}
+
 function untilText(value) {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
   if (!value) return zone;
+  if (isPastWhen(value)) return 'That time has already passed';
   const diff = new Date(value) - Date.now();
   if (Number.isNaN(diff)) return zone;
-  if (diff <= 0) return `${zone} · sends as soon as it can`;
+  if (diff <= 0) return `${zone} · this minute`;
   const mins = Math.round(diff / 60000);
   if (mins < 60) return `${zone} · in ${plural(mins, 'minute')}`;
   const hours = Math.round(mins / 60);
@@ -329,7 +338,7 @@ export function renderPromoCompose() {
       <span class="eyebrow">Deliver at</span>
       <label class="picker as-input">
         <div class="body">
-          <input type="datetime-local" class="inp" id="pcWhen" step="60" value="${escapeHtml(draft.runAt)}" aria-label="Delivery time"/>
+          <input type="datetime-local" class="inp" id="pcWhen" step="60" min="${toLocalInput(new Date())}" value="${escapeHtml(draft.runAt)}" aria-label="Delivery time"/>
           <div class="sub" id="pcWhenSub"></div>
         </div>
       </label>
@@ -442,6 +451,9 @@ function bind(host) {
     draft.runAt = ev.target.value;
     sync();
   });
+  host.querySelector('#pcWhen')?.addEventListener('focus', (ev) => {
+    ev.target.min = toLocalInput(new Date());
+  });
 
   host.querySelectorAll('[data-quick]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -531,8 +543,13 @@ function sync() {
   count.textContent = `${len} / ${MAX_CHARS}`;
   count.classList.toggle('warn', len > WARN_CHARS);
 
+  const whenInput = $('#pcWhen');
+  if (whenInput) whenInput.min = toLocalInput(new Date());
   const whenSub = $('#pcWhenSub');
-  if (whenSub) whenSub.textContent = untilText(draft.runAt);
+  if (whenSub) {
+    whenSub.textContent = untilText(draft.runAt);
+    whenSub.classList.toggle('is-past', draft.later && isPastWhen(draft.runAt));
+  }
 
   const drop = $('#pcDrop');
   const thumb = $('#pcThumb');
@@ -634,6 +651,10 @@ async function submit() {
 async function saveSchedule(text) {
   if (!draft.runAt) {
     toast('Pick a delivery time', 'err');
+    return;
+  }
+  if (isPastWhen(draft.runAt)) {
+    toast('Pick a time that has not already passed', 'err');
     return;
   }
   const rows = scheduleTargets(draft.targets);
@@ -820,6 +841,10 @@ export function watchQueueJobs(delayMs = 0) {
 async function saveScheduleHere(text, preUploadedPath = '') {
   if (!draft.runAt) {
     toast('Pick a delivery time', 'err');
+    return;
+  }
+  if (isPastWhen(draft.runAt)) {
+    toast('Pick a time that has not already passed', 'err');
     return;
   }
   const rows = scheduleTargets(draft.targets);

@@ -7,9 +7,9 @@ import {
   refreshMessagingData,
   bootPromotionsMessaging,
   resetPromotionsBoot,
-} from './boot-promotions.js?v=34';
+} from './boot-promotions.js?v=35';
 import { installUnauthorizedRedirect, getVjnToken, ensureSandeshaAuth } from './auth-bridge.js';
-import { renderApiSettings, updateApiStatus } from './api-settings.js';
+import { renderApiSettings, updateApiStatus } from './api-settings.js?v=set3';
 import { toast } from './toast.js';
 import { subscribe, getState, refreshHealth } from './store.js?v=34';
 import {
@@ -208,7 +208,7 @@ function setMode(mode) {
       });
     }
   } else if (mode === 'server') {
-    import('./promo-activity.js').then((m) => {
+    import('./promo-activity.js?v=detail1').then((m) => {
       activityMod = m;
       m.bindPromoActivity();
     }).catch(() => {});
@@ -285,7 +285,7 @@ function resumeQueueJobs() {
     pending = JSON.parse(localStorage.getItem('vjn_queue_jobs') || '[]').length > 0;
   } catch { /* ignore */ }
   if (!pending) return;
-  import('./pages/promo-compose.js?v=34').then((m) => m.watchQueueJobs()).catch(() => {});
+  import('./pages/promo-compose.js?v=35').then((m) => m.watchQueueJobs()).catch(() => {});
 }
 
 function syncSandeshaDot() {
@@ -417,7 +417,7 @@ function startLiveRefresh() {
     if (currentMode === 'schedule') {
       try {
         await refreshMessagingData();
-        const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=34');
+        const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=35');
         renderPromoSchedule();
       } catch { /* toast inside refresh */ }
     } else if (currentMode === 'reach') {
@@ -440,7 +440,7 @@ window.addEventListener('promo:goto', (ev) => {
 });
 
 window.addEventListener('promo:compose', async (ev) => {
-  const { setComposeMode } = await import('./pages/promo-compose.js?v=34');
+  const { setComposeMode } = await import('./pages/promo-compose.js?v=35');
   setComposeMode(!!ev.detail?.later);
   setMode('send');
 });

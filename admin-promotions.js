@@ -1024,34 +1024,95 @@
     return true;
   }
 
+  /** Current minute in India, zero-padded HH:MM. The current minute is still allowed. */
+  function nowHmIst() {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(new Date());
+      const grab = function (type) {
+        const part = parts.find(function (p) { return p.type === type; });
+        return part ? parseInt(part.value, 10) : 0;
+      };
+      return pad2(grab("hour")) + ":" + pad2(grab("minute"));
+    } catch (e) {
+      const d = new Date();
+      return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+    }
+  }
+
+  function composeIsPast(ymd, hm) {
+    const today = todayYmd();
+    const day = String(ymd || "");
+    if (day > today) return false;
+    if (day < today) return true;
+    return String(hm || "") < nowHmIst();
+  }
+
   function nextFreeHm(ymd) {
     const used = {};
     promosOnDate(ymd, true).forEach(function (item) {
       const hm = splitSendAt(item.send_at).hm;
       if (hm) used[hm] = true;
     });
+    const earliest = String(ymd) === todayYmd() ? nowHmIst() : "00:00";
     for (let i = 0; i < SLOT_DEFAULTS.length; i++) {
-      if (!used[SLOT_DEFAULTS[i]]) return SLOT_DEFAULTS[i];
+      const hm = SLOT_DEFAULTS[i];
+      if (!used[hm] && hm >= earliest) return hm;
     }
-    return "10:00";
+    return earliest;
+  }
+
+  /** 24-hour HH:MM as a 12-hour clock plus AM/PM. */
+  function composeClock(hm) {
+    const m = String(hm || "").match(/^(\d{1,2}):(\d{2})/);
+    let h = m ? Math.min(23, Math.max(0, parseInt(m[1], 10))) : 10;
+    const min = m ? Math.min(59, Math.max(0, parseInt(m[2], 10))) : 0;
+    const pm = h >= 12;
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return { h12: h12, min: min, pm: pm, hm: pad2(h) + ":" + pad2(min) };
+  }
+
+  function paintComposeAmpm(pm) {
+    document.querySelectorAll("[data-ampm]").forEach(function (btn) {
+      const on = (btn.getAttribute("data-ampm") === "PM") === !!pm;
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
 
   /** HH:MM from the compose time field (any minute, not just 15-min steps). */
   function readComposeHm() {
-    const el = $("composeTime");
-    const raw = el && el.value ? String(el.value).trim() : "";
-    const m = raw.match(/^(\d{1,2}):(\d{2})/);
-    if (!m) return "10:00";
-    const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
-    const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+    const hourEl = $("composeHour");
+    const minEl = $("composeMinute");
+    if (!hourEl || !minEl) return "10:00";
+    let h12 = parseInt(hourEl.value, 10);
+    let min = parseInt(minEl.value, 10);
+    if (isNaN(h12) || h12 < 1) h12 = 12;
+    if (h12 > 12) h12 = 12;
+    if (isNaN(min) || min < 0) min = 0;
+    if (min > 59) min = 59;
+    const pmBtn = document.querySelector('[data-ampm="PM"]');
+    const pm = !!(pmBtn && pmBtn.classList.contains("on"));
+    let h = h12 % 12;
+    if (pm) h += 12;
     return pad2(h) + ":" + pad2(min);
   }
 
   function setComposeTimeHm(hm) {
-    const el = $("composeTime");
-    if (!el) return;
-    const m = String(hm || "").match(/^(\d{1,2}):(\d{2})/);
-    el.value = m ? pad2(Math.min(23, parseInt(m[1], 10))) + ":" + m[2] : "10:00";
+    const clock = composeClock(hm);
+    const hourEl = $("composeHour");
+    const minEl = $("composeMinute");
+    if (hourEl) hourEl.value = pad2(clock.h12);
+    if (minEl) minEl.value = pad2(clock.min);
+    paintComposeAmpm(clock.pm);
+    const hidden = $("composeTime");
+    if (hidden) hidden.value = clock.hm;
+    syncComposeDays();
   }
 
   /* ───────── tabs ───────── */
@@ -1361,7 +1422,10 @@
         }
         if (commit && dx > 0 && !row.classList.contains("sent")) markSent(id);
         else if (commit && dx < 0) snooze(id);
-        else if (tapped) openDetailSheet(id);
+        else if (tapped) {
+          const item = find(id);
+          if (item) openCompose(item, { preferSchedule: true });
+        }
         dx = 0;
       };
       fg.addEventListener("pointerup", end);
@@ -1964,6 +2028,11 @@
     }).length;
     const left = Math.max(0, MAX_SLOTS - used);
     const hint = $("composeDateHint");
+    if (hint && composeIsPast(ymd, readComposeHm())) {
+      hint.textContent = "That time has already passed";
+      hint.classList.add("is-full");
+      return;
+    }
     if (hint) {
       hint.textContent = left
         ? left + (left === 1 ? " slot free on this day" : " slots free on this day")
@@ -2249,6 +2318,18 @@
         return;
       }
       job.hm = readComposeHm() || nextFreeHm(job.ymd);
+      if (composeIsPast(job.ymd, job.hm)) {
+        err.textContent = "Pick a time that hasn't already passed.";
+        err.hidden = false;
+        return;
+      }
+    } else {
+      const parts = splitSendAt(item.send_at);
+      if (scheduleIdsOf(item).length && parts.date && parts.hm && composeIsPast(parts.date, parts.hm)) {
+        err.textContent = "This send time has already passed. Choose Schedule and pick a later time.";
+        err.hidden = false;
+        return;
+      }
     }
     closeCompose();
     if (wantSchedule) setView(viewIndexForYmd(job.ymd));
@@ -2669,6 +2750,23 @@
     $("composeMessage").addEventListener("input", syncComposeCount);
     document.querySelectorAll('input[name="composeWhen"]').forEach(function (r) {
       r.addEventListener("change", syncComposeWhen);
+    });
+    document.querySelectorAll("[data-ampm]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        paintComposeAmpm(btn.getAttribute("data-ampm") === "PM");
+        setComposeTimeHm(readComposeHm());
+      });
+    });
+    ["composeHour", "composeMinute"].forEach(function (id) {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("focus", function () { el.select(); });
+      el.addEventListener("input", function () {
+        el.value = String(el.value || "").replace(/\D/g, "").slice(0, 2);
+      });
+      el.addEventListener("blur", function () {
+        setComposeTimeHm(readComposeHm());
+      });
     });
     const composeDate = $("composeDate");
     if (composeDate) {

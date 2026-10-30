@@ -45,12 +45,16 @@ function setup({ sheetError = '', failRow = -1, failTargets = [] } = {}) {
   return { dir, jobs, rows, cancelled, sheetCalls, delivered, gapCount: () => gaps };
 }
 
+function futureIso() {
+  return new Date(Date.now() + 3600e3).toISOString();
+}
+
 function input(extra = {}) {
   return {
     promoId: 'p1',
     title: 'IE',
     message: 'Hello',
-    runAt: '2026-10-28T10:30:00.000Z',
+    runAt: futureIso(),
     rows: [{ target: 'Group A' }, { target: 'Set B', isSet: true }],
     flyer: { url: 'https://drive.google.com/file/d/x/view' },
     previousIds: [],
@@ -146,7 +150,7 @@ async function run() {
   await test('queue job: one row per list, then drops the rows it replaces', async () => {
     const t = setup();
     const job = t.jobs.start({
-      kind: 'queue', title: 'Hello', message: 'Hello', runAt: '2026-10-28T10:30:00.000Z',
+      kind: 'queue', title: 'Hello', message: 'Hello', runAt: futureIso(),
       rows: [{ target: 'Group A' }, { target: 'Set B', isSet: true }],
       filePath: 'upload_1.png', previousIds: ['7', '8'],
     }, { role: 'admin', name: 'A' });
@@ -163,7 +167,7 @@ async function run() {
   await test('queue job: a failing row rolls back the rows it made and keeps the old ones', async () => {
     const t = setup({ failRow: 1 });
     const job = t.jobs.start({
-      kind: 'queue', message: 'Hi', runAt: '2026-10-28T10:30:00.000Z',
+      kind: 'queue', message: 'Hi', runAt: futureIso(),
       rows: [{ target: 'A' }, { target: 'B' }], previousIds: ['5'],
     }, null);
     await job.done;
@@ -174,16 +178,17 @@ async function run() {
 
   await test('queue job: rejects bad input before starting', async () => {
     const t = setup();
-    const base = { kind: 'queue', message: 'Hi', runAt: '2026-10-28T10:30:00.000Z', rows: [{ target: 'A' }] };
+    const base = { kind: 'queue', message: 'Hi', runAt: futureIso(), rows: [{ target: 'A' }] };
     assert.throws(() => t.jobs.start({ ...base, rows: [] }, null), /audience/);
     assert.throws(() => t.jobs.start({ ...base, runAt: 'nope' }, null), /runAt/);
+    assert.throws(() => t.jobs.start({ ...base, runAt: '2020-01-01T00:00:00.000Z' }, null), /already passed/);
     assert.throws(() => t.jobs.start({ ...base, message: '  ' }, null), /message or attach/);
     assert.strictEqual(t.jobs.list().length, 0);
   });
 
   await test('queue job: shows up in the job list for the page to poll', async () => {
     const t = setup();
-    const job = t.jobs.start({ kind: 'queue', message: 'Hi', runAt: '2026-10-28T10:30:00.000Z', rows: [{ target: 'A' }] }, null);
+    const job = t.jobs.start({ kind: 'queue', message: 'Hi', runAt: futureIso(), rows: [{ target: 'A' }] }, null);
     await job.done;
     assert.strictEqual(t.jobs.list()[0].id, job.id);
     assert.strictEqual(t.jobs.list()[0].status, 'done');

@@ -3,6 +3,7 @@
  */
 import {
   getApiBase,
+  getToken,
   setApiBase,
   getConfigApiUrl,
   hasApiOverride,
@@ -61,6 +62,14 @@ export function updateApiStatus(container, health) {
     dot.classList.toggle('down', bits.known && !bits.connected && !bits.warn);
     dot.classList.toggle('wait', !bits.known);
   }
+  const qr = container.querySelector('[data-wa-qr]');
+  if (qr) {
+    qr.hidden = bits.connected;
+    if (bits.connected) {
+      const panel = qr.querySelector('[data-wa-qr-panel]');
+      if (panel) panel.hidden = true;
+    }
+  }
 }
 
 function cardMarkup(defaultUrl, current, overridden) {
@@ -92,17 +101,26 @@ function cardMarkup(defaultUrl, current, overridden) {
 
 function iosMarkup(defaultUrl, current, overridden, health, showServer = true) {
   const bits = statusBits(health);
-  const dotClass = bits.connected ? 'live' : bits.known ? 'down' : 'wait';
+  const dotClass = bits.connected ? 'live' : bits.warn ? 'warn' : bits.known ? 'down' : 'wait';
   return `
     <section class="ios-block">
-      <h2 class="ios-caption">Messaging</h2>
+      <h2 class="ios-caption">WhatsApp</h2>
       <div class="ios-group">
-        <div class="ios-row">
-          <span>WhatsApp</span>
-          <span class="ios-value">
-            <i class="ios-dot ${dotClass}" data-api-dot></i>
-            <span data-api-status>${escapeHtml(bits.label)}</span>
+        <div class="ios-row wa-status-row">
+          <i class="ios-dot ${dotClass}" data-api-dot></i>
+          <span class="wa-status-copy">
+            <b data-api-status>${escapeHtml(bits.label)}</b>
           </span>
+        </div>
+        <div class="wa-qr-block" data-wa-qr ${bits.connected ? 'hidden' : ''}>
+          <div class="wa-qr-actions">
+            <button type="button" class="ios-btn" data-wa-qr-show>Show QR</button>
+            <button type="button" class="ios-btn primary" data-wa-qr-send>Send QR</button>
+          </div>
+          <div class="wa-qr-panel" data-wa-qr-panel hidden>
+            <img data-wa-qr-img alt="WhatsApp QR code" width="220" height="220" hidden/>
+            <p class="wa-qr-note" data-wa-qr-note></p>
+          </div>
         </div>
       </div>
     </section>
@@ -222,6 +240,8 @@ export function renderApiSettings(container, opts = {}) {
     renderApiSettings(container, opts);
   });
 
+  wireQrActions(container);
+
   container.querySelector('#sandesha-api-reset')?.addEventListener('click', async () => {
     clearApiOverride();
     clearSandeshaSession();
@@ -230,5 +250,89 @@ export function renderApiSettings(container, opts = {}) {
       try { await opts.onSaved(); } catch { /* ignore */ }
     }
     renderApiSettings(container, opts);
+  });
+}
+
+async function loadQrImage(img) {
+  const base = getApiBase().replace(/\/$/, '');
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${base}/pairing/qr.png?t=${Date.now()}`, { headers });
+  if (!res.ok) {
+    let msg = 'No QR yet. Wait a few seconds and try again.';
+    try {
+      const data = await res.json();
+      if (data.error) msg = data.error;
+    } catch { /* not json */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  if (img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl);
+  img.dataset.objectUrl = url;
+  img.src = url;
+  img.hidden = false;
+  if (typeof img.decode === 'function') {
+    try { await img.decode(); } catch { /* a broken frame still takes its layout box */ }
+  }
+}
+
+/** The QR sits under the buttons, past the bottom of a phone screen. */
+function scrollQrIntoView(panel) {
+  if (!panel) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  requestAnimationFrame(() => {
+    panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'end', inline: 'nearest' });
+  });
+}
+
+/** Show QR draws the code in this settings drawer. Send QR emails it. */
+function wireQrActions(container) {
+  const block = container.querySelector('[data-wa-qr]');
+  if (!block) return;
+  const showBtn = block.querySelector('[data-wa-qr-show]');
+  const sendBtn = block.querySelector('[data-wa-qr-send]');
+  const panel = block.querySelector('[data-wa-qr-panel]');
+  const img = block.querySelector('[data-wa-qr-img]');
+  const note = block.querySelector('[data-wa-qr-note]');
+
+  showBtn?.addEventListener('click', async () => {
+    if (!panel || !img || showBtn.disabled) return;
+    panel.hidden = false;
+    img.hidden = true;
+    if (note) note.textContent = 'Loading the QR…';
+    showBtn.disabled = true;
+    try {
+      await loadQrImage(img);
+      if (note) note.textContent = 'WhatsApp → Linked devices → Link a device';
+      scrollQrIntoView(panel);
+    } catch (err) {
+      img.hidden = true;
+      const msg = err.message || 'No QR yet';
+      if (note) note.textContent = msg;
+      toast(msg, 'err');
+      scrollQrIntoView(panel);
+    } finally {
+      showBtn.disabled = false;
+    }
+  });
+
+  sendBtn?.addEventListener('click', async () => {
+    if (sendBtn.disabled) return;
+    const label = sendBtn.textContent;
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending…';
+    try {
+      const res = await fetch(`${getApiBase().replace(/\/$/, '')}/pairing/email-qr`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not send');
+      toast('QR sent to email', 'ok');
+    } catch (err) {
+      toast(err.message || "Can't reach the server", 'err');
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = label;
+    }
   });
 }

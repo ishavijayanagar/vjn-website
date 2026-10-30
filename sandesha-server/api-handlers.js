@@ -779,6 +779,9 @@ function createApiHandlers(deps) {
     if ((!message && !media) || !target) throw new Error('message (or filePath) and target required');
     const when = runAt ? new Date(runAt) : (timeStr ? parseScheduleTime(timeStr) : null);
     if (!when || Number.isNaN(when.getTime())) throw new Error('Invalid runAt or timeStr');
+    if (when.getTime() < Math.floor(Date.now() / 60000) * 60000) {
+      throw new Error('Pick a time that has not already passed');
+    }
     await validateScheduleTarget(target);
 
     const schedules = loadSchedules();

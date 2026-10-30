@@ -13,6 +13,12 @@ let showForm = false;
 let formTargets = [];
 let saveInFlight = false;
 
+function localMinuteValue() {
+  const d = new Date();
+  const p = (n) => (n < 10 ? '0' : '') + n;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function formatCountdown(iso) {
   const diff = new Date(iso) - Date.now();
   if (diff <= 0) return 'Due soon';
@@ -101,7 +107,7 @@ export function renderSchedule() {
         </div>
         <div class="field">
           <label>Date &amp; time</label>
-          <input type="datetime-local" id="sched-when">
+          <input type="datetime-local" id="sched-when" min="${localMinuteValue()}" step="60">
         </div>
         <div class="quick-time-row">
           <button type="button" class="quick-time-chip" data-chip="9am">9 am today</button>
@@ -215,6 +221,10 @@ async function saveSchedule(timeStr, useTimeStr) {
   else {
     const when = container.querySelector('#sched-when')?.value;
     if (!when) { toast('Pick a date and time', 'err'); return; }
+    if (new Date(when).getTime() < Math.floor(Date.now() / 60000) * 60000) {
+      toast('Pick a time that has not already passed', 'err');
+      return;
+    }
     base.runAt = new Date(when).toISOString();
   }
 

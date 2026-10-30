@@ -101,6 +101,9 @@ function createPromoJobs(deps) {
     const rows = Array.isArray(input.rows) ? input.rows.filter((r) => r && r.target) : [];
     const runAt = input.runAt ? new Date(input.runAt) : null;
     if (runAt && Number.isNaN(runAt.getTime())) throw new Error('Invalid runAt');
+    if (runAt && runAt.getTime() < Math.floor(Date.now() / 60000) * 60000) {
+      throw new Error('Pick a time that has not already passed');
+    }
     if (runAt && !rows.length) throw new Error('Choose at least one audience');
     if (jobs.some((j) => j.promoId === promoId && j.status === 'running')) {
       throw new Error('Still saving the last change to this post — one moment.');
@@ -131,6 +134,9 @@ function createPromoJobs(deps) {
     if (!rows.length) throw new Error('Choose at least one audience');
     const runAt = input.runAt ? new Date(input.runAt) : null;
     if (!runAt || Number.isNaN(runAt.getTime())) throw new Error('Invalid runAt');
+    if (runAt.getTime() < Math.floor(Date.now() / 60000) * 60000) {
+      throw new Error('Pick a time that has not already passed');
+    }
     if (!String(input.message || '').trim() && !input.filePath) throw new Error('Write a message or attach something');
 
     const job = {

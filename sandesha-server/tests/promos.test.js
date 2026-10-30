@@ -200,7 +200,7 @@ async function run() {
       },
     });
     const job = jobs.start({
-      promoId: ie.id, title: 'IE', message: 'Join IE', runAt: '2026-11-01T04:30:00Z', rows: [{ target: 'Group' }],
+      promoId: ie.id, title: 'IE', message: 'Join IE', runAt: new Date(Date.now() + 3600e3).toISOString(), rows: [{ target: 'Group' }],
       flyer: { url: 'https://drive/ie' }, previousIds: [],
       sheet: { url: 'https://script.google.com/macros/s/a/exec', token: 'v1.x.y', fields: { message: 'Join IE', send_at: '2026-11-01 10:00' } },
     }, null);

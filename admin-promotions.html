@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Instrument+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="admin-promotions.css?v=promo-live"/>
+  <link rel="stylesheet" href="admin-promotions.css?v=activity-1"/>
   <link rel="stylesheet" href="sandesha/css/embedded.css?v=toast-1"/>
   <link rel="stylesheet" href="banner-form.css?v=2"/>
   <script src="config.js"></script>
@@ -83,18 +83,34 @@
       <div class="promo-panel" id="promoBanner" aria-label="Homepage banner"></div>
       <div class="promo-panel" id="sandeshaReach" aria-label="Message reach"></div>
       <div class="promo-panel" id="sandeshaServer" aria-label="Settings">
+        <header class="set-page">
+          <h2 class="set-page-title">Settings</h2>
+          <p class="set-page-sub">WhatsApp, the sets you send to, and this phone.</p>
+        </header>
+        <div id="sandeshaApiHost"></div>
         <div id="promoSetsHost"></div>
         <section class="ios-block" id="promoActivityEntry">
-          <h2 class="ios-caption">WhatsApp</h2>
+          <h2 class="ios-caption">This phone</h2>
           <div class="ios-group">
             <button type="button" class="ios-row-btn" id="promoActivityOpen">
+              <span class="set-glyph" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+              </span>
               <span class="pa-copy">
                 <span class="pa-title">Sandesha activities</span>
-                <span class="pa-sub">Sends, schedules and member changes from this team.</span>
+                <span class="pa-sub">Sends, schedules, and member changes</span>
               </span>
               <svg class="pa-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
             </button>
+            <div class="set-appear">
+              <span id="themeLbl">Appearance</span>
+              <div class="toggle" role="group" aria-labelledby="themeLbl">
+                <button type="button" id="themeLight" aria-pressed="true">Light</button>
+                <button type="button" id="themeDark" aria-pressed="false">Dark</button>
+              </div>
+            </div>
           </div>
+          <button type="button" class="set-signout" id="logoutBtn">Sign out</button>
         </section>
         <div id="promoActivity" hidden>
           <button type="button" class="pa-back" id="promoActivityBack">Settings</button>
@@ -107,22 +123,6 @@
           <p class="pa-meta" id="promoActivityMeta"></p>
           <div id="promoActivityList"></div>
         </div>
-        <section class="ios-block">
-          <h2 class="ios-caption">Account</h2>
-          <div class="ios-group promo-account">
-            <div class="field">
-              <label id="themeLbl">Appearance</label>
-              <div class="toggle" role="group" aria-labelledby="themeLbl">
-                <button type="button" id="themeLight" aria-pressed="true">Light</button>
-                <button type="button" id="themeDark" aria-pressed="false">Dark</button>
-              </div>
-            </div>
-          </div>
-          <div class="ios-group">
-            <button type="button" class="ios-row-btn danger" id="logoutBtn">Sign Out</button>
-          </div>
-        </section>
-        <div id="sandeshaApiHost"></div>
       </div>
 
       <button type="button" class="fab" id="fab">
@@ -219,7 +219,7 @@
           <span class="compose-seg-ind" aria-hidden="true"></span>
           <label class="compose-seg-opt">
             <input type="radio" name="composeWhen" value="save" checked/>
-            <span>Save to Events</span>
+            <span>Save for later</span>
           </label>
           <label class="compose-seg-opt">
             <input type="radio" name="composeWhen" value="schedule" id="composeWhenSchedule"/>
@@ -231,8 +231,17 @@
             <label class="compose-label" for="composeDate">Date</label>
             <input type="date" id="composeDate" class="compose-date"/>
             <p class="compose-date-hint" id="composeDateHint" aria-live="polite"></p>
-            <label class="compose-label" for="composeTime">Time</label>
-            <input type="time" id="composeTime" class="compose-time" step="60" autocomplete="off"/>
+            <label class="compose-label" id="composeTimeLabel" for="composeHour">Time</label>
+            <div class="compose-time" role="group" aria-labelledby="composeTimeLabel">
+              <input id="composeHour" class="compose-time-num" inputmode="numeric" maxlength="2" autocomplete="off" aria-label="Hour" value="10"/>
+              <span class="compose-time-colon" aria-hidden="true">:</span>
+              <input id="composeMinute" class="compose-time-num" inputmode="numeric" maxlength="2" autocomplete="off" aria-label="Minute" value="00"/>
+              <div class="compose-ampm" role="group" aria-label="AM or PM">
+                <button type="button" class="on" data-ampm="AM" aria-pressed="true">AM</button>
+                <button type="button" data-ampm="PM" aria-pressed="false">PM</button>
+              </div>
+            </div>
+            <input type="hidden" id="composeTime" value="10:00"/>
 
             <span class="compose-label">Audience</span>
             <button type="button" class="compose-aud" id="composeAud">
@@ -258,7 +267,7 @@
 
   <script src="ptr.js?v=1"></script>
   <script src="drafts.js?v=1"></script>
-  <script src="admin-promotions.js?v=promo-live"></script>
-  <script type="module" src="sandesha/js/promo-shell.js?v=34"></script>
+  <script src="admin-promotions.js?v=no-past"></script>
+  <script type="module" src="sandesha/js/promo-shell.js?v=41"></script>
 </body>
 </html>

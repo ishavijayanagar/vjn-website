@@ -3111,6 +3111,9 @@ const WEB_MIME = {
 };
 
 function isStaticAsset(pathname) {
+  // These are API files (the WhatsApp QR, site photos). The .png test below
+  // would otherwise answer them from the dashboard folder and 404.
+  if (pathname.startsWith('/pairing/') || pathname.startsWith('/public/') || pathname.startsWith('/media/')) return false;
   if (pathname === '/' || pathname.startsWith('/dashboard')) return true;
   if (pathname.startsWith('/css/') || pathname.startsWith('/js/') || pathname.startsWith('/icons/')) return true;
   if (pathname === '/sw.js' || pathname === '/manifest.webmanifest' || pathname === '/config.js') return true;

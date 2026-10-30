@@ -2,14 +2,12 @@
  * Schedule screen for admin-promotions.html.
  *
  * A week rail over day-grouped rows, in the same paper-and-ink language as
- * the board. Composing lives in the Compose tab, so this screen only reads
- * and cancels.
+ * the board. A tap reopens the editor that wrote the message.
  */
-import { api, escapeHtml, escapeAttr, getApiBase, getToken } from '../api.js';
+import { api, escapeHtml, escapeAttr } from '../api.js';
 import { getState, jidToName } from '../store.js?v=34';
 import { toast } from '../toast.js';
-import { releaseBoardPost, markBoardPostSent } from '../vjn-sheet.js';
-import { openManualSendSheet } from '../manual-send.js';
+import { releaseBoardPost } from '../vjn-sheet.js';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -122,7 +120,7 @@ function rowHtml(entry, now) {
     <div class="listrow" data-row="${escapeAttr(entry.id)}">
       <div class="time">${clockOf(entry.when)}<small>${escapeHtml(countdown(entry.when))}</small></div>
       <button type="button" class="body" data-open="${escapeAttr(entry.id)}"
-              aria-label="Post this by hand">
+              aria-label="Edit this message">
         <div class="meta">
           <span class="chip ${overdue ? 'late' : 'queued'}">${overdue ? 'Due' : 'Queued'}</span>
           <span class="aud">${escapeHtml(targetLabel(entry))}</span>
@@ -230,31 +228,6 @@ export function renderPromoSchedule() {
   bind(host);
 }
 
-/** The queued flyer, fetched back from the server that is holding it. */
-function flyerUrlFor(entry) {
-  if (!entry.filePath) return '';
-  const name = String(entry.filePath).split(/[\\/]/).pop();
-  return `${getApiBase()}/media/${encodeURIComponent(name)}`;
-}
-
-function flyerNameFor(entry) {
-  if (!entry.filePath) return '';
-  return String(entry.filePath).split(/[\\/]/).pop();
-}
-
-/**
- * Posted by hand, so the queued row has to go — otherwise Sandesha sends the
- * same flyer again at the slot time.
- *
- * A Board post fans out to one row per audience list, and posting it by hand
- * covers all of them, so every sibling row goes too. Marking the Board post
- * Sent while a sibling stayed queued would send it a second time.
- */
-/** Past its slot, so the scheduler may already be fanning it out. */
-function overdue(entry) {
-  return entry.when <= new Date();
-}
-
 /**
  * Edit a queued message.
  *
@@ -262,6 +235,12 @@ function overdue(entry) {
  * flyer and the slot, and already re-queues Sandesha on save. Anything written
  * in Compose is reopened there instead.
  */
+/** Every queued row that this one message produced. */
+function siblingsOf(entry) {
+  if (!entry.sourceId) return [entry];
+  return sortedSchedules().filter((s) => s.sourceId && s.sourceId === entry.sourceId);
+}
+
 async function editSchedule(entry) {
   if (entry.sourceId) {
     window.dispatchEvent(new CustomEvent('promo:edit-post', {
@@ -269,30 +248,9 @@ async function editSchedule(entry) {
     }));
     return;
   }
-  const { loadScheduleIntoCompose } = await import('./promo-compose.js?v=34');
+  const { loadScheduleIntoCompose } = await import('./promo-compose.js?v=35');
   loadScheduleIntoCompose(entry, siblingsOf(entry).map((s) => s.id));
   window.dispatchEvent(new CustomEvent('promo:goto', { detail: { mode: 'send' } }));
-}
-
-/** Every queued row that this one message produced. */
-function siblingsOf(entry) {
-  if (!entry.sourceId) return [entry];
-  return sortedSchedules().filter((s) => s.sourceId && s.sourceId === entry.sourceId);
-}
-
-async function cancelAfterManualSend(entry) {
-  const siblings = siblingsOf(entry);
-
-  for (const row of siblings) {
-    await api(`/schedules/${encodeURIComponent(row.id)}`, { method: 'DELETE' });
-  }
-
-  if (entry.sourceId) {
-    const marked = await markBoardPostSent(entry.sourceId);
-    if (!marked) await releaseBoardPost(entry.sourceId);
-  }
-  window.dispatchEvent(new CustomEvent('sandesha:refresh'));
-  window.dispatchEvent(new CustomEvent('promo:board-show'));
 }
 
 function disarm() {
@@ -334,18 +292,7 @@ function bind(host) {
       const entry = sortedSchedules().find((s) => String(s.id) === String(btn.dataset.open));
       if (!entry) return;
       disarm();
-      openManualSendSheet({
-        title: targetLabel(entry),
-        when: `${clockOf(entry.when)} · ${countdown(entry.when)}`,
-        message: entry.message || '',
-        flyerUrl: flyerUrlFor(entry),
-        flyerName: flyerNameFor(entry),
-        // One Board post can hold a row per list; say so, because tapping
-        // "I posted this" cancels every one of them.
-        queuedCount: siblingsOf(entry).length,
-        onEdit: overdue(entry) ? null : () => editSchedule(entry),
-        onPosted: () => cancelAfterManualSend(entry),
-      });
+      editSchedule(entry);
     });
   });
 

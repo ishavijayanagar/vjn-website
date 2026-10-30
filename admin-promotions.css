@@ -1689,8 +1689,7 @@ h1 {
 .compose-flag { color: var(--gold); text-transform: uppercase; }
 
 .compose textarea,
-.compose select,
-.compose input.compose-time {
+.compose select {
   width: 100%;
   font: inherit;
   font-size: 15px;
@@ -1702,9 +1701,59 @@ h1 {
   transition: border-color 160ms ease;
   box-sizing: border-box;
 }
-.compose input.compose-time {
-  font-variant-numeric: tabular-nums;
+.compose-time {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
   min-height: 48px;
+  padding: 6px 6px 6px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-sizing: border-box;
+}
+.compose-time:focus-within { border-color: var(--ink-2); }
+.compose-time-num {
+  width: 2.4ch;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink);
+}
+.compose-time-num:focus { outline: none; }
+.compose-time-colon {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.compose-ampm {
+  margin-left: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.compose-ampm button {
+  border: 0;
+  background: transparent;
+  min-width: 46px;
+  min-height: 34px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.compose-ampm button.on {
+  background: var(--surface);
+  color: var(--ink);
 }
 .compose textarea {
   resize: none;
@@ -1714,8 +1763,7 @@ h1 {
 }
 .compose textarea::placeholder { color: var(--ink-3); }
 .compose textarea:focus,
-.compose select:focus,
-.compose input.compose-time:focus { outline: none; border-color: var(--ink-2); }
+.compose select:focus { outline: none; border-color: var(--ink-2); }
 
 .compose-file {
   position: absolute;
@@ -2195,6 +2243,7 @@ h1 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.picker .sub.is-past { color: var(--red); }
 .picker .n {
   flex: none;
   font-family: var(--mono);
@@ -2821,18 +2870,39 @@ button.chip {
 .pairing-banner.embedded .pairing-qr.hidden { display: none; }
 
 /* ── profile / Sandesha server (iOS grouped settings) ── */
+#sandeshaServer .set-page {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 4px 0;
+}
+#sandeshaServer .set-page-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+#sandeshaServer .set-page-sub {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
 #sandeshaServer.promo-panel.is-active {
   display: flex;
   flex-direction: column;
   gap: 22px;
-  padding: 10px max(16px, env(safe-area-inset-right, 0px))
-    calc(24px + var(--tabbar-h)) max(16px, env(safe-area-inset-left, 0px));
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, var(--sans);
+  padding: 18px max(16px, env(safe-area-inset-right, 0px))
+    calc(28px + var(--tabbar-h)) max(16px, env(safe-area-inset-left, 0px));
+  font-family: var(--sans);
 }
 #sandeshaServer #sandeshaApiHost {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 26px;
 }
 #sandeshaServer .ios-block {
   display: flex;
@@ -2840,20 +2910,20 @@ button.chip {
   gap: 8px;
 }
 #sandeshaServer .ios-caption {
-  margin: 0 16px;
+  margin: 0 4px;
   padding: 0;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--ink-2);
+  color: var(--ink-3);
   line-height: 1.2;
 }
 #sandeshaServer .ios-foot {
-  margin: 0 16px;
+  margin: 2px 4px 0;
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.45;
   color: var(--ink-3);
 }
 #sandeshaServer .ios-foot:empty { display: none; }
@@ -2867,9 +2937,9 @@ button.chip {
 }
 #sandeshaServer .ios-group {
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: none;
+  box-shadow: var(--sh-1);
   border: 0;
   padding: 0;
 }
@@ -2888,10 +2958,41 @@ button.chip {
   border: 0;
   background: none;
   font: inherit;
-  font-size: 17px;
-  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--ink);
   text-align: left;
+}
+#sandeshaServer .wa-status-row {
+  flex-direction: row-reverse;
+  align-items: center;
+  padding: 16px 16px 14px;
+}
+#sandeshaServer .wa-status-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#sandeshaServer .wa-status-copy b {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+#sandeshaServer .wa-status-copy small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+#sandeshaServer .wa-status-row .ios-dot {
+  width: 11px;
+  height: 11px;
+  margin-top: 0;
 }
 #sandeshaServer .ios-row > span:first-child { flex: none; }
 #sandeshaServer .ios-row + .ios-row {
@@ -2905,6 +3006,50 @@ button.chip {
   top: 0;
   height: 1px;
   background: var(--hairline);
+}
+#sandeshaServer .wa-qr-block {
+  border-top: 1px solid var(--hairline);
+  padding: 12px;
+}
+#sandeshaServer .wa-qr-block[hidden] { display: none !important; }
+#sandeshaServer .wa-qr-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+#sandeshaServer .wa-qr-actions .ios-btn {
+  min-height: 44px;
+  font-size: 14.5px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+#sandeshaServer .wa-qr-actions .ios-btn.primary {
+  background: var(--cta);
+  color: var(--on-cta);
+  border-color: transparent;
+}
+#sandeshaServer .wa-qr-panel {
+  margin-top: 12px;
+  text-align: center;
+  scroll-margin-bottom: calc(16px + var(--tabbar-h));
+}
+#sandeshaServer .wa-qr-panel[hidden] { display: none !important; }
+#sandeshaServer .wa-qr-panel img {
+  display: block;
+  width: min(220px, 72%);
+  height: auto;
+  margin: 0 auto;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+}
+#sandeshaServer .wa-qr-panel img[hidden] { display: none !important; }
+#sandeshaServer .wa-qr-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-2);
 }
 #sandeshaServer .ios-value {
   display: inline-flex;
@@ -2966,13 +3111,13 @@ button.chip {
 #sandeshaServer .ios-btn {
   border: 0;
   border-radius: 12px;
-  min-height: 50px;
-  padding: 12px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   font: inherit;
-  font-size: 17px;
+  font-size: 14.5px;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  background: var(--ios-fill);
+  letter-spacing: -0.01em;
+  background: var(--surface-2);
   color: var(--ink);
   cursor: pointer;
   transition: transform 100ms ease-out, opacity 160ms ease;
@@ -2989,24 +3134,92 @@ button.chip {
 #sandeshaServer .ios-btn:disabled:active { transform: none; }
 #sandeshaServer .ios-row-btn {
   cursor: pointer;
-  justify-content: center;
-  min-height: 48px;
+  justify-content: flex-start;
+  min-height: 52px;
 }
 #sandeshaServer #promoActivityOpen.ios-row-btn {
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
+  gap: 12px;
 }
-#sandeshaServer #promoActivityOpen .pa-copy { flex: 1; min-width: 0; }
-#sandeshaServer #promoActivity {
+#sandeshaServer .set-glyph {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--marigold-tint);
+  color: var(--gold);
+}
+#sandeshaServer #promoActivityOpen .pa-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#sandeshaServer .set-appear {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 12px 16px;
+  border-top: 1px solid var(--hairline);
+}
+#sandeshaServer .set-appear > span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+#sandeshaServer .set-appear .toggle {
+  margin: 0;
+  flex: 0 0 168px;
+}
+#sandeshaServer .set-appear .toggle button {
+  min-height: 36px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
+#sandeshaServer .set-signout {
+  align-self: center;
+  margin-top: 2px;
+  border: 0;
+  background: none;
+  color: var(--red);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+#sandeshaServer .set-signout:active { opacity: 0.55; }
+#sandeshaServer.is-activity.promo-panel.is-active {
+  overflow: hidden;
+  gap: 0;
+  padding-bottom: 12px;
+}
+#sandeshaServer.is-activity #promoActivity {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   overscroll-behavior: contain;
-  max-height: calc(100% - 8px);
+  scrollbar-width: none;
+  padding-right: 0;
+  padding-left: 0;
+  padding-bottom: 8px;
 }
-#sandeshaServer .ios-row-btn.danger { color: var(--red); font-weight: 400; }
-#sandeshaServer .ios-row-btn:active { opacity: 0.55; }
+#sandeshaServer.is-activity #promoActivity::-webkit-scrollbar { display: none; }
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  #sandeshaServer.is-activity.promo-panel.is-active { padding-bottom: 0; }
+  #sandeshaServer.is-activity #promoActivity {
+    padding-bottom: calc(16px + var(--tabbar-h));
+  }
+}
+#sandeshaServer .ios-row-btn.danger { color: var(--red); font-weight: 600; }
+#sandeshaServer .set-save,
+#sandeshaServer #setDelete { justify-content: center; }
+#sandeshaServer .ios-row-btn:active,
+#sandeshaServer .set-row:active { opacity: 1; background: var(--surface-2); }
 #sandeshaServer .ios-btn,
 #sandeshaServer .ios-row-btn,
-#sandeshaServer .promo-account .toggle button {
+#sandeshaServer .set-appear .toggle button {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -3019,25 +3232,6 @@ button.chip {
 #sandeshaServer .ios-status.ok { color: var(--green); }
 #sandeshaServer .ios-status.err { color: var(--red); }
 
-#sandeshaServer .promo-account .field {
-  margin: 0;
-  padding: 12px 16px 14px;
-}
-#sandeshaServer .promo-account .field label {
-  display: block;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  text-transform: none;
-  font-family: inherit;
-  color: var(--ink-3);
-  margin-bottom: 10px;
-}
-#sandeshaServer .promo-account .toggle { margin: 0; }
-#sandeshaServer .promo-account .toggle button {
-  min-height: 40px;
-  font-size: 15px;
-}
 #sandeshaServer .mt-md { margin-top: 14px; }
 #sandeshaServer .mt-sm { margin-top: 9px; }
 #sandeshaServer .mb-0 { margin-bottom: 0; }
@@ -3362,16 +3556,24 @@ button.chip {
 
 /* Settings → Sets */
 #promoSetsHost:empty { display: none; }
-#sandeshaServer .promo-sets { margin-bottom: 22px; }
-#sandeshaServer .set-row { cursor: pointer; text-align: left; justify-content: space-between; }
+#sandeshaServer .promo-sets { margin-bottom: 0; }
+#sandeshaServer .set-row { cursor: pointer; text-align: left; justify-content: space-between; min-height: 52px; }
 #sandeshaServer .set-row + .set-row { border-top: 0.5px solid var(--line); }
+#sandeshaServer .ios-row > .set-row-text,
 #sandeshaServer .set-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-#sandeshaServer .set-row-text b { font-weight: 500; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
+#sandeshaServer .set-row-text b { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
 #sandeshaServer .set-row-text small { font-size: 13px; color: var(--ink-3); }
 #sandeshaServer .set-row-go { flex: none; width: 16px; height: 16px; color: var(--ink-3); }
+#sandeshaServer .set-row-new {
+  justify-content: center;
+  gap: 8px;
+  background: var(--surface-2);
+}
+#sandeshaServer .set-row-new .set-row-text { flex: none; }
 #sandeshaServer .set-row-new b { color: var(--gold); text-transform: none; }
-#sandeshaServer .set-row-plus { flex: none; font-size: 22px; line-height: 1; color: var(--gold); }
-#sandeshaServer .set-row:active { opacity: 0.6; }
+#sandeshaServer .set-row-plus { flex: none; font-size: 20px; line-height: 1; color: var(--gold); font-weight: 500; }
+#sandeshaServer .set-state:active,
+#sandeshaServer .set-skel:active { background: transparent; }
 #sandeshaServer .set-edit-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 8px 0 4px; }
 #sandeshaServer .set-back { display: inline-flex; align-items: center; gap: 2px; padding: 6px 8px; border: 0; background: none; font: inherit; font-size: 15px; color: var(--gold); cursor: pointer; }
 #sandeshaServer .set-back svg { width: 18px; height: 18px; }
@@ -3436,7 +3638,7 @@ button.chip {
   color: var(--gold);
   cursor: pointer;
 }
-.pa-heading { margin: 0 0 12px; font-size: 22px; font-weight: 700; }
+.pa-heading { margin: 0 0 14px; font-family: var(--display); font-size: 26px; font-weight: 650; letter-spacing: -0.03em; }
 .pa-filters {
   display: flex;
   gap: 8px;
@@ -3455,8 +3657,8 @@ button.chip {
   cursor: pointer;
 }
 .pa-filters button.on {
-  background: var(--cta);
-  color: var(--on-cta);
+  background: var(--ink);
+  color: var(--paper);
   border-color: transparent;
 }
 .pa-meta { margin: 0 0 12px; font-size: 13px; color: var(--ink-3); }
@@ -3469,22 +3671,31 @@ button.chip {
   text-transform: uppercase;
   color: var(--ink-3);
 }
+.pa-card {
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  overflow: hidden;
+}
+.pa-card.is-open { border-color: var(--ink-3); }
 .pa-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   width: 100%;
-  margin-bottom: 8px;
+  margin: 0;
   padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  background: none;
   text-align: left;
   font: inherit;
   color: var(--ink);
   cursor: pointer;
 }
-.pa-row.is-open { border-color: var(--ink-2); }
+.pa-row.is-open { background: transparent; }
 .pa-dot {
   flex: none;
   width: 8px;
@@ -3498,11 +3709,59 @@ button.chip {
 .pa-dot.err { background: var(--red); }
 .pa-main { flex: 1; min-width: 0; }
 .pa-row-title { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
-.pa-target, .pa-when { display: block; margin-top: 4px; font-size: 12px; color: var(--ink-3); }
-.pa-reason, .pa-message, .pa-detail {
-  margin: 8px 0 0;
-  font-size: 13px;
+.pa-target, .pa-when, .pa-outcome { display: block; margin-top: 4px; font-size: 12.5px; color: var(--ink-3); line-height: 1.4; }
+.pa-outcome { color: var(--ink-2); font-weight: 600; }
+.pa-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 6px;
+  font-size: 13.5px;
   line-height: 1.45;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+.pa-more-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gold);
+}
+.pa-more { padding: 0 14px 14px 32px; }
+.pa-kicker {
+  display: block;
+  margin: 12px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.pa-facts { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+.pa-fact {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pa-fact span { color: var(--ink-3); }
+.pa-fact b { font-weight: 600; overflow-wrap: anywhere; }
+.pa-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.pa-list li {
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  border-top: 1px solid var(--hairline);
+}
+.pa-reason, .pa-message, .pa-detail {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--ink-2);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

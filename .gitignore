@@ -22,3 +22,4 @@ sandesha-vjn/
 
 # Per-machine overrides of config.js (e.g. point Sandesha at the laptop)
 config.local.js
+.dev-site.pid
