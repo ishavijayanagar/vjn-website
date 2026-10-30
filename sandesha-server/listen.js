@@ -123,6 +123,10 @@ function log(...args) {
   fs.appendFileSync(LOG_FILE, logLine + '\n');
 }
 
+// Flyer sends fail until this is in the script WhatsApp's page runs.
+const { patchWwebjsSend } = require('./patch-wwebjs-send');
+log(patchWwebjsSend() ? '[PATCH] flyer send: media id removed' : '[PATCH] flyer send: could not patch whatsapp-web.js');
+
 let lastReplyText = null;
 let recentReplies = new Set();
 let myNumber = null;
