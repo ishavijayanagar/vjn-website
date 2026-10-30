@@ -318,6 +318,10 @@ export function renderPromoCompose() {
   }
 
   host.innerHTML = `
+    <div class="wa-link-note" data-wa-link hidden>
+      <p data-wa-link-text>Sandesha isn’t connected. Link WhatsApp in Settings before a send or a schedule can go out.</p>
+      <button type="button" data-wa-link-settings>Open Settings</button>
+    </div>
     ${isEditing() ? `
     <div class="pc-editing" role="status">
       <div>
@@ -421,6 +425,13 @@ export function renderPromoCompose() {
       <button type="button" class="b pri" id="pcGo"><span class="lbl" id="pcGoLbl">Send</span></button>
       <div class="fine" id="pcFine"></div>
     </div>`;
+
+  const note = host.querySelector('[data-wa-link]');
+  if (note) {
+    const { health, healthError } = getState();
+    const known = health != null || healthError;
+    note.hidden = !(known && !health?.whatsapp?.connected);
+  }
 
   bind(host);
   sync();

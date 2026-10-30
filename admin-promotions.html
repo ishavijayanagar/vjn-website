@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Instrument+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="admin-promotions.css?v=activity-1"/>
+  <link rel="stylesheet" href="admin-promotions.css?v=link-1"/>
   <link rel="stylesheet" href="sandesha/css/embedded.css?v=toast-1"/>
   <link rel="stylesheet" href="banner-form.css?v=2"/>
   <script src="config.js"></script>
@@ -88,6 +88,7 @@
           <p class="set-page-sub">WhatsApp, the sets you send to, and this phone.</p>
         </header>
         <div id="sandeshaApiHost"></div>
+        <div id="promoPlanningHost"></div>
         <div id="promoSetsHost"></div>
         <section class="ios-block" id="promoActivityEntry">
           <h2 class="ios-caption">This phone</h2>
@@ -180,6 +181,10 @@
     </header>
 
     <div class="compose-body">
+      <div class="wa-link-note" data-wa-link hidden>
+        <p data-wa-link-text>Sandesha isn’t connected. Link WhatsApp in Settings before a send or a schedule can go out.</p>
+        <button type="button" data-wa-link-settings>Open Settings</button>
+      </div>
       <p class="compose-err" id="composeErr" role="alert" hidden></p>
 
       <section class="compose-card">
@@ -268,6 +273,6 @@
   <script src="ptr.js?v=1"></script>
   <script src="drafts.js?v=1"></script>
   <script src="admin-promotions.js?v=no-past"></script>
-  <script type="module" src="sandesha/js/promo-shell.js?v=41"></script>
+  <script type="module" src="sandesha/js/promo-shell.js?v=43"></script>
 </body>
 </html>

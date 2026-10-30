@@ -1,4 +1,4 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia, Message } = require('whatsapp-web.js');
 const auth = require('./auth');
 const { openDb } = require('./db');
 const { createVjnUsers } = require('./vjn-users');
@@ -17,6 +17,10 @@ const { createApiHandlers } = require('./api-handlers');
 const { createSettingsWizard } = require('./settings');
 const { createBulkSendWizard } = require('./bulk-send');
 const { createBulkAddMembersWizard } = require('./bulk-add-members');
+const { createPlanningSendWizard, parsePlanningOperators } = require('./planning-send');
+const { tryComplimentReply } = require('./compliment-reply');
+const { createPlanningMedia } = require('./planning-media');
+const planningConfig = require('./planning-config');
 const { isNotifyConfigured, formatPairingCode, sendPairingCodeEmail, sendQrEmail } = require('./notify-email');
 const safety = require('./send-safety');
 const activity = require('./activity');
@@ -131,6 +135,7 @@ let lastReplyText = null;
 let recentReplies = new Set();
 let myNumber = null;
 let commandsGroupJid = null;
+let planningGroupJid = null;
 let sendServer = null;
 let apiHandlers = null;
 
@@ -255,6 +260,85 @@ function saveSets(sets) {
 let settingsWizard = null;
 let bulkSendWizard = null;
 let bulkAddMembersWizard = null;
+let planningSendWizard = null;
+let planningMedia = null;
+
+function planningSettings() {
+  return planningConfig.getEffectiveSettings(process.env, normalizePhoneDigits);
+}
+
+async function markPromoSentFromPlanning(promoId, { setKey } = {}) {
+  try {
+    await vjnPromos.markSent(promoId, 'sandesha');
+    recordDelivered([{ id: 0, sourceId: String(promoId), target: setKey || '' }]);
+    log(`[PLANNING] Board post ${promoId} marked sent`);
+  } catch (err) {
+    log(`[PLANNING] Could not mark board post ${promoId} sent: ${err.message}`);
+  }
+}
+
+async function linkPlanningScheduleToPromo(promoId, scheduleId) {
+  try {
+    vjnPromos.appendWaScheduleId(promoId, scheduleId);
+  } catch (err) {
+    log(`[PLANNING] Could not link schedule ${scheduleId} to post ${promoId}: ${err.message}`);
+  }
+}
+
+function mountPlanningSendWizard(c) {
+  const settings = planningSettings();
+  const operatorRaw = settings.operators.join(',');
+  planningMedia = createPlanningMedia({
+    client: c,
+    mediaDir: MEDIA_DIR,
+    log,
+    getPlanningGroupJid: () => planningGroupJid,
+  });
+  planningSendWizard = createPlanningSendWizard({
+    loadSets,
+    botReply,
+    log,
+    normalizePhoneDigits,
+    getQuotedMessageSafe,
+    resolveQuotedTextBundle,
+    sendQuotedToSet,
+    sendStoredDraftToSet,
+    getPlanningChat: async () => (planningGroupJid ? client.getChatById(planningGroupJid) : null),
+    getPlanningGroupJid: () => planningGroupJid,
+    parseScheduleTime,
+    validateScheduleTarget,
+    loadSchedules,
+    saveSchedules,
+    nextLocalScheduleId,
+    formatTimeUntil,
+    MEDIA_DIR,
+    getMyNumber: () => myNumber,
+    getMessageById: (id) => c.getMessageById(id),
+    configuredOperator: operatorRaw,
+    mentionAliases: settings.mentionAliases,
+    getPlanningChatId: (msg, chat) => resolveMessageGroupJid(msg, chat) || planningGroupJid,
+    isBotReplyText,
+    getQuotedText,
+    findPromoIdByMessage: (text) => vjnPromos.findPromoIdByMessage(text),
+    markPromoSentFromPlanning,
+    linkScheduleToPromo: linkPlanningScheduleToPromo,
+    saveDraftMedia: (msg, stanzaHint) => planningMedia.saveDraftMedia(msg, stanzaHint),
+    findDraftByStanza: (stanza) => planningMedia.findDraftByStanza(stanza),
+    findCachedMediaByStanza: (stanza) => planningMedia.findCachedPathForStanza(stanza),
+    stanzaIdFromMsg: (msg) => planningMedia.stanzaId(msg),
+    cancelScheduleById: cancelPlanningScheduleById,
+  });
+  if (settings.operators.length && planningGroupJid) {
+    log(`Planning-group @sandesha send wizard enabled (${settings.groupName || planningGroupJid})`);
+  } else if (settings.operators.length && !planningGroupJid) {
+    log('Planning-group wizard: operators set but group JID not resolved — feature inactive');
+  }
+}
+
+async function reloadPlanningFromConfig() {
+  await setupPlanningGroup();
+  if (client) mountPlanningSendWizard(client);
+}
 
 function loadSchedules() {
   try { return JSON.parse(fs.readFileSync(SCHEDULES_FILE, 'utf8')); } catch { return []; }
@@ -262,6 +346,18 @@ function loadSchedules() {
 
 function saveSchedules(schedules) {
   fs.writeFileSync(SCHEDULES_FILE, JSON.stringify(schedules, null, 2));
+}
+
+function cancelPlanningScheduleById(id) {
+  const n = parseInt(id, 10);
+  const all = loadSchedules();
+  const dropped = all.find((s) => s.id === n);
+  if (!dropped) return false;
+  const remaining = all.filter((s) => s.id !== n);
+  saveSchedules(remaining);
+  if (dropped.filePath) dropScheduleMedia(dropped.filePath, remaining);
+  log(`[PLANNING] cancelled queued schedule id=${n}`);
+  return true;
 }
 
 /**
@@ -649,6 +745,8 @@ function wireClientEvents(c) {
 
       log('Setting up commands group...');
       await setupCommandsGroup();
+      log('Setting up planning group...');
+      await setupPlanningGroup();
 
       // Recreate API handlers so they always point at the current client
       apiHandlers = createApiHandlers({
@@ -687,6 +785,21 @@ function wireClientEvents(c) {
         sendGap: safety.sendGap,
       });
 
+      settingsWizard = createSettingsWizard({ client: c, loadSets, saveSets, botReply, log });
+      bulkSendWizard = createBulkSendWizard({
+        resolveAndSend, botReply, log, delay, normalizePhoneDigits, budget: sendBudget,
+      });
+      bulkAddMembersWizard = createBulkAddMembersWizard({
+        client: c,
+        botReply,
+        log,
+        normalizePhoneDigits,
+        resolveGroupByName,
+        resolveParticipantWids,
+      });
+      planningConfig.setOnChange(() => reloadPlanningFromConfig());
+      mountPlanningSendWizard(c);
+
       startSendServer();
       if (!setupDone) {
         log('Starting message poller...');
@@ -703,18 +816,6 @@ function wireClientEvents(c) {
         syncPhoneBookContacts(c).catch((err) => log('contact sync:', err.message));
       }, 60000);
 
-      settingsWizard = createSettingsWizard({ client: c, loadSets, saveSets, botReply, log });
-      bulkSendWizard = createBulkSendWizard({
-        resolveAndSend, botReply, log, delay, normalizePhoneDigits, budget: sendBudget,
-      });
-      bulkAddMembersWizard = createBulkAddMembersWizard({
-        client: c,
-        botReply,
-        log,
-        normalizePhoneDigits,
-        resolveGroupByName,
-        resolveParticipantWids,
-      });
       log('Setup complete!');
       log(`Dashboard: http://127.0.0.1:${LISTEN_PORT}/`);
     } catch (err) {
@@ -1230,92 +1331,123 @@ async function waitForWhatsAppStore({ timeoutMs = 60000, intervalMs = 1500 } = {
   return false;
 }
 
+function pollTargetJids() {
+  const targets = [];
+  if (commandsGroupJid) targets.push({ jid: commandsGroupJid, kind: 'commands' });
+  if (planningGroupJid) targets.push({ jid: planningGroupJid, kind: 'planning' });
+  return targets;
+}
+
+async function processPolledMessage(msg, pollKind) {
+  if (pollKind === 'planning') {
+    let chat = null;
+    try {
+      chat = await msg.getChat();
+    } catch { /* name/jid fallback below */ }
+    await handlePlanningGroupMessage(msg, chat);
+    return;
+  }
+
+  const hasMedia = msg.hasMedia;
+  if (hasMedia) {
+    await handleMediaMessage(msg);
+  } else if (bulkAddMembersWizard && await bulkAddMembersWizard.handleSession(msg)) {
+    // active !addmembers wizard
+  } else if (bulkSendWizard && await bulkSendWizard.handleSession(msg)) {
+    // active !bulk wizard
+  } else if (settingsWizard && await settingsWizard.handleSession(msg)) {
+    // active !settings wizard
+  } else if (msg.body?.startsWith('!')) {
+    await handleCommand(msg.body, msg);
+  } else if (parseQuotedSendTarget(msg.body)) {
+    await handleQuotedSend(msg);
+  } else {
+    const scheduleIdx = msg.body.indexOf(' !schedule');
+    if (scheduleIdx > 0) {
+      const messagePart = msg.body.substring(0, scheduleIdx).trim();
+      const schedulePart = msg.body.substring(scheduleIdx + 2).trim();
+      await handleNaturalSchedule(messagePart, schedulePart, msg);
+    } else {
+      const parsed = await parseNaturalCommand(msg.body);
+      if (parsed) {
+        await executeSend(parsed, msg);
+      } else if (await tryComplimentReply(msg, {
+        botReply,
+        mentionAliases: ['sandesha', 'sv'],
+        getMyNumber: () => myNumber,
+        normalizePhoneDigits,
+      })) {
+        /* thanks / nice work */
+      } else {
+        await handleAIChat(msg.body, msg);
+      }
+    }
+  }
+}
+
 function startMessagePoller() {
   if (pollInterval) return;
-  log('[POLL] Starting message poller, commandsGroupJid=' + commandsGroupJid);
+  log('[POLL] Starting message poller, commandsGroupJid=' + commandsGroupJid + ', planningGroupJid=' + planningGroupJid);
   let consecutiveErrors = 0;
   let nextAllowedAt = 0;
 
   pollInterval = setInterval(async () => {
     if (pollInFlight) return;
-    if (!commandsGroupJid) return;
+    const targets = pollTargetJids();
+    if (targets.length === 0) return;
     if (Date.now() < nextAllowedAt) return;
 
     pollInFlight = true;
     try {
-      const chat = await Promise.race([
-        client.getChatById(commandsGroupJid),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('getChat timeout')), 20000))
-      ]);
-      if (!chat) {
-        consecutiveErrors += 1;
-        if (consecutiveErrors <= 3 || consecutiveErrors % 12 === 0) {
-          log('[POLL] Chat not found for', commandsGroupJid);
+      let anyFetchOk = false;
+      for (const { jid, kind } of targets) {
+        const chat = await Promise.race([
+          client.getChatById(jid),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('getChat timeout')), 20000)),
+        ]);
+        if (!chat) {
+          consecutiveErrors += 1;
+          if (consecutiveErrors <= 3 || consecutiveErrors % 12 === 0) {
+            log('[POLL] Chat not found for', jid);
+          }
+          continue;
         }
-        nextAllowedAt = Date.now() + Math.min(60000, 5000 * consecutiveErrors);
-        return;
-      }
 
-      // fetchMessages is the slow call (headless Chromium on a Pi can take
-      // 20s+), so only a successful fetch counts as healthy. Resetting before
-      // it made every timeout look like a first error: no backoff, endless logs.
-      const messages = await Promise.race([
-        chat.fetchMessages({ limit: 20 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('fetchMessages timeout')), 45000))
-      ]);
-      consecutiveErrors = 0;
-      nextAllowedAt = 0;
+        const messages = await Promise.race([
+          chat.fetchMessages({ limit: 20 }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('fetchMessages timeout')), 45000)),
+        ]);
+        anyFetchOk = true;
 
-      for (const msg of messages) {
-        // Track ALL messages (both phone and web) to avoid reprocessing
-        if (msg.timestamp > lastProcessedTimestamp) {
-          log(`[POLL] NEW msg: fromMe=${msg.fromMe}, timestamp=${msg.timestamp}, body="${msg.body?.substring(0, 30)}"`);
+        for (const msg of messages) {
+          if (msg.timestamp <= lastProcessedTimestamp) continue;
+          if (!msg.body || msg.body.trim().length === 0) continue;
+
+          log(`[POLL] NEW msg (${kind}): fromMe=${msg.fromMe}, timestamp=${msg.timestamp}, body="${msg.body?.substring(0, 30)}"`);
 
           if (isBotReplyText(msg.body)) {
             markMessageProcessed(msg);
             continue;
           }
 
-          // Skip if message_create already handled this message
           if (!markMessageProcessed(msg)) {
             log('[POLL] SKIP: already processed');
             continue;
           }
 
-          const hasMedia = msg.hasMedia;
-
           try {
-            if (hasMedia) {
-              await handleMediaMessage(msg);
-            } else if (bulkAddMembersWizard && await bulkAddMembersWizard.handleSession(msg)) {
-              // active !addmembers wizard
-            } else if (bulkSendWizard && await bulkSendWizard.handleSession(msg)) {
-              // active !bulk wizard
-            } else if (settingsWizard && await settingsWizard.handleSession(msg)) {
-              // active !settings wizard
-            } else if (msg.body?.startsWith('!')) {
-              await handleCommand(msg.body, msg);
-            } else if (parseQuotedSendTarget(msg.body)) {
-              await handleQuotedSend(msg);
-            } else {
-              const scheduleIdx = msg.body.indexOf(' !schedule');
-              if (scheduleIdx > 0) {
-                const messagePart = msg.body.substring(0, scheduleIdx).trim();
-                const schedulePart = msg.body.substring(scheduleIdx + 2).trim();
-                await handleNaturalSchedule(messagePart, schedulePart, msg);
-              } else {
-                const parsed = await parseNaturalCommand(msg.body);
-                if (parsed) {
-                  await executeSend(parsed, msg);
-                } else {
-                  await handleAIChat(msg.body, msg);
-                }
-              }
-            }
+            await processPolledMessage(msg, kind);
           } catch (err) {
             log(`[POLL] Handler error: ${err.message}`);
           }
         }
+      }
+
+      if (anyFetchOk) {
+        consecutiveErrors = 0;
+        nextAllowedAt = 0;
+      } else {
+        nextAllowedAt = Date.now() + Math.min(60000, 5000 * consecutiveErrors);
       }
     } catch (err) {
       consecutiveErrors += 1;
@@ -1438,7 +1570,11 @@ reach.init({
   getContext: () => sendContext,
   // A send in progress has right of way over reach checks.
   isBusy: () => sendContext !== null,
-  ignoreChat: (jid) => jid === commandsGroupJid || jid === COMMANDS_GROUP_JID || jid === 'status@broadcast',
+  ignoreChat: (jid) =>
+    jid === commandsGroupJid ||
+    jid === COMMANDS_GROUP_JID ||
+    jid === planningGroupJid ||
+    jid === 'status@broadcast',
   myId: () => myNumber,
   log,
 });
@@ -1530,6 +1666,120 @@ async function setupCommandsGroup() {
   log(`Create a WhatsApp group named exactly "${wantedName}", then restart the bot.`);
 }
 
+async function setupPlanningGroup() {
+  planningGroupJid = null;
+  const settings = planningSettings();
+  const operatorList = settings.operators;
+  if (!operatorList.length) {
+    log('Planning-group send wizard disabled (add operators in Promotions → Settings or .env)');
+    return;
+  }
+  log(`Planning-group operators (${operatorList.length}): ${operatorList.join(', ')}`);
+
+  const configuredJid = settings.groupJid;
+  const wantedName = settings.groupName;
+  if (configuredJid && configuredJid.endsWith('@g.us')) {
+    planningGroupJid = configuredJid;
+    log(`Planning group from config: ${wantedName} (${planningGroupJid})`);
+    return;
+  }
+
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const jid = await findGroupJidByName(wantedName);
+      if (jid) {
+        planningGroupJid = jid;
+        log(`Planning group found by name: ${wantedName} (${planningGroupJid})`);
+        return;
+      }
+      log(`No group named "${wantedName}" in collection (attempt ${attempt}/5)`);
+    } catch (err) {
+      log(`Planning group name scan failed (attempt ${attempt}/5): ${err.message}`);
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const chats = await Promise.race([
+        client.getChats(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('getChats timeout')), 45000)),
+      ]);
+      const wLower = wantedName.toLowerCase();
+      const match = chats.find((c) => {
+        if (!c.isGroup || !c.name) return false;
+        const n = c.name.toLowerCase();
+        if (n === wLower) return true;
+        return wLower.length >= 8 && (n.startsWith(wLower) || n.includes(wLower));
+      });
+      if (match) {
+        planningGroupJid = match.id._serialized;
+        log(`Planning group verified via getChats: ${match.name} (${planningGroupJid})`);
+        return;
+      }
+      log(`getChats returned ${chats.length} chats but no "${wantedName}" (attempt ${attempt}/3)`);
+    } catch (err) {
+      log(`Planning group getChats failed (attempt ${attempt}/3): ${err.message}`);
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+
+  if (configuredJid) {
+    planningGroupJid = configuredJid;
+    log(`Using SANDESHA_PLANNING_GROUP_JID from .env: ${planningGroupJid}`);
+    return;
+  }
+
+  log(`Planning-group wizard inactive: could not find group "${wantedName}" (set SANDESHA_PLANNING_GROUP_JID)`);
+}
+
+function planningGroupNameMatches(chatName) {
+  const wantedName = planningSettings().groupName;
+  if (!chatName || !wantedName) return false;
+  const n = String(chatName).toLowerCase();
+  const w = wantedName.toLowerCase();
+  if (n === w) return true;
+  // WhatsApp titles often add emojis, e.g. "Vijayanagar Sandesha 📢 🪷"
+  if (w.length >= 8 && (n.startsWith(w) || n.includes(w))) return true;
+  return false;
+}
+
+function resolveMessageGroupJid(msg, chat) {
+  const chatId = chat?.id?._serialized || chat?.id;
+  if (typeof chatId === 'string' && chatId.endsWith('@g.us')) return chatId;
+  if (msg?.from?.endsWith('@g.us')) return msg.from;
+  if (msg?.to?.endsWith('@g.us')) return msg.to;
+  const remote = msg?.id?.remote;
+  if (typeof remote === 'string' && remote.endsWith('@g.us')) return remote;
+  return null;
+}
+
+function isFromPlanningGroup(msg, chat) {
+  if (!planningGroupJid) return false;
+  const groupJid = resolveMessageGroupJid(msg, chat);
+  if (groupJid === planningGroupJid) return true;
+  if (chat?.isGroup && chat.name && planningGroupNameMatches(chat.name)) return true;
+  return false;
+}
+
+async function handlePlanningGroupMessage(msg, chat) {
+  if (!planningSendWizard || !planningGroupJid) return false;
+  if (planningMedia && msg?.hasMedia && !isBotReplyText(msg.body)) {
+    void planningMedia.warmCacheDraft(msg);
+  }
+  if (!isFromPlanningGroup(msg, chat)) return false;
+  const settings = planningSettings();
+  if (await tryComplimentReply(msg, {
+    botReply,
+    mentionAliases: settings.mentionAliases,
+    getMyNumber: () => myNumber,
+    normalizePhoneDigits,
+  })) {
+    return true;
+  }
+  return planningSendWizard.handleIngress(msg, chat);
+}
+
 function handleIncomingMessage(msg) {
   return new Promise(async (resolve) => {
     try {
@@ -1546,6 +1796,24 @@ function handleIncomingMessage(msg) {
       }
 
       log(`MSG fromMe=${isFromMe} from=${msg.from} chat=${chat?.name || '?'} body="${msg.body?.substring(0, 80)}" hasMedia=${msg.hasMedia}`);
+
+      if (isFromPlanningGroup(msg, chat)) {
+        if (isBotReplyText(msg.body)) {
+          resolve();
+          return;
+        }
+        if (msg.timestamp && msg.timestamp <= lastProcessedTimestamp) {
+          resolve();
+          return;
+        }
+        if (!markMessageProcessed(msg)) {
+          resolve();
+          return;
+        }
+        await handlePlanningGroupMessage(msg, chat);
+        resolve();
+        return;
+      }
 
       // Skip messages from others (we only process commands sent through this WhatsApp Web session)
       if (!isFromMe) { resolve(); return; }
@@ -2202,31 +2470,122 @@ function isQuotedSendOnlyCommand(body) {
   return !!parseQuotedSendTarget(body);
 }
 
-async function getQuotedMessageSafe(msg) {
-  let current = msg;
-  if (!current?.hasQuotedMsg) {
-    try {
-      const fresh = await client.getMessageById(current.id._serialized);
-      if (fresh?.hasQuotedMsg) current = fresh;
-    } catch (err) {
-      log(`[QUOTE] Could not refresh message: ${err.message}`);
-    }
-  }
-  if (!current?.hasQuotedMsg) return null;
+function getQuotedStanzaId(msg) {
+  const d = msg?._data || {};
+  const key = d.quotedMsgKey || d.quotedMessage?.key;
+  return (
+    d.quotedStanzaID
+    || key?.id
+    || (typeof key?._serialized === 'string' ? key._serialized.split('_')[0] : null)
+    || null
+  );
+}
+
+function messageLooksQuoted(msg) {
+  if (msg?.hasQuotedMsg) return true;
+  const d = msg?._data || {};
+  return !!(d.quotedMsg || getQuotedStanzaId(msg));
+}
+
+async function findQuotedMessageInChat(msg, chat) {
+  const stanza = getQuotedStanzaId(msg);
+  const chatJid = resolveMessageGroupJid(msg, chat) || planningGroupJid || msg.from;
+  let targetChat = chat;
   try {
-    let quoted = await current.getQuotedMessage();
-    if (!quoted) return null;
-    try {
-      const freshQuoted = await client.getMessageById(quoted.id._serialized);
-      if (freshQuoted) quoted = freshQuoted;
-    } catch (err) {
-      log(`[QUOTE] Could not refresh quoted message: ${err.message}`);
+    if (!targetChat?.fetchMessages) {
+      targetChat = await client.getChatById(chatJid);
     }
-    return quoted;
   } catch (err) {
-    log(`[QUOTE] getQuotedMessage failed: ${err.message}`);
+    log(`[QUOTE] planning chat load failed: ${err.message}`);
     return null;
   }
+  if (!targetChat?.fetchMessages) return null;
+
+  let messages;
+  try {
+    messages = await targetChat.fetchMessages({ limit: 40 });
+  } catch (err) {
+    log(`[QUOTE] fetchMessages for quote fallback: ${err.message}`);
+    return null;
+  }
+
+  if (stanza) {
+    const hit = messages.find((m) => {
+      const mid = m.id?.id || m._data?.id?.id;
+      if (mid && mid === stanza) return true;
+      const ser = String(m.id?._serialized || '');
+      return ser.includes(stanza);
+    });
+    if (hit) {
+      log(`[QUOTE] Resolved quoted msg via stanza ${stanza}`);
+      return hit;
+    }
+  }
+
+  const rawQuoted = msg?._data?.quotedMsg;
+  if (rawQuoted && typeof rawQuoted === 'object' && client) {
+    try {
+      const pseudo = new Message(client, rawQuoted);
+      if (pseudo.body || pseudo.hasMedia || pseudo._data?.caption) return pseudo;
+    } catch (err) {
+      log(`[QUOTE] quotedMsg pseudo build failed: ${err.message}`);
+    }
+  }
+
+  const ts = msg.timestamp || 0;
+  const candidates = messages
+    .filter((m) => {
+      if (!m || m.id?._serialized === msg.id?._serialized) return false;
+      if (!m.timestamp || m.timestamp >= ts) return false;
+      if (ts - m.timestamp > 180) return false;
+      if (isBotReplyText(m.body)) return false;
+      if (isCommandLikeText(m.body)) return false;
+      return m.hasMedia || (m.body && m.body.trim());
+    })
+    .sort((a, b) => b.timestamp - a.timestamp);
+  if (candidates[0]) {
+    log(`[QUOTE] Resolved quoted msg via recent chat heuristic (${ts - candidates[0].timestamp}s before)`);
+    return candidates[0];
+  }
+  return null;
+}
+
+async function getQuotedMessageSafe(msg, chat) {
+  let current = msg;
+  if (!messageLooksQuoted(current)) {
+        const ser = current?.id?._serialized || current?.id?.$1;
+        if (ser) {
+          try {
+            const fresh = await client.getMessageById(ser);
+            if (fresh && messageLooksQuoted(fresh)) current = fresh;
+          } catch (err) {
+            log(`[QUOTE] Could not refresh message: ${err.message}`);
+          }
+        }
+  }
+  if (!messageLooksQuoted(current)) return null;
+
+  if (current?.hasQuotedMsg) {
+    try {
+      let quoted = await current.getQuotedMessage();
+      if (quoted) {
+        try {
+          const qSer = quoted?.id?._serialized || quoted?.id?.$1;
+          if (qSer) {
+            const freshQuoted = await client.getMessageById(qSer);
+            if (freshQuoted) quoted = freshQuoted;
+          }
+        } catch (err) {
+          log(`[QUOTE] Could not refresh quoted message: ${err.message}`);
+        }
+        return quoted;
+      }
+    } catch (err) {
+      log(`[QUOTE] getQuotedMessage failed: ${err.message}`);
+    }
+  }
+
+  return findQuotedMessageInChat(current, chat);
 }
 
 function isCommandLikeText(text) {
@@ -2396,6 +2755,178 @@ async function handleQuotedSend(msg, instructionBody) {
   }
 }
 
+/** Groups in a set that are not the planning chat (same chat is not an outward broadcast). */
+function broadcastTargetsForSet(setKey) {
+  const sets = loadSets();
+  const setKeyNorm = String(setKey).toLowerCase();
+  const setGroups = sets[setKey] || sets[setKeyNorm];
+  if (!setGroups?.length) return [];
+  const planning = String(planningGroupJid || '').trim();
+  return setGroups.filter((j) => {
+    const jid = String(j || '').trim();
+    return jid && (!planning || jid !== planning);
+  });
+}
+
+function planningFanOutEtaMinutes(count) {
+  if (count <= 1) return 0;
+  const minMs = Number(process.env.SANDESHA_SEND_JITTER_MIN_MS) || 45000;
+  const maxMs = Number(process.env.SANDESHA_SEND_JITTER_MAX_MS) || 90000;
+  const avgSec = ((minMs + maxMs) / 2) / 1000;
+  return Math.max(1, Math.ceil(((count - 1) * avgSec) / 60));
+}
+
+async function runPlanningSetFanOut({ setKey, targets, replyMsg, deliver }) {
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < targets.length; i++) {
+    try {
+      await deliver(targets[i]);
+      sent++;
+      log(`[PLANNING-SEND] ${sent}/${targets.length} → ${targets[i]}`);
+    } catch (err) {
+      failed++;
+      log(`[PLANNING-SEND] failed ${targets[i]}: ${err.message}`);
+    }
+    if (i < targets.length - 1) await safety.sendGap();
+  }
+  if (!sent) {
+    await botReply(replyMsg, `❌ Could not send to any group in "${setKey}". Check Sandesha is admin in those groups.`);
+    return;
+  }
+  let summary = `✅ Done: ${sent}/${targets.length} groups in *${setKey}*`;
+  if (failed) summary += `\n⚠️ ${failed} failed — check logs or admin access.`;
+  await botReply(replyMsg, summary);
+}
+
+/** Send copy saved at wizard start when WhatsApp can no longer load the quoted draft. */
+async function sendStoredDraftToSet(setKey, draft, replyMsg) {
+  const messageText = String(draft.messageText || '').trim();
+  const filePath = draft.filePath || null;
+  if (!messageText && !filePath) return false;
+
+  const setGroups = broadcastTargetsForSet(setKey);
+  if (setGroups.length === 0) {
+    await botReply(
+      replyMsg,
+      `Set "${setKey}" only lists *this planning group*. Pick another set (e.g. *vjn_sub_center_grps*) to send outward.`,
+    );
+    return false;
+  }
+
+  if (draft.hadMedia && (!filePath || !fs.existsSync(filePath))) {
+    await botReply(
+      replyMsg,
+      '❌ Flyer/video file missing — send was not started. Repost the media in the planning group, wait a few seconds, then @sandesha send again.',
+    );
+    return false;
+  }
+
+  const shuffled = safety.shuffled(setGroups);
+  const eta = planningFanOutEtaMinutes(shuffled.length);
+  await botReply(
+    replyMsg,
+    shuffled.length === 1
+      ? `Sending to 1 group in "${setKey}"…`
+      : `Sending to ${shuffled.length} groups in "${setKey}" (~${eta} min apart). I'll confirm when all are done.`,
+  );
+  void runPlanningSetFanOut({
+    setKey,
+    targets: shuffled,
+    replyMsg,
+    deliver: (target) => sendStoredDraftContent(target, { messageText, filePath }),
+  }).catch((err) => log(`[PLANNING-SEND] fan-out error: ${err.message}`));
+  return true;
+}
+
+async function sendStoredDraftContent(target, { messageText, filePath }) {
+  const jid = target.includes('@') ? target : await resolveTargetJid(target);
+  let chat;
+  try {
+    chat = await client.getChatById(jid);
+  } catch (err) {
+    throw new Error(`Could not open chat: ${err.message}`);
+  }
+  const perm = getSendPermission(chat, null);
+  if (!perm.ok) throw new Error(perm.reason || 'Cannot send to this group');
+  const caption = messageText || '';
+  if (filePath && fs.existsSync(filePath)) {
+    const media = MessageMedia.fromFilePath(filePath);
+    if (caption && caption.length > 900) {
+      await sendMessageToJid(jid, caption);
+      await delay(800);
+      await sendMessageToJid(jid, media);
+      return;
+    }
+    await sendMessageToJid(jid, media, { caption });
+    return;
+  }
+  if (caption) {
+    await sendMessageToJid(jid, caption);
+  }
+}
+
+/** Fan-out a quoted draft to every group in a named set (planning-group wizard). */
+async function sendQuotedToSet(setKey, quotedMsg, replyMsg, sendOpts = {}) {
+  const { inlineText, companionText, text: quotedText } = await resolveQuotedTextBundle(quotedMsg);
+  if (!quotedText && !quotedMsg.hasMedia) {
+    await botReply(replyMsg, '❌ Quoted message has no text or media to send.');
+    return false;
+  }
+
+  const setKeyNorm = String(setKey).toLowerCase();
+  let setGroups = broadcastTargetsForSet(setKey);
+  if (setGroups.length === 0) {
+    await botReply(
+      replyMsg,
+      `Set "${setKey}" only lists *this planning group*. Pick another set (e.g. *vjn_sub_center_grps*) to send outward.`,
+    );
+    return false;
+  }
+
+  if (setKeyNorm === 'all' || ['everyone', 'all groups', 'everybody'].includes(setKeyNorm)) {
+    const allQuoted = safety.shuffled(setGroups);
+    await botReply(replyMsg, `Sending quoted message to ${allQuoted.length} groups, spread out…`);
+    for (let i = 0; i < allQuoted.length; i++) {
+      await sendQuotedContent(allQuoted[i], quotedMsg, {
+        inlineText,
+        companionText,
+        filePathFallback: sendOpts.filePathFallback,
+      });
+      if (i < allQuoted.length - 1) await safety.broadcastGap();
+    }
+    await botReply(replyMsg, `✅ Sent to ${allQuoted.length} groups`);
+    return true;
+  }
+
+  if (sendOpts.hadMedia && !sendOpts.filePathFallback && quotedMsg.hasMedia) {
+    await botReply(
+      replyMsg,
+      '⚠️ Could not download the flyer/video from WhatsApp — will retry on each group; if it still fails, post the draft again in this chat and retry.',
+    );
+  }
+
+  const shuffled = safety.shuffled(setGroups);
+  const eta = planningFanOutEtaMinutes(shuffled.length);
+  await botReply(
+    replyMsg,
+    shuffled.length === 1
+      ? `Sending to 1 group in "${setKey}"…`
+      : `Sending to ${shuffled.length} groups in "${setKey}" (~${eta} min). I'll confirm when done.`,
+  );
+  void runPlanningSetFanOut({
+    setKey,
+    targets: shuffled,
+    replyMsg,
+    deliver: (target) => sendQuotedContent(target, quotedMsg, {
+      inlineText,
+      companionText,
+      filePathFallback: sendOpts.filePathFallback,
+    }),
+  }).catch((err) => log(`[PLANNING-SEND] fan-out error: ${err.message}`));
+  return true;
+}
+
 function getQuotedText(quotedMsg) {
   const data = quotedMsg?._data || {};
   const raw =
@@ -2408,15 +2939,48 @@ function getQuotedText(quotedMsg) {
 }
 
 async function sendQuotedContent(target, quotedMsg, textBundle = null) {
-  const bundle = textBundle || await resolveQuotedTextBundle(quotedMsg);
+  const bundle = textBundle && (textBundle.inlineText !== undefined || textBundle.companionText !== undefined)
+    ? textBundle
+    : await resolveQuotedTextBundle(quotedMsg);
   const inlineText = bundle.inlineText || '';
   const companionText = bundle.companionText || '';
   const text = (bundle.text || inlineText || companionText || '').trim();
   const caption = inlineText || companionText || text;
   const jid = target.includes('@') ? target : await resolveTargetJid(target);
+  const filePathFallback = textBundle?.filePathFallback || null;
+
+  const sendFromFilePath = async (filePath) => {
+    if (!filePath || !fs.existsSync(filePath)) return false;
+    const msgMedia = MessageMedia.fromFilePath(filePath);
+    if (caption && caption.length > 900) {
+      await sendMessageToJid(jid, caption);
+      await delay(800);
+      await sendMessageToJid(jid, msgMedia);
+      log(`[QUOTE-SEND] Sent long text + cached media to ${jid}`);
+      return true;
+    }
+    await sendMessageToJid(jid, msgMedia, { caption: caption || '' });
+    log(`[QUOTE-SEND] Sent cached media with caption (${caption.length} chars) to ${jid}`);
+    return true;
+  };
+
+  if (filePathFallback && await sendFromFilePath(filePathFallback)) return;
 
   if (quotedMsg.hasMedia) {
-    const media = await quotedMsg.downloadMedia();
+    let media = null;
+    try {
+      if (planningMedia) {
+        const got = await planningMedia.downloadMediaFromMessage(quotedMsg);
+        if (got?.cachedPath) {
+          if (await sendFromFilePath(got.cachedPath)) return;
+        }
+        media = got?.media || null;
+      } else {
+        media = await quotedMsg.downloadMedia();
+      }
+    } catch (err) {
+      log(`[QUOTE-SEND] media download: ${err.message}`);
+    }
     if (media) {
       const msgMedia = new MessageMedia(media.mimetype, media.data, media.filename || 'file');
 
@@ -2433,6 +2997,7 @@ async function sendQuotedContent(target, quotedMsg, textBundle = null) {
       log(`[QUOTE-SEND] Sent media with caption (${caption.length} chars) to ${jid}`);
       return;
     }
+    if (filePathFallback && await sendFromFilePath(filePathFallback)) return;
   }
 
   if (text) {
@@ -3348,6 +3913,45 @@ function startSendServer() {
       return;
     }
 
+    if (req.method === 'GET' && parsed.pathname === '/planning-config') {
+      if (!requireAuth(req, res, ['admin', 'promotions'])) return;
+      try {
+        jsonResponse(res, 200, planningConfig.getPublicConfig(normalizePhoneDigits));
+      } catch (err) {
+        jsonResponse(res, 500, { error: err.message });
+      }
+      return;
+    }
+
+    if (req.method === 'POST' && parsed.pathname === '/planning-config') {
+      if (!requireAuth(req, res, ['admin', 'promotions'])) return;
+      let body = '';
+      req.on('data', (c) => { body += c; });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body || '{}');
+          const result = await planningConfig.savePlanningConfig(data, normalizePhoneDigits);
+          if (!result.ok) {
+            jsonResponse(res, 400, { error: result.error });
+            return;
+          }
+          activity.recordEvent({
+            category: 'config',
+            type: 'ok',
+            title: 'Planning group @sandesha send updated',
+            detail: `${result.config.groupName || result.config.groupJid} · ${result.config.operators.length} operator(s)`,
+            via: 'api',
+            actor: auth.getActor(req),
+            push: false,
+          });
+          jsonResponse(res, 200, result.config);
+        } catch (err) {
+          jsonResponse(res, 500, { error: err.message });
+        }
+      });
+      return;
+    }
+
     if (req.method === 'POST' && parsed.pathname === '/sets') {
       // Promotions builds its own sets (Settings → Sets) to post to.
       if (!requireAuth(req, res, ['admin', 'promotions'])) return;
@@ -3816,8 +4420,11 @@ function nextLocalScheduleId(existing) {
 
 function parseScheduleTime(timeStr) {
   const now = new Date();
-  let lower = timeStr.toLowerCase().trim();
-  
+  const rawLower = timeStr.toLowerCase().trim();
+  const forceToday = /\btoday\b/i.test(rawLower);
+  const forceTomorrow = /\btomorrow\b/i.test(rawLower);
+  let lower = rawLower;
+
   // Remove day names and today/tomorrow to get just the time
   const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
   for (const day of days) {
@@ -3857,15 +4464,19 @@ function parseScheduleTime(timeStr) {
     
     const result = new Date();
     result.setHours(hours, minutes, 0, 0);
-    
-    if (result <= now) {
+
+    if (forceToday) {
+      // Same calendar day even if the clock already passed (caller gets null from schedule API if invalid)
+    } else if (forceTomorrow) {
+      result.setDate(result.getDate() + 1);
+    } else if (result <= now) {
       result.setDate(result.getDate() + 1);
     }
-    
-    // Check for today, tomorrow, monday, etc.
-    if (lower.includes('today')) {
-      // Keep same day
-    } else if (lower.includes('tomorrow')) {
+
+    // Weekday names (when not already handled by forceTomorrow)
+    if (forceTomorrow) {
+      /* already bumped */
+    } else if (rawLower.includes('tomorrow')) {
       result.setDate(result.getDate() + 1);
     } else if (lower.includes('monday')) {
       const daysUntil = (8 - result.getDay()) % 7 || 7;

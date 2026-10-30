@@ -46,7 +46,7 @@ export async function bootPromotionsMessaging() {
 
 export async function showSchedulePanel() {
   await ensureSandeshaAuth();
-  const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=35');
+  const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=36');
   if (getState().schedules.length) renderPromoSchedule();
   await refreshSchedules();
   updatePairingBanner(getState().health);
@@ -59,7 +59,7 @@ export async function showSchedulePanel() {
 
 export async function showSendPanel() {
   await ensureSandeshaAuth();
-  const { renderPromoCompose } = await import('./pages/promo-compose.js?v=35');
+  const { renderPromoCompose } = await import('./pages/promo-compose.js?v=36');
   renderPromoCompose();
   refreshHealth().then((health) => updatePairingBanner(health)).catch(() => {});
 }

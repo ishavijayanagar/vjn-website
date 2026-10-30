@@ -7,7 +7,7 @@ import {
   refreshMessagingData,
   bootPromotionsMessaging,
   resetPromotionsBoot,
-} from './boot-promotions.js?v=35';
+} from './boot-promotions.js?v=36';
 import { installUnauthorizedRedirect, getVjnToken, ensureSandeshaAuth } from './auth-bridge.js';
 import { renderApiSettings, updateApiStatus } from './api-settings.js?v=set3';
 import { toast } from './toast.js';
@@ -212,6 +212,7 @@ function setMode(mode) {
       activityMod = m;
       m.bindPromoActivity();
     }).catch(() => {});
+    import('./pages/promo-planning-settings.js?v=1').then((m) => m.renderPromoPlanningSettings($('promoPlanningHost'))).catch(() => {});
     import('./pages/promo-sets.js?v=34').then((m) => m.renderPromoSets($('promoSetsHost'))).catch(() => {});
     const host = $('sandeshaApiHost') || $('sandeshaServer');
     if (host) {
@@ -242,6 +243,13 @@ function bindModeBar() {
   // A second tap on the settings icon goes back to the tab it was opened from.
   $('serverUrlBtn')?.addEventListener('click', () => {
     setMode(currentMode === 'server' ? lastTabMode : 'server');
+  });
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-wa-link-settings]');
+    if (!btn) return;
+    const drawer = $('compose');
+    if (drawer && drawer.classList.contains('open')) $('composeClose')?.click();
+    setMode('server');
   });
 }
 
@@ -285,7 +293,7 @@ function resumeQueueJobs() {
     pending = JSON.parse(localStorage.getItem('vjn_queue_jobs') || '[]').length > 0;
   } catch { /* ignore */ }
   if (!pending) return;
-  import('./pages/promo-compose.js?v=35').then((m) => m.watchQueueJobs()).catch(() => {});
+  import('./pages/promo-compose.js?v=36').then((m) => m.watchQueueJobs()).catch(() => {});
 }
 
 function syncSandeshaDot() {
@@ -300,6 +308,16 @@ function syncSandeshaDot() {
   }
   paintKicker();
   updateApiStatus($('sandeshaApiHost'), health);
+  paintLinkNotice();
+}
+
+/** Compose and New post: say when WhatsApp is offline, and offer Settings. */
+function paintLinkNotice() {
+  const { known, on } = linkStatus();
+  const show = known && !on;
+  document.querySelectorAll('[data-wa-link]').forEach((el) => {
+    el.hidden = !show;
+  });
 }
 
 async function watchSandeshaLink() {
@@ -417,7 +435,7 @@ function startLiveRefresh() {
     if (currentMode === 'schedule') {
       try {
         await refreshMessagingData();
-        const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=35');
+        const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=36');
         renderPromoSchedule();
       } catch { /* toast inside refresh */ }
     } else if (currentMode === 'reach') {
@@ -440,7 +458,7 @@ window.addEventListener('promo:goto', (ev) => {
 });
 
 window.addEventListener('promo:compose', async (ev) => {
-  const { setComposeMode } = await import('./pages/promo-compose.js?v=35');
+  const { setComposeMode } = await import('./pages/promo-compose.js?v=36');
   setComposeMode(!!ev.detail?.later);
   setMode('send');
 });

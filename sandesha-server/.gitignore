@@ -78,6 +78,7 @@ sandesha.db
 sandesha.db-*
 contacts.json
 groups.json
+planning-config.json
 qr-code.png
 MyGroups.txt
 output.txt

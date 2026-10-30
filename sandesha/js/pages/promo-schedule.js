@@ -248,7 +248,7 @@ async function editSchedule(entry) {
     }));
     return;
   }
-  const { loadScheduleIntoCompose } = await import('./promo-compose.js?v=35');
+  const { loadScheduleIntoCompose } = await import('./promo-compose.js?v=36');
   loadScheduleIntoCompose(entry, siblingsOf(entry).map((s) => s.id));
   window.dispatchEvent(new CustomEvent('promo:goto', { detail: { mode: 'send' } }));
 }

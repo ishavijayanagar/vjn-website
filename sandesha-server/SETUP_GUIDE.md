@@ -130,6 +130,20 @@ const COMMANDS_GROUP_JID = '120363426133559474@g.us';  // your group JID
 
 To find your group JID: run `node send.js --list` after the bot is connected and look for "Me Commands".
 
+### Planning group — `@sandesha send` (optional)
+
+For a **promotions / planning** WhatsApp group where one volunteer drafts flyers, Sandesha can listen only when **@sandesha** is mentioned:
+
+1. Create or use a group (default name **Promotions Planning**).
+2. Add Sandesha’s linked account to the group (same as other groups).
+3. In **Promotions → Settings → Planning group**, pick the WhatsApp group and operator phone(s). (Saved in `planning-config.json` on the server.)
+
+   Or in `.env` (fallback): `SANDESHA_PLANNING_OPERATOR=919876543210,919123456789`, optional group name/JID.
+
+**Usage:** Operator **replies** to the draft message, then sends `@sandesha send`. Pick a set from `groups.json`, then **Send now** or **Schedule**. Everyone else is ignored (no bot reply).
+
+See [PLANNING_GROUP_WIZARD.md](PLANNING_GROUP_WIZARD.md) for Pi restart and manual test checklist.
+
 ---
 
 ## 4. Start the Bot

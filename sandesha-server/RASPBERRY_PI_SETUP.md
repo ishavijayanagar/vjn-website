@@ -205,6 +205,16 @@ If auto-detecting the **Me Commands** group by name fails, pin it in `.env`:
 SANDESHA_COMMANDS_GROUP_JID=120363...@g.us
 ```
 
+Optional **planning group** wizard (`@sandesha send` on a quoted draft — one operator phone):
+
+```env
+SANDESHA_PLANNING_OPERATOR=919876543210
+SANDESHA_PLANNING_GROUP_NAME=Promotions Planning
+# SANDESHA_PLANNING_GROUP_JID=120363...@g.us
+```
+
+After changing `.env`, restart Sandesha (`./sandesha.sh restart` or your systemd unit). Manual tests: [PLANNING_GROUP_WIZARD.md](PLANNING_GROUP_WIZARD.md).
+
 Find JIDs after the first connect with `node send.js --list`.
 
 ---

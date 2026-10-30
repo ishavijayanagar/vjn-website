@@ -224,6 +224,19 @@ async function run() {
     assert.ok(!('event_image' in changes.at(-1)[3]), 'only the Sheet\'s own columns are copied');
   });
 
+  await test('findPromoIdByMessage links WhatsApp draft to board copy', async () => {
+    const { promos } = setup();
+    const { items } = await promos.list();
+    const ie = items.find((i) => i.event_title === 'Inner Engineering');
+    const copy = 'Namaskaram — Inner Engineering this Sunday at Isha Place. Register now.';
+    await promos.save({ id: ie.id, message: copy });
+    assert.strictEqual(promos.findPromoIdByMessage(copy), ie.id);
+    assert.strictEqual(promos.findPromoIdByMessage('  Namaskaram — Inner\nEngineering this Sunday…'), null);
+    promos.appendWaScheduleId(ie.id, 99);
+    const again = (await promos.list()).items.find((i) => i.id === ie.id);
+    assert.strictEqual(again.wa_schedule_ids, '99');
+  });
+
   await test('Apps Script stops taking promotion writes once the Pi owns them', () => {
     const props = { VJN_PROMOS_ON_PI: '1' };
     const ctx = {

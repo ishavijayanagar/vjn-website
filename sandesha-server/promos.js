@@ -46,6 +46,14 @@ function normalizeScheduleIds(raw) {
   return list.map((v) => String(v).trim()).filter((v) => v !== '').join(',');
 }
 
+/** Same normalization for matching a WhatsApp draft to board copy. */
+function normalizeDraftMessage(text) {
+  return String(text || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function isOpenStatus(raw) {
   const s = String(raw || '').trim().toLowerCase();
   return !s || s === 'open' || s === 'active';
@@ -401,7 +409,60 @@ function createPromos({ db, fetchListings = async () => ({}), listingTtlMs = LIS
     return added;
   }
 
-  return { list, save, add, markSent, unmarkSent, inviteMessages, importRows, sendAtKey, count: () => q.count.get().n };
+  /**
+   * Match planning-group draft text to an open board post (exact or long prefix).
+   * Returns promo id or null if none / ambiguous.
+   */
+  function findPromoIdByMessage(messageText) {
+    const norm = normalizeDraftMessage(messageText);
+    if (norm.length < 12) return null;
+    const exact = [];
+    const fuzzy = [];
+    for (const row of q.all.all()) {
+      if (normalizeStatus(row.status) === 'sent') continue;
+      const msg = normalizeDraftMessage(row.message);
+      if (!msg) continue;
+      if (msg === norm) {
+        exact.push(row.id);
+        continue;
+      }
+      const shorter = norm.length < msg.length ? norm : msg;
+      const longer = norm.length < msg.length ? msg : norm;
+      if (shorter.length >= 40 && longer.startsWith(shorter)) fuzzy.push(row.id);
+    }
+    if (exact.length === 1) return exact[0];
+    if (exact.length > 1) return null;
+    const uniq = [...new Set(fuzzy)];
+    return uniq.length === 1 ? uniq[0] : null;
+  }
+
+  function appendWaScheduleId(promoId, scheduleId) {
+    const row = q.byId.get(String(promoId || '').trim());
+    if (!row) return false;
+    const sid = String(scheduleId || '').trim();
+    if (!sid) return false;
+    const ids = normalizeScheduleIds(row.wa_schedule_ids).split(',').filter(Boolean);
+    if (!ids.includes(sid)) ids.push(sid);
+    row.wa_schedule_ids = ids.join(',');
+    row.updated_at = kolkata(now()).stamp;
+    q.update.run(row);
+    changed(row);
+    return true;
+  }
+
+  return {
+    list,
+    save,
+    add,
+    markSent,
+    unmarkSent,
+    inviteMessages,
+    importRows,
+    sendAtKey,
+    findPromoIdByMessage,
+    appendWaScheduleId,
+    count: () => q.count.get().n,
+  };
 }
 
-module.exports = { createPromos, sendAtKey, MAX_PER_DAY };
+module.exports = { createPromos, sendAtKey, MAX_PER_DAY, normalizeDraftMessage };

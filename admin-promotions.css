@@ -1627,6 +1627,41 @@ h1 {
 }
 .compose-body::-webkit-scrollbar { display: none; }
 
+.wa-link-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--r-btn);
+  background: var(--marigold-tint);
+  border: 1px solid var(--gold);
+}
+.wa-link-note[hidden] { display: none !important; }
+.wa-link-note p {
+  flex: 1 1 160px;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.wa-link-note button {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.wa-link-note button:active { opacity: 0.7; }
+
 .compose-err {
   margin: 0 0 14px;
   padding: 11px 13px;
@@ -3581,6 +3616,15 @@ button.chip {
 #sandeshaServer .set-field + .set-field { border-top: 0.5px solid var(--line); }
 #sandeshaServer .set-field span { flex: none; width: 64px; font-size: 15px; color: var(--ink-2); }
 #sandeshaServer .set-field input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 16px; color: var(--ink); outline: none; }
+#sandeshaServer .promo-planning .set-field { flex-wrap: wrap; align-items: flex-start; }
+#sandeshaServer .promo-planning .set-field span { width: 100%; margin-bottom: 4px; }
+#sandeshaServer .promo-planning .set-field textarea {
+  flex: 1; width: 100%; min-height: 72px; padding: 8px 0; border: 0; background: none;
+  font: inherit; font-size: 16px; color: var(--ink); outline: none; resize: vertical;
+}
+#sandeshaServer .promo-planning .plan-hint { display: block; width: 100%; font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+#sandeshaServer .promo-planning .plan-intro { margin: 0 16px 10px; }
+#sandeshaServer .plan-group-pick { width: 100%; text-align: left; }
 #sandeshaServer .set-pick-title { margin: 14px 16px 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
 #sandeshaServer .set-pick { max-height: 300px; overflow-y: auto; overscroll-behavior: contain; }
 #sandeshaServer .set-pick-row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; font-size: 15px; color: var(--ink); cursor: pointer; }
