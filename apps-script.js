@@ -1113,7 +1113,7 @@ function setCheckinSheet(urlOrId) {
 
 /** Editor-friendly: paste the sheet URL below, Save, then Run this once. */
 function linkCheckinSheet() {
-  setCheckinSheet("PASTE_THE_SHEET_URL_HERE");
+  setCheckinSheet("https://docs.google.com/spreadsheets/d/115JS1CN6QmCSPbb5FnQvvC-OeswrUkE8lRkaXP19mNA/edit?gid=0#gid=0");
 }
 
 /** "2026-10" -> "Oct 2026". */
