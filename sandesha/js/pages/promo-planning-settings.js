@@ -11,6 +11,7 @@ let pickingGroup = false;
 let groupQuery = '';
 let saving = false;
 let unsub = null;
+let open = false;
 
 function normalizePhones(text) {
   return String(text || '')
@@ -28,12 +29,13 @@ function render() {
   const loaded = config !== null;
   if (!loaded) {
     host.innerHTML = `
-      <section class="ios-block promo-planning" aria-busy="true">
-        <h2 class="ios-caption">Planning group</h2>
+      <details class="ios-block set-sec promo-planning" aria-busy="true" ${open ? 'open' : ''}>
+        <summary class="ios-caption"><span>Planning group</span></summary>
         <div class="ios-group">
-          <div class="ios-row set-row set-state"><span class="set-row-text"><b>Loading…</b></span></div>
+          <div class="ios-row set-row set-state"><span class="set-spin" aria-hidden="true"></span><span class="set-row-text"><b>Loading…</b></span></div>
         </div>
-      </section>`;
+      </details>`;
+    bindToggle();
     return;
   }
 
@@ -41,9 +43,8 @@ function render() {
   const opLines = (config.operators || []).join('\n');
 
   host.innerHTML = `
-    <section class="ios-block promo-planning">
-      <h2 class="ios-caption">Planning group</h2>
-      <p class="ios-foot plan-intro">In this group, allowed operators reply to a draft with <strong>@sandesha send</strong> or <strong>@sv send</strong>, pick a set, then send now or schedule.</p>
+    <details class="ios-block set-sec promo-planning" ${open ? 'open' : ''}>
+      <summary class="ios-caption"><span>Planning group</span></summary>
       <div class="ios-group set-fields">
         <div class="set-field">
           <span>WhatsApp group</span>
@@ -55,14 +56,13 @@ function render() {
         <label class="set-field">
           <span>Operators</span>
           <textarea id="planOperators" rows="3" placeholder="One phone per line&#10;919876543210" autocomplete="off">${escapeHtml(opLines)}</textarea>
-          <small class="plan-hint">Country code required (10-digit Indian OK). Up to 8 numbers.</small>
         </label>
       </div>
       <div class="ios-group">
         <button type="button" class="ios-row-btn set-save" id="planSave" ${saving ? 'disabled' : ''}>${saving ? 'Saving…' : 'Save planning group'}</button>
       </div>
-      <p class="ios-foot">${config.source === 'file' ? 'Saved on the Sandesha server.' : 'Using .env until you save here.'}</p>
-    </section>`;
+    </details>`;
+  bindToggle();
 
   host.querySelector('#planGroupPick')?.addEventListener('click', () => {
     groupQuery = '';
@@ -72,22 +72,34 @@ function render() {
   host.querySelector('#planSave')?.addEventListener('click', save);
 }
 
-function renderGroupPicker() {
-  const groups = (getState().groups || [])
-    .filter((g) => g?.jid && g.jid.endsWith('@g.us'))
-    .slice()
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+function pickerGroups() {
   const q = groupQuery.trim().toLowerCase();
-  const shown = groups.filter((g) => !q || String(g.name || '').toLowerCase().includes(q));
+  return (getState().groups || [])
+    .filter((g) => g?.jid && g.jid.endsWith('@g.us'))
+    .filter((g) => !q || String(g.name || '').toLowerCase().includes(q))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
 
+function pickerListHtml() {
+  const shown = pickerGroups();
+  return shown.length
+    ? shown.map((g) => `
+          <button type="button" class="ios-row-btn set-pick-row plan-group-opt" data-jid="${escapeAttr(g.jid)}" data-name="${escapeAttr(g.name || g.jid)}">
+            <span>${escapeHtml(g.name || g.jid)}</span>
+            ${g.participants ? `<small>${escapeHtml(String(g.participants))}</small>` : ''}
+          </button>`).join('')
+    : '<p class="ios-foot">No groups match.</p>';
+}
+
+function renderGroupPicker() {
   host.innerHTML = `
-    <section class="ios-block promo-planning">
+    <details class="ios-block set-sec promo-planning" open>
+      <summary class="ios-caption"><span>Planning group</span></summary>
       <div class="set-edit-head">
         <button type="button" class="set-back" id="planGroupBack" aria-label="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><polyline points="15 6 9 12 15 18"/></svg>
-          Planning
+          Back
         </button>
-        <h2 class="ios-caption">Choose group</h2>
       </div>
       <div class="ios-group set-fields">
         <label class="set-field">
@@ -95,36 +107,29 @@ function renderGroupPicker() {
           <input type="search" id="planGroupSearch" value="${escapeAttr(groupQuery)}" placeholder="Search groups" autocomplete="off"/>
         </label>
       </div>
-      <div class="ios-group set-pick">
-        ${shown.length
-    ? shown.map((g) => `
-          <button type="button" class="ios-row-btn set-pick-row plan-group-opt" data-jid="${escapeAttr(g.jid)}" data-name="${escapeAttr(g.name || g.jid)}">
-            <span>${escapeHtml(g.name || g.jid)}</span>
-            ${g.participants ? `<small>${escapeHtml(String(g.participants))}</small>` : ''}
-          </button>`).join('')
-    : '<p class="ios-foot">No groups match.</p>'}
-      </div>
-    </section>`;
+      <div class="ios-group set-pick" id="planGroupList">${pickerListHtml()}</div>
+    </details>`;
 
   host.querySelector('#planGroupBack')?.addEventListener('click', () => {
     pickingGroup = false;
     render();
   });
+  // Only the list is swapped as you type, so the field keeps focus.
   host.querySelector('#planGroupSearch')?.addEventListener('input', (e) => {
     groupQuery = e.target.value;
-    renderGroupPicker();
+    host.querySelector('#planGroupList').innerHTML = pickerListHtml();
   });
-  host.querySelectorAll('.plan-group-opt').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      config = {
-        ...config,
-        groupJid: btn.dataset.jid,
-        groupName: btn.dataset.name,
-      };
-      pickingGroup = false;
-      render();
-    });
+  host.querySelector('#planGroupList')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.plan-group-opt');
+    if (!btn) return;
+    config = { ...config, groupJid: btn.dataset.jid, groupName: btn.dataset.name };
+    pickingGroup = false;
+    render();
   });
+}
+
+function bindToggle() {
+  host.querySelector('details')?.addEventListener('toggle', (e) => { open = e.target.open; });
 }
 
 async function loadConfig() {
@@ -173,7 +178,8 @@ export function renderPromoPlanningSettings(el) {
   if (!host) return;
   if (!unsub) {
     unsub = subscribe(() => {
-      if (host && pickingGroup) renderGroupPicker();
+      const list = host && pickingGroup ? host.querySelector('#planGroupList') : null;
+      if (list) list.innerHTML = pickerListHtml();
     });
   }
   loadConfig();

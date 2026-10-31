@@ -129,6 +129,22 @@ async function run() {
     assert.throws(() => ctx.vjnMirror_({ secret: 'no', ops: [] }), /Unauthorized/);
   });
 
+  await test('check-ins: each month gets its own tab, rows are keyed by id', () => {
+    const { ctx, book } = load({ VJN_AUTH_SECRET: SECRET });
+    const row = (id, month, name) => ({ id, month, timestamp: month + '-05T10:00:00', 'program name': 'IE', name, phone: '+919999999999', area: 'JP', 'ie completion': 'May-2024' });
+    ctx.vjnMirror_({ secret: SECRET, ops: [
+      { tbl: 'checkins', op: 'upsert', key: '1', row: row('1', '2026-10', 'Asha') },
+      { tbl: 'checkins', op: 'upsert', key: '2', row: row('2', '2026-11', 'Ravi') },
+      { tbl: 'checkins', op: 'upsert', key: '3', row: row('3', '2026-10', 'Meena') },
+    ] });
+    const oct = book.tabs['Checkins 2026-10'].rows;
+    assert.strictEqual(oct.length, 3);
+    assert.deepEqual(oct[0].slice(0, 8), ['Timestamp', 'Program Date', 'Program ID', 'Program Name', 'Name', 'Phone', 'Area', 'IE Completion']);
+    assert.strictEqual(oct[1][oct[0].indexOf('Name')], 'Asha');
+    assert.strictEqual(book.tabs['Checkins 2026-11'].rows.length, 2);
+    assert.ok(!oct[0].includes('Consent'));
+  });
+
   await test('inbox: only rows with no id are handed over, and an ack stops them coming back', () => {
     const { ctx, book } = load({ VJN_AUTH_SECRET: SECRET });
     ctx.vjnMirror_({ secret: SECRET, ops: [{ tbl: 'inquiries:homeQueries', op: 'upsert', key: '1', row: { name: 'Synced', status: 'Open' } }] });

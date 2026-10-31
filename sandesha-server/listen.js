@@ -10,6 +10,7 @@ const { createInquiries } = require('./inquiries');
 const { createEventVolunteers } = require('./event-volunteers');
 const { createMirror } = require('./mirror');
 const { createVjnApi } = require('./vjn-api');
+const { createCheckins } = require('./checkins');
 const { createReminders } = require('./reminders');
 const { createInbox } = require('./inbox');
 const { pruneMedia } = require('./media-prune');
@@ -3792,8 +3793,9 @@ const vjnInquiries = createInquiries({
 const vjnInbox = createInbox({
   inquiries: vjnInquiries, ev: vjnEv, sheetCall, log, enabled: () => !!dataFlag.get(),
 });
+const vjnCheckins = createCheckins({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
 const vjnApi = createVjnApi({
-  listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv,
+  listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, checkins: vjnCheckins,
   // Until scripts/import-data.js has run, the Sheet is still the record.
   ready: () => !!dataFlag.get(),
 });

@@ -38,11 +38,16 @@ function statusBits(health) {
   const label = connected
     ? 'Connected'
     : wa?.needsPairing || st === 'pairing' ? 'Scan QR to link'
-    : st === 'connecting' ? 'Starting…'
+    : st === 'connecting' ? 'Connecting'
     : 'Not connected';
+  // The server reports WhatsApp Web's load as reason "loading:<percent>".
+  const m = /^loading:(\d{1,3})/.exec(String(wa?.reason || ''));
+  const percent = !connected && st === 'connecting' && m ? Math.min(100, Number(m[1])) : null;
   return {
     known: true,
     connected,
+    connecting: !connected && st === 'connecting',
+    percent,
     warn,
     state: wa?.state || (connected ? 'open' : 'offline'),
     label,
@@ -56,6 +61,16 @@ export function updateApiStatus(container, health) {
   const row = container.querySelector('[data-api-status]');
   const dot = container.querySelector('[data-api-dot]');
   if (row) row.textContent = bits.label;
+  const prog = container.querySelector('[data-wa-progress]');
+  if (prog) {
+    prog.hidden = !bits.connecting;
+    prog.classList.toggle('indeterminate', bits.connecting && bits.percent == null);
+    const fill = prog.querySelector('[data-wa-progress-fill]');
+    if (fill) fill.style.width = bits.percent == null ? '' : `${bits.percent}%`;
+    const pct = container.querySelector('[data-wa-percent]');
+    if (pct) pct.textContent = bits.percent == null ? '' : `${bits.percent}%`;
+    prog.setAttribute('aria-valuenow', bits.percent == null ? '' : String(bits.percent));
+  }
   if (dot) {
     dot.classList.toggle('live', bits.connected);
     dot.classList.toggle('warn', !!bits.warn);
@@ -103,14 +118,17 @@ function iosMarkup(defaultUrl, current, overridden, health, showServer = true) {
   const bits = statusBits(health);
   const dotClass = bits.connected ? 'live' : bits.warn ? 'warn' : bits.known ? 'down' : 'wait';
   return `
-    <section class="ios-block">
-      <h2 class="ios-caption">WhatsApp</h2>
+    <details class="ios-block set-sec" open>
+      <summary class="ios-caption"><span>WhatsApp</span><i class="ios-dot ${dotClass}" data-api-dot></i></summary>
       <div class="ios-group">
         <div class="ios-row wa-status-row">
-          <i class="ios-dot ${dotClass}" data-api-dot></i>
           <span class="wa-status-copy">
             <b data-api-status>${escapeHtml(bits.label)}</b>
           </span>
+          <span class="wa-percent" data-wa-percent>${bits.percent == null ? '' : `${bits.percent}%`}</span>
+        </div>
+        <div class="wa-progress${bits.percent == null ? ' indeterminate' : ''}" data-wa-progress role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${bits.percent == null ? '' : bits.percent}" ${bits.connecting ? '' : 'hidden'}>
+          <i data-wa-progress-fill style="${bits.percent == null ? '' : `width:${bits.percent}%`}"></i>
         </div>
         <div class="wa-qr-block" data-wa-qr ${bits.connected ? 'hidden' : ''}>
           <div class="wa-qr-actions">
@@ -123,7 +141,7 @@ function iosMarkup(defaultUrl, current, overridden, health, showServer = true) {
           </div>
         </div>
       </div>
-    </section>
+    </details>
 
     ${showServer ? `    <section class="ios-block">
       <h2 class="ios-caption">Server</h2>

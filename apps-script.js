@@ -97,6 +97,18 @@ const EV_HEADERS = [
   "updated_at",
 ];
 
+// Volunteer check-ins: one tab per month ("Checkins 2026-10"), written by the Pi's mirror.
+const CHECKIN_HEADERS = [
+  "Timestamp",
+  "Program Date",
+  "Program ID",
+  "Program Name",
+  "Name",
+  "Phone",
+  "Area",
+  "IE Completion",
+];
+
 const USER_HEADERS = [
   "id",
   "username",
@@ -1046,6 +1058,7 @@ function vjnTable_(tbl) {
   if (tbl === "site") return { sheet: SITE_SHEET, headers: ["key", "value"], key: "key" };
   if (tbl === "programTitles") return { sheet: PROGRAM_TITLES_SHEET, headers: PROGRAM_TITLE_HEADERS, key: "title" };
   if (tbl === "promos") return { sheet: PROMOTIONS_SHEET, headers: PROMO_HEADERS, key: "id" };
+  if (tbl === "checkins") return { sheet: "", headers: CHECKIN_HEADERS.concat(["id"]), key: "id", monthly: true };
   if (tbl === "ev") return { sheet: EVENT_VOLUNTEERS_SHEET, headers: EV_HEADERS.concat(["pi_synced"]), key: "row_id" };
   const m = String(tbl).match(/^inquiries:(.+)$/);
   const def = m ? inquiryDefByKey_(m[1]) : null;
@@ -1089,11 +1102,27 @@ function vjnMirror_(data) {
 
 function mirrorTable_(tbl, ops) {
   const t = vjnTable_(tbl);
-  ensureSheet_(t.sheet, t.headers);
-  const sheet = ss_().getSheetByName(t.sheet);
+  if (t.monthly) {
+    const byMonth = {};
+    ops.forEach(function (op) {
+      const month = String((op.row && op.row.month) || "").trim();
+      if (!/^\d{4}-\d{2}$/.test(month)) return;
+      (byMonth[month] = byMonth[month] || []).push(op);
+    });
+    Object.keys(byMonth).forEach(function (month) {
+      mirrorRows_(t, "Checkins " + month, byMonth[month]);
+    });
+    return;
+  }
+  mirrorRows_(t, t.sheet, ops);
+}
+
+function mirrorRows_(t, sheetName, ops) {
+  ensureSheet_(sheetName, t.headers);
+  const sheet = ss_().getSheetByName(sheetName);
   const headers = sheetHeadersLower_(sheet);
   const keyIx = headers.indexOf(t.key);
-  if (keyIx < 0) throw new Error(t.sheet + " has no " + t.key + " column.");
+  if (keyIx < 0) throw new Error(sheetName + " has no " + t.key + " column.");
   const lastRow = sheet.getLastRow();
   const keys = lastRow > 1 ? sheet.getRange(2, keyIx + 1, lastRow - 1, 1).getValues() : [];
   const rowOf = {};

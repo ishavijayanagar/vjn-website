@@ -36,7 +36,7 @@ class HttpError extends Error {
   }
 }
 
-function createVjnApi({ listings, content, inquiries, ev, ready = () => true }) {
+function createVjnApi({ listings, content, inquiries, ev, checkins = null, ready = () => true }) {
   function need(session, roles) {
     if (!roles.includes(session.role)) throw new HttpError(403, 'You do not have access to this.');
   }
@@ -154,6 +154,10 @@ function createVjnApi({ listings, content, inquiries, ev, ready = () => true }) 
     const type = String(data.formType || '');
     if (!PUBLIC_FORMS.includes(type)) return undefined;
     inquiries.submit(type, data);
+    if (type === 'volunteerAttendance' && checkins) {
+      // The check-in sheet is extra; it must never fail the existing attendance entry.
+      try { checkins.record(data); } catch (err) { console.error('check-in not recorded:', err.message); }
+    }
     return { success: true };
   }
 

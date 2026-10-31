@@ -89,6 +89,12 @@ const MIGRATIONS = [
      last_error TEXT NOT NULL DEFAULT ''
    )`,
   `CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`,
+  // 9 — volunteer check-ins from the public check-in page (Sheet: one tab per month)
+  `CREATE TABLE checkins (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     month TEXT NOT NULL,
+     data TEXT NOT NULL DEFAULT '{}'
+   )`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {

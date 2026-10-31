@@ -9,7 +9,7 @@ import {
   resetPromotionsBoot,
 } from './boot-promotions.js?v=36';
 import { installUnauthorizedRedirect, getVjnToken, ensureSandeshaAuth } from './auth-bridge.js';
-import { renderApiSettings, updateApiStatus } from './api-settings.js?v=set3';
+import { renderApiSettings, updateApiStatus } from './api-settings.js?v=set4';
 import { toast } from './toast.js';
 import { subscribe, getState, refreshHealth } from './store.js?v=34';
 import {
@@ -208,12 +208,13 @@ function setMode(mode) {
       });
     }
   } else if (mode === 'server') {
+    pollHealth();
     import('./promo-activity.js?v=detail1').then((m) => {
       activityMod = m;
       m.bindPromoActivity();
     }).catch(() => {});
-    import('./pages/promo-planning-settings.js?v=1').then((m) => m.renderPromoPlanningSettings($('promoPlanningHost'))).catch(() => {});
-    import('./pages/promo-sets.js?v=34').then((m) => m.renderPromoSets($('promoSetsHost'))).catch(() => {});
+    import('./pages/promo-planning-settings.js?v=2').then((m) => m.renderPromoPlanningSettings($('promoPlanningHost'))).catch(() => {});
+    import('./pages/promo-sets.js?v=35').then((m) => m.renderPromoSets($('promoSetsHost'))).catch(() => {});
     const host = $('sandeshaApiHost') || $('sandeshaServer');
     if (host) {
       renderApiSettings(host, {
@@ -425,6 +426,19 @@ window.addEventListener('sandesha:refresh', async () => {
   await refreshMessagingData();
   if (currentMode === 'schedule') showSchedulePanel().catch(() => {});
 });
+
+/** Settings open: follow WhatsApp's connect progress closely, then relax once linked. */
+let liveHealthTimer = null;
+function pollHealth() {
+  clearTimeout(liveHealthTimer);
+  liveHealthTimer = null;
+  if (currentMode !== 'server') return;
+  const connected = !!getState().health?.whatsapp?.connected;
+  liveHealthTimer = setTimeout(async () => {
+    if (!document.hidden && getVjnToken()) await refreshHealth().catch(() => {});
+    pollHealth();
+  }, connected ? 20000 : 1500);
+}
 
 /** Keep Schedule / Reach in step with the server while the tab stays open. */
 let liveRefreshTimer = null;

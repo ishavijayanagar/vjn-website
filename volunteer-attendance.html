@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="referrer" content="no-referrer"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
-  <title>Volunteer Attendance</title>
+  <title>Volunteer Check-in</title>
   <meta name="theme-color" content="#1c1c1e"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -230,6 +230,24 @@
 
     .attendance-again-btn { margin-top: var(--space-3); }
 
+    .attendance-pick-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      text-align: left;
+      margin-bottom: var(--space-4);
+    }
+    .attendance-pick-btn svg { width: 18px; height: 18px; flex: 0 0 auto; transition: transform var(--dur-hover) var(--ease-out); }
+    .attendance-pick-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+    .attendance-picker[hidden] { display: none; }
+    .attendance-program-card[hidden] { display: none; }
+    .attendance-picker { margin-bottom: var(--space-4); }
+    .attendance-picker .search-input { padding-left: 42px; border-radius: 999px; background: var(--white); }
+    .attendance-picker .attendance-program-list { margin: var(--space-4) 0 0; max-height: 52vh; overflow-y: auto; }
+    .attendance-empty { margin-top: var(--space-4); font-size: 0.88rem; color: var(--text-mid); text-align: center; }
+
     @media (prefers-reduced-motion: reduce) {
       .attendance-fields {
         transition: opacity 160ms ease;
@@ -282,7 +300,7 @@
   <header class="volunteering-hero">
     <div class="container volunteering-hero-inner">
       <span class="section-label">Isha Place, Vijayanagar</span>
-      <h1>Volunteer Attendance</h1>
+      <h1>Volunteer Check-in</h1>
       <p class="attendance-hero-sub">Takes less than a minute.</p>
     </div>
   </header>
@@ -300,8 +318,19 @@
           </div>
 
           <form id="attendanceForm" data-draft="manual" hidden>
-            <p class="attendance-step-label">Select a program *</p>
-            <div class="attendance-program-list" id="attendanceProgramList"></div>
+            <p class="attendance-step-label">Program *</p>
+            <button type="button" class="btn btn-outline attendance-pick-btn" id="attPickBtn" aria-expanded="false" aria-controls="attPicker">
+              <span id="attPickLabel">Select a program</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="attendance-picker" id="attPicker" hidden>
+              <div class="search-field-wrap">
+                <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input type="search" class="search-input attendance-search" id="attSearch" placeholder="Search today's programs" autocomplete="off" aria-label="Search today's programs"/>
+              </div>
+              <div class="attendance-program-list" id="attendanceProgramList"></div>
+              <p class="attendance-empty" id="attSearchEmpty" hidden>No program matches your search.</p>
+            </div>
 
             <div class="attendance-fields" id="attendanceFields">
               <div class="form-group">
@@ -315,6 +344,11 @@
               <div class="form-group">
                 <label for="attArea">Area of Stay *</label>
                 <input type="text" id="attArea" placeholder="e.g. Vijayanagar, Rajajinagar"/>
+              </div>
+
+              <div class="form-group">
+                <label for="attIe">Inner Engineering completion (month &amp; year) *</label>
+                <input type="month" id="attIe" placeholder="YYYY-MM"/>
               </div>
 
               <label class="attendance-consent" for="attConsent">
@@ -386,6 +420,7 @@
   <script src="drafts.js?v=1"></script>
   <script>
     let openPrograms = [];
+    let todaysPrograms = [];
     let selectedProgram = null;
 
     function escapeHtml(str) {
@@ -429,10 +464,24 @@
       return bits;
     }
 
+    function istToday() {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    }
+
+    // Open programs whose date range covers today (IST). Undated programs are left out.
+    function isRunningToday(item, today) {
+      const iso = (v) => (String(v || '').match(/^(\d{4}-\d{2}-\d{2})/) || [])[1] || '';
+      const start = iso(item.startdate || item['start date']);
+      const end = iso(item.enddate || item['end date']) || start;
+      return !!start && start <= today && today <= end;
+    }
+
     function renderProgramList() {
       const list = document.getElementById('attendanceProgramList');
       list.innerHTML = '';
-      openPrograms.forEach((item, index) => {
+      document.getElementById('attSearch').value = '';
+      document.getElementById('attSearchEmpty').hidden = true;
+      todaysPrograms.forEach((item, index) => {
         const meta = programMeta(item);
         const card = document.createElement('label');
         card.className = 'attendance-program-card';
@@ -450,8 +499,34 @@
       });
     }
 
+    function setPickerOpen(open) {
+      document.getElementById('attPicker').hidden = !open;
+      document.getElementById('attPickBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) document.getElementById('attSearch').focus();
+    }
+
+    function filterPrograms() {
+      const q = document.getElementById('attSearch').value.trim().toLowerCase();
+      let shown = 0;
+      document.querySelectorAll('.attendance-program-card').forEach((card, i) => {
+        const item = todaysPrograms[i];
+        const hay = ((item.title || '') + ' ' + (item.location || '')).toLowerCase();
+        const match = !q || hay.includes(q);
+        card.hidden = !match;
+        if (match) shown++;
+      });
+      document.getElementById('attSearchEmpty').hidden = shown > 0;
+    }
+
+    document.getElementById('attPickBtn').addEventListener('click', () => {
+      setPickerOpen(document.getElementById('attPicker').hidden);
+    });
+    document.getElementById('attSearch').addEventListener('input', filterPrograms);
+
     function selectProgram(item, cardEl) {
       selectedProgram = item;
+      document.getElementById('attPickLabel').textContent = item.title || 'Program';
+      setPickerOpen(false);
       document.querySelectorAll('.attendance-program-card').forEach(c => c.classList.remove('is-selected'));
       cardEl.classList.add('is-selected');
       const fields = document.getElementById('attendanceFields');
@@ -478,6 +553,7 @@
       const name = document.getElementById('attName').value.trim();
       const area = document.getElementById('attArea').value.trim();
       const consent = document.getElementById('attConsent').checked;
+      const ieRaw = document.getElementById('attIe').value.trim();
 
       if (!name || !area) {
         err.textContent = 'Please fill in all required fields.';
@@ -490,6 +566,19 @@
         err.style.display = 'block';
         return;
       }
+      const nowYm = istToday().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(ieRaw)) {
+        err.textContent = 'Please enter your Inner Engineering completion month and year.';
+        err.style.display = 'block';
+        return;
+      }
+      if (ieRaw > nowYm) {
+        err.textContent = 'Inner Engineering completion date cannot be in the future.';
+        err.style.display = 'block';
+        return;
+      }
+      const [ieY, ieM] = ieRaw.split('-');
+      const ieCompletion = new Date(+ieY, +ieM - 1, 1).toLocaleDateString('en-US', { month: 'short' }) + '-' + ieY;
       if (!consent) {
         err.textContent = 'Please provide consent to continue.';
         err.style.display = 'block';
@@ -504,6 +593,7 @@
             name,
             phone: phoneCheck.normalized,
             area,
+            ieCompletion,
             consent,
             programName: selectedProgram.title || '',
             programId: selectedProgram.id || '',
@@ -523,9 +613,12 @@
 
     function resetAttendanceForm() {
       selectedProgram = null;
+      document.getElementById('attPickLabel').textContent = 'Select a program';
+      setPickerOpen(false);
       document.getElementById('attName').value = '';
       document.getElementById('attPhone').value = '';
       document.getElementById('attArea').value = '';
+      document.getElementById('attIe').value = '';
       document.getElementById('attConsent').checked = false;
       document.getElementById('attendanceFields').classList.remove('is-open');
       document.querySelectorAll('.attendance-program-card').forEach(c => c.classList.remove('is-selected'));
@@ -543,10 +636,12 @@
         const res = { json: () => vjnPublic.get('programs') };
         const data = await res.json();
         openPrograms = data.items || [];
+        const today = istToday();
+        todaysPrograms = openPrograms.filter((p) => isRunningToday(p, today));
 
-        if (!openPrograms.length) {
+        if (!todaysPrograms.length) {
           form.hidden = true;
-          state.innerHTML = `<div class="state-box"><div class="icon">🙏</div><h3>No Open Programs</h3><p>There are no open programs to mark attendance for right now. Please check back later.</p></div>`;
+          state.innerHTML = `<div class="state-box"><div class="icon">🙏</div><h3>No Programs Today</h3><p>There are no open programs running today. Please check back later.</p></div>`;
           return;
         }
 
