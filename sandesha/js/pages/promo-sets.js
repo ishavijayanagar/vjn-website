@@ -8,6 +8,7 @@
 import { getState, saveSets, subscribe, ensureGroups, ensureSets } from '../store.js?v=34';
 import { escapeHtml, escapeAttr } from '../api.js';
 import { toast } from '../toast.js';
+import { ensureSandeshaAuth } from '../auth-bridge.js';
 
 let host = null;
 let editing = null; // { original: string|null, name: string, jids: Set<string>, pinned: Set<string> }
@@ -33,6 +34,22 @@ export function renderPromoSets(el) {
   if (el) host = el;
   if (!host) return;
   renderList();
+  loadIfNeeded();
+}
+
+/**
+ * Settings can be the first screen opened (a reload keeps the last tab), so the
+ * sets may never have been asked for. Ask here, and show the failure if it fails.
+ */
+async function loadIfNeeded() {
+  if (getState().setsLoaded) return;
+  try {
+    await ensureSandeshaAuth();
+    await ensureSets();
+  } catch (err) {
+    getState().loadError = err?.message || 'Could not reach Sandesha';
+  }
+  if (host?.isConnected) renderList();
 }
 
 const SPINNER = '<span class="set-spin" aria-hidden="true"></span>';

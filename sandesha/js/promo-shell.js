@@ -216,7 +216,7 @@ function setMode(mode) {
       m.bindPromoActivity();
     }).catch(() => {});
     import('./pages/promo-planning-settings.js?v=2').then((m) => m.renderPromoPlanningSettings($('promoPlanningHost'))).catch(() => {});
-    import('./pages/promo-sets.js?v=35').then((m) => m.renderPromoSets($('promoSetsHost'))).catch(() => {});
+    import('./pages/promo-sets.js?v=36').then((m) => m.renderPromoSets($('promoSetsHost'))).catch(() => {});
     const host = $('sandeshaApiHost') || $('sandeshaServer');
     if (host) {
       renderApiSettings(host, {
