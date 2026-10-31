@@ -98,6 +98,9 @@ const EV_HEADERS = [
 ];
 
 // Volunteer check-ins: one tab per month ("Checkins 2026-10"), written by the Pi's mirror.
+// They go to a separate Google Sheet linked once with setCheckinSheet("<sheet URL or ID>")
+// (run from the Apps Script editor). Until it is linked, the tabs are made in this spreadsheet.
+const CHECKIN_SHEET_ID_PROP = "CHECKIN_SHEET_ID";
 const CHECKIN_HEADERS = [
   "Timestamp",
   "Program Date",
@@ -1100,6 +1103,30 @@ function vjnMirror_(data) {
   return { success: true, applied: ops.length };
 }
 
+/** Links the separate Google Sheet that holds the monthly check-in tabs. */
+function setCheckinSheet(urlOrId) {
+  const m = String(urlOrId || "").match(/\/d\/([a-zA-Z0-9_-]+)/);
+  const id = m ? m[1] : String(urlOrId || "").trim();
+  if (!id) throw new Error("Pass the sheet URL or ID.");
+  SpreadsheetApp.openById(id); // fail now if there is no access
+  PropertiesService.getScriptProperties().setProperty(CHECKIN_SHEET_ID_PROP, id);
+}
+
+function checkinBook_() {
+  const id = PropertiesService.getScriptProperties().getProperty(CHECKIN_SHEET_ID_PROP);
+  return id ? SpreadsheetApp.openById(id) : null;
+}
+
+/** A tab with the given header row in another spreadsheet, made if missing. */
+function ensureTabIn_(book, name, headers) {
+  let sheet = book.getSheetByName(name);
+  if (sheet) return sheet;
+  sheet = book.insertSheet(name);
+  sheet.appendRow(headers);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#c8a96e");
+  return sheet;
+}
+
 function mirrorTable_(tbl, ops) {
   const t = vjnTable_(tbl);
   if (t.monthly) {
@@ -1109,17 +1136,17 @@ function mirrorTable_(tbl, ops) {
       if (!/^\d{4}-\d{2}$/.test(month)) return;
       (byMonth[month] = byMonth[month] || []).push(op);
     });
+    const book = checkinBook_();
     Object.keys(byMonth).forEach(function (month) {
-      mirrorRows_(t, "Checkins " + month, byMonth[month]);
+      mirrorRows_(t, "Checkins " + month, byMonth[month], book);
     });
     return;
   }
   mirrorRows_(t, t.sheet, ops);
 }
 
-function mirrorRows_(t, sheetName, ops) {
-  ensureSheet_(sheetName, t.headers);
-  const sheet = ss_().getSheetByName(sheetName);
+function mirrorRows_(t, sheetName, ops, book) {
+  const sheet = book ? ensureTabIn_(book, sheetName, t.headers) : (ensureSheet_(sheetName, t.headers), ss_().getSheetByName(sheetName));
   const headers = sheetHeadersLower_(sheet);
   const keyIx = headers.indexOf(t.key);
   if (keyIx < 0) throw new Error(sheetName + " has no " + t.key + " column.");

@@ -46,10 +46,10 @@ function fakeSpreadsheet() {
   };
 }
 
-function load(props = {}) {
+function load(props = {}, extraBooks = {}) {
   const book = fakeSpreadsheet();
   const ctx = {
-    SpreadsheetApp: { getActiveSpreadsheet: () => book },
+    SpreadsheetApp: { getActiveSpreadsheet: () => book, openById: (id) => { if (!extraBooks[id]) throw new Error('No access'); return extraBooks[id]; } },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; }, deleteProperty: (k) => { delete props[k]; } }) },
     CacheService: { getScriptCache: () => ({ put() {}, remove() {}, get: () => null }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
@@ -143,6 +143,18 @@ async function run() {
     assert.strictEqual(oct[1][oct[0].indexOf('Name')], 'Asha');
     assert.strictEqual(book.tabs['Checkins 2026-11'].rows.length, 2);
     assert.ok(!oct[0].includes('Consent'));
+  });
+
+  await test('check-ins: go to the linked separate sheet, not this spreadsheet', () => {
+    const other = fakeSpreadsheet();
+    const { ctx, book } = load({ VJN_AUTH_SECRET: SECRET }, { SHEET123: other });
+    ctx.setCheckinSheet('https://docs.google.com/spreadsheets/d/SHEET123/edit');
+    ctx.vjnMirror_({ secret: SECRET, ops: [
+      { tbl: 'checkins', op: 'upsert', key: '1', row: { id: '1', month: '2026-10', name: 'Asha' } },
+    ] });
+    assert.strictEqual(other.tabs['Checkins 2026-10'].rows.length, 2);
+    assert.ok(!book.tabs['Checkins 2026-10']);
+    assert.throws(() => ctx.setCheckinSheet('nope'), /No access/);
   });
 
   await test('inbox: only rows with no id are handed over, and an ack stops them coming back', () => {
