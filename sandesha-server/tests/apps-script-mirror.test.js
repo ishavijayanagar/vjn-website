@@ -35,6 +35,7 @@ function fakeSpreadsheet() {
         setFontWeight() { return this; },
         setBackground() { return this; },
       }),
+      hideColumns: (c) => { (t.hidden = t.hidden || []).push(c); },
     };
     t.api = api;
     return t;
@@ -137,11 +138,12 @@ async function run() {
       { tbl: 'checkins', op: 'upsert', key: '2', row: row('2', '2026-11', 'Ravi') },
       { tbl: 'checkins', op: 'upsert', key: '3', row: row('3', '2026-10', 'Meena') },
     ] });
-    const oct = book.tabs['Checkins 2026-10'].rows;
+    const oct = book.tabs['Oct 2026'].rows;
     assert.strictEqual(oct.length, 3);
-    assert.deepEqual(oct[0].slice(0, 8), ['Timestamp', 'Program Date', 'Program ID', 'Program Name', 'Name', 'Phone', 'Area', 'IE Completion']);
+    assert.deepEqual(oct[0], ['Timestamp', 'Program Date', 'Program Name', 'Name', 'Phone', 'Area', 'IE Completion', 'id']);
+    assert.deepEqual(book.tabs['Oct 2026'].hidden, [8]);
     assert.strictEqual(oct[1][oct[0].indexOf('Name')], 'Asha');
-    assert.strictEqual(book.tabs['Checkins 2026-11'].rows.length, 2);
+    assert.strictEqual(book.tabs['Nov 2026'].rows.length, 2);
     assert.ok(!oct[0].includes('Consent'));
   });
 
@@ -152,8 +154,8 @@ async function run() {
     ctx.vjnMirror_({ secret: SECRET, ops: [
       { tbl: 'checkins', op: 'upsert', key: '1', row: { id: '1', month: '2026-10', name: 'Asha' } },
     ] });
-    assert.strictEqual(other.tabs['Checkins 2026-10'].rows.length, 2);
-    assert.ok(!book.tabs['Checkins 2026-10']);
+    assert.strictEqual(other.tabs['Oct 2026'].rows.length, 2);
+    assert.ok(!book.tabs['Oct 2026']);
     assert.throws(() => ctx.setCheckinSheet('nope'), /No access/);
   });
 

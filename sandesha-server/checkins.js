@@ -2,7 +2,7 @@
 
 /**
  * Volunteer check-ins from the public check-in page. Each one is kept here and
- * copied to the Sheet's "Checkins <yyyy-mm>" tab, one tab per month of check-in.
+ * copied to the Sheet's "<Mon yyyy>" tab (e.g. "Oct 2026"), one tab per month of check-in.
  * Separate from the attendance enquiries and the Nurturing attendance marking.
  */
 

@@ -97,14 +97,13 @@ const EV_HEADERS = [
   "updated_at",
 ];
 
-// Volunteer check-ins: one tab per month ("Checkins 2026-10"), written by the Pi's mirror.
+// Volunteer check-ins: one tab per month ("Oct 2026"), written by the Pi's mirror.
 // They go to a separate Google Sheet linked once with setCheckinSheet("<sheet URL or ID>")
 // (run from the Apps Script editor). Until it is linked, the tabs are made in this spreadsheet.
 const CHECKIN_SHEET_ID_PROP = "CHECKIN_SHEET_ID";
 const CHECKIN_HEADERS = [
   "Timestamp",
   "Program Date",
-  "Program ID",
   "Program Name",
   "Name",
   "Phone",
@@ -1117,6 +1116,13 @@ function linkCheckinSheet() {
   setCheckinSheet("PASTE_THE_SHEET_URL_HERE");
 }
 
+/** "2026-10" -> "Oct 2026". */
+function checkinTabName_(month) {
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const m = String(month).match(/^(\d{4})-(\d{2})$/);
+  return m ? names[parseInt(m[2], 10) - 1] + " " + m[1] : String(month);
+}
+
 function checkinBook_() {
   const id = PropertiesService.getScriptProperties().getProperty(CHECKIN_SHEET_ID_PROP);
   return id ? SpreadsheetApp.openById(id) : null;
@@ -1129,6 +1135,9 @@ function ensureTabIn_(book, name, headers) {
   sheet = book.insertSheet(name);
   sheet.appendRow(headers);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#c8a96e");
+  // The id only lets the mirror find a row again; people reading the sheet don't need it.
+  const idAt = headers.indexOf("id");
+  if (idAt >= 0) sheet.hideColumns(idAt + 1);
   return sheet;
 }
 
@@ -1141,9 +1150,9 @@ function mirrorTable_(tbl, ops) {
       if (!/^\d{4}-\d{2}$/.test(month)) return;
       (byMonth[month] = byMonth[month] || []).push(op);
     });
-    const book = checkinBook_();
+    const book = checkinBook_() || ss_();
     Object.keys(byMonth).forEach(function (month) {
-      mirrorRows_(t, "Checkins " + month, byMonth[month], book);
+      mirrorRows_(t, checkinTabName_(month), byMonth[month], book);
     });
     return;
   }
