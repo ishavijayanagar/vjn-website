@@ -14,6 +14,7 @@ const {
   listUpcomingSchedules,
   formatQueueMenu,
   createPlanningSendWizard,
+  PLANNING_ACTOR,
 } = require('../planning-send');
 
 const norm = (d) => {
@@ -41,6 +42,21 @@ function test(name, fn) {
 test('stripMentionTokens removes @sandesha', () => {
   assert.strictEqual(stripMentionTokens('@sandesha send'), 'send');
   assert.strictEqual(stripMentionTokens('hi @Sandesha  send'), 'hi send');
+});
+
+test('parsePlanningCommand accepts send this / send it / send that', () => {
+  for (const body of ['@sv send this', '@sv send it', '@sandesha send that', 'send this one', '@sv send it out', '@sv send it please', '@sv send this.']) {
+    assert.strictEqual(parsePlanningCommand(body).ok, true, body);
+  }
+  const itNow = parsePlanningCommand('@sv send it now');
+  assert.strictEqual(itNow.when, 'now');
+  const itAt = parsePlanningCommand('@sv send it at 6pm today');
+  assert.strictEqual(itAt.when, 'schedule');
+  assert.strictEqual(itAt.timeStr, '6pm today');
+  assert.strictEqual(parsePlanningCommand('@sandesha send it now to vjn_sub_center_grps').setHint, 'vjn_sub_center_grps');
+  for (const body of ['@sv send items', '@sv sendit', 'send to family', '@sandesha schedule']) {
+    assert.strictEqual(parsePlanningCommand(body).ok, false, body);
+  }
 });
 
 test('parsePlanningCommand accepts send only', () => {
@@ -302,6 +318,77 @@ test('once started, plain replies continue the wizard; wrong replies are told th
 
   assert.strictEqual(await wizard.handleSession(mk('cancel'), op), true);
   assert.ok(replies.some((r) => r.includes('cancelled')));
+});
+
+test('a schedule made here is credited to the planning group and noted for Activity', async () => {
+  const replies = [];
+  const saved = [];
+  const noted = [];
+  const quoted = { hasMedia: false, body: 'Hello draft', id: { _serialized: 'q9' } };
+  const chatId = '120363777@g.us';
+  const wizard = createPlanningSendWizard({
+    loadSets: () => ({ vols: ['1@g.us'] }),
+    botReply: async (_m, text) => { replies.push(text); },
+    log: () => {},
+    normalizePhoneDigits: norm,
+    getQuotedMessageSafe: async () => quoted,
+    resolveQuotedTextBundle: async () => ({ text: 'Hello draft' }),
+    sendQuotedToSet: async () => true,
+    parseScheduleTime: () => new Date(Date.now() + 3600e3),
+    validateScheduleTarget: async () => {},
+    loadSchedules: () => saved.slice(),
+    saveSchedules: (rows) => { saved.length = 0; saved.push(...rows); },
+    nextLocalScheduleId: () => 7,
+    formatTimeUntil: () => 'in 1 hour',
+    MEDIA_DIR: '/tmp',
+    getMyNumber: () => '919876543210@c.us',
+    configuredOperator: '919876543210',
+    mentionAliases: ['sandesha'],
+    onScheduleCreated: (s) => noted.push(s),
+  });
+  const trigger = { from: chatId, fromMe: true, body: '@sandesha send it at 6pm to vols', hasQuotedMsg: true, author: '919876543210@c.us', id: { _serialized: 'tr9' } };
+  await wizard.tryStartFromTrigger(trigger, '919876543210');
+  assert.strictEqual(saved.length, 1);
+  assert.deepStrictEqual(saved[0].createdBy, PLANNING_ACTOR);
+  assert.strictEqual(saved[0].source, 'planning-group');
+  assert.strictEqual(saved[0].target, 'vols');
+  assert.strictEqual(noted.length, 1);
+  assert.strictEqual(noted[0].id, 7);
+  assert.ok(replies.some((r) => r.includes('Scheduled!')));
+});
+
+test('send now here carries one shared id, the planning-group name and the text', async () => {
+  const opts = [];
+  const quoted = { hasMedia: false, body: 'Hello draft', id: { _serialized: 'q8' } };
+  const chatId = '120363888@g.us';
+  const wizard = createPlanningSendWizard({
+    loadSets: () => ({ vols: ['1@g.us'] }),
+    botReply: async () => {},
+    log: () => {},
+    normalizePhoneDigits: norm,
+    getQuotedMessageSafe: async () => quoted,
+    resolveQuotedTextBundle: async () => ({ text: 'Hello draft' }),
+    sendQuotedToSet: async (_k, _q, _m, o) => { opts.push(o); return true; },
+    sendStoredDraftToSet: async (_k, draft) => { opts.push({ sendContext: draft.sendContext }); return true; },
+    parseScheduleTime: () => null,
+    validateScheduleTarget: async () => {},
+    loadSchedules: () => [],
+    saveSchedules: () => {},
+    nextLocalScheduleId: () => 1,
+    formatTimeUntil: () => 'soon',
+    MEDIA_DIR: '/tmp',
+    getMyNumber: () => '919876543210@c.us',
+    configuredOperator: '919876543210',
+    mentionAliases: ['sandesha'],
+  });
+  const trigger = { from: chatId, fromMe: true, body: '@sandesha send it now to vols', hasQuotedMsg: true, author: '919876543210@c.us', id: { _serialized: 'tr8' } };
+  await wizard.tryStartFromTrigger(trigger, '919876543210');
+  assert.strictEqual(opts.length, 1);
+  const ctx = opts[0].sendContext;
+  assert.strictEqual(ctx.via, 'planning-group');
+  assert.deepStrictEqual(ctx.actor, PLANNING_ACTOR);
+  assert.ok(/^planning-\d+$/.test(ctx.corrId));
+  assert.strictEqual(ctx.message, 'Hello draft');
 });
 
 test('handleIngress queue lists schedules and cancel N removes by id', async () => {

@@ -323,6 +323,18 @@ function mountPlanningSendWizard(c) {
     findPromoIdByMessage: (text) => vjnPromos.findPromoIdByMessage(text),
     markPromoSentFromPlanning,
     linkScheduleToPromo: linkPlanningScheduleToPromo,
+    // Same Activity entry a schedule made from the dashboard gets.
+    onScheduleCreated: (s) => activity.recordEvent({
+      category: 'schedule',
+      type: 'info',
+      ok: true,
+      title: `Scheduled a ${s.filePath ? 'flyer' : 'message'}`,
+      detail: `For ${new Date(s.runAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}`,
+      target: s.target,
+      via: 'planning-group',
+      actor: s.createdBy || null,
+      meta: { scheduleId: s.id, message: s.message || '', target: s.target, isSet: !!s.isSet, runAt: s.runAt, createdAt: s.createdAt || '', file: s.filePath ? path.basename(s.filePath) : '' },
+    }),
     saveDraftMedia: (msg, stanzaHint) => planningMedia.saveDraftMedia(msg, stanzaHint),
     findDraftByStanza: (stanza) => planningMedia.findDraftByStanza(stanza),
     findCachedMediaByStanza: (stanza) => planningMedia.findCachedPathForStanza(stanza),
@@ -2777,7 +2789,9 @@ function planningFanOutEtaMinutes(count) {
   return Math.max(1, Math.ceil(((count - 1) * avgSec) / 60));
 }
 
-async function runPlanningSetFanOut({ setKey, targets, replyMsg, deliver }) {
+async function runPlanningSetFanOut({ setKey, targets, replyMsg, deliver: deliverRaw, sendContext }) {
+  // Context only around each send: the pauses and the bot's own replies are not posts.
+  const deliver = sendContext ? (target) => withSendContext(sendContext, () => deliverRaw(target)) : deliverRaw;
   let sent = 0;
   let failed = 0;
   for (let i = 0; i < targets.length; i++) {
@@ -2836,6 +2850,7 @@ async function sendStoredDraftToSet(setKey, draft, replyMsg) {
     targets: shuffled,
     replyMsg,
     deliver: (target) => sendStoredDraftContent(target, { messageText, filePath }),
+    sendContext: draft.sendContext || null,
   }).catch((err) => log(`[PLANNING-SEND] fan-out error: ${err.message}`));
   return true;
 }
@@ -2875,6 +2890,9 @@ async function sendQuotedToSet(setKey, quotedMsg, replyMsg, sendOpts = {}) {
     return false;
   }
 
+  const planCtx = sendOpts.sendContext
+    ? { ...sendOpts.sendContext, message: sendOpts.sendContext.message || String(quotedText || '').slice(0, 200) }
+    : null;
   const setKeyNorm = String(setKey).toLowerCase();
   let setGroups = broadcastTargetsForSet(setKey);
   if (setGroups.length === 0) {
@@ -2889,11 +2907,12 @@ async function sendQuotedToSet(setKey, quotedMsg, replyMsg, sendOpts = {}) {
     const allQuoted = safety.shuffled(setGroups);
     await botReply(replyMsg, `Sending quoted message to ${allQuoted.length} groups, spread out…`);
     for (let i = 0; i < allQuoted.length; i++) {
-      await sendQuotedContent(allQuoted[i], quotedMsg, {
+      const sendOne = () => sendQuotedContent(allQuoted[i], quotedMsg, {
         inlineText,
         companionText,
         filePathFallback: sendOpts.filePathFallback,
       });
+      await (planCtx ? withSendContext(planCtx, sendOne) : sendOne());
       if (i < allQuoted.length - 1) await safety.broadcastGap();
     }
     await botReply(replyMsg, `✅ Sent to ${allQuoted.length} groups`);
@@ -2924,6 +2943,7 @@ async function sendQuotedToSet(setKey, quotedMsg, replyMsg, sendOpts = {}) {
       companionText,
       filePathFallback: sendOpts.filePathFallback,
     }),
+    sendContext: planCtx,
   }).catch((err) => log(`[PLANNING-SEND] fan-out error: ${err.message}`));
   return true;
 }

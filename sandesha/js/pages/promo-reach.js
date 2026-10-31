@@ -16,6 +16,7 @@ const VIA_LABEL = {
   bulk: 'Bulk send',
   broadcast: 'Broadcast',
   bot: 'From WhatsApp',
+  'planning-group': 'From planning group',
   api: 'Sent',
 };
 /** Cumulative readers at these points since sending (hours). */

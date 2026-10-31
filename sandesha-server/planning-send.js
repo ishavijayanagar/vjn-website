@@ -102,12 +102,14 @@ function formatQueueMenu(rows) {
  * @returns {{ ok: boolean, command?: string, when?: 'now'|'schedule'|null, timeStr?: string, setHint?: string }}
  */
 function parsePlanningCommand(body) {
-  let remainder = stripMentionTokens(body).trim();
-  const lower = remainder.toLowerCase();
+  let remainder = stripMentionTokens(body).trim().replace(/[!.]+$/, '').trim();
+
+  // "send", "send this", "send it", "send that (one)", optionally with "out".
+  const THIS = '(?:\\s+(?:this|it|that)(?:\\s+one)?(?:\\s+out)?)?';
 
   let setHint = null;
-  const mayIncludeSet = /\bsend(?:\s+this)?\s+(?:now|at\b)/i.test(remainder)
-    || /^send\s+this\s+to\s+/i.test(remainder);
+  const mayIncludeSet = new RegExp(`\\bsend${THIS}\\s+(?:now|at\\b)`, 'i').test(remainder)
+    || new RegExp(`^send(?:\\s+(?:this|it|that)(?:\\s+one)?(?:\\s+out)?)\\s+to\\s+`, 'i').test(remainder);
   if (mayIncludeSet) {
     const toMatch = remainder.match(/\bto\s+([a-z0-9_-]+)\b/i);
     if (toMatch) {
@@ -117,19 +119,16 @@ function parsePlanningCommand(body) {
   }
   const rem = remainder.toLowerCase();
 
-  if (/^send(?:\s+this)?\s+now\b/.test(rem) || rem === 'send now') {
+  if (new RegExp(`^send${THIS}\\s+now\\b`).test(rem)) {
     return { ok: true, command: 'send', when: 'now', setHint };
   }
 
-  const atMatch = rem.match(/^send(?:\s+this)?\s+at\s+(.+)$/);
+  const atMatch = rem.match(new RegExp(`^send${THIS}\\s+at\\s+(.+)$`));
   if (atMatch) {
     return { ok: true, command: 'send', when: 'schedule', timeStr: atMatch[1].trim(), setHint };
   }
 
-  if (rem === 'send' || rem === 'send this') {
-    return { ok: true, command: 'send', when: null, setHint };
-  }
-  if (/^send\s+this\b/.test(rem)) {
+  if (new RegExp(`^send${THIS}$`).test(rem) || /^send\s+(?:this|it|that)\b/.test(rem)) {
     return { ok: true, command: 'send', when: null, setHint };
   }
 
@@ -279,6 +278,9 @@ function parseSetChoice(body, setKeys) {
   return null;
 }
 
+/** Who a planning-group send is credited to in Schedule, Activity and Reach (same shape the dashboard uses). */
+const PLANNING_ACTOR = { role: 'promotions', name: 'Planning group' };
+
 const TIME_EXAMPLES = '*9am* · *9:30am* · *14:30* · *9am tomorrow* · *9am monday*';
 
 /** What to type next, for a reply that did not fit the step the wizard is waiting on. */
@@ -345,6 +347,7 @@ function createPlanningSendWizard(deps) {
     stanzaIdFromMsg,
     cancelScheduleById,
     findCachedMediaByStanza,
+    onScheduleCreated,
   } = deps;
 
   const configuredOperators = normalizeOperatorAllowlist(configuredOperator, normalizePhoneDigits);
@@ -495,6 +498,16 @@ function createPlanningSendWizard(deps) {
       }
     }
 
+    // One shared id ties every group's copy to the same post in Reach and Activity
+    // (the board post's id when the draft is one, so they line up with its Schedule row).
+    const sendContext = {
+      via: 'planning-group',
+      corrId: String(session.sourcePromoId || `planning-${Date.now()}`),
+      actor: PLANNING_ACTOR,
+      message: String(runSession.messageText || '').slice(0, 200),
+    };
+    runSession.sendContext = sendContext;
+
     let sent = false;
     if (runSession.filePath || (runSession.messageText && !runSession.hadMedia)) {
       sent = await sendStoredDraftToSet(session.setKey, runSession, msg);
@@ -502,6 +515,7 @@ function createPlanningSendWizard(deps) {
       sent = await sendQuotedToSet(session.setKey, quotedMsg, msg, {
         filePathFallback: runSession.filePath,
         hadMedia: runSession.hadMedia,
+        sendContext,
       });
     } else {
       await botReply(msg, '❌ Could not load the quoted draft anymore. Start again with @sandesha send on a fresh reply.');
@@ -563,7 +577,8 @@ function createPlanningSendWizard(deps) {
       isSet: true,
       runAt: runAtIso,
       createdAt: new Date().toISOString(),
-      createdBy: session.operatorId || null,
+      createdBy: PLANNING_ACTOR,
+      createdByPhone: session.operatorId || null,
       source: 'planning-group',
     };
     if (filePath) schedule.filePath = filePath;
@@ -571,6 +586,7 @@ function createPlanningSendWizard(deps) {
 
     schedules.push(schedule);
     saveSchedules(schedules);
+    try { onScheduleCreated?.(schedule); } catch (err) { log(`[PLANNING] activity note failed: ${err.message}`); }
     if (session.sourcePromoId && linkScheduleToPromo) {
       await linkScheduleToPromo(session.sourcePromoId, schedule.id);
     }
@@ -648,7 +664,7 @@ function createPlanningSendWizard(deps) {
     if (!quotedMsg) {
       await botReply(
         msg,
-        'Reply to the draft (swipe → Reply), then e.g.\n`@sandesha send this now`\n`@sandesha send this at 6pm today`\n`@sandesha send this now to vjn_sub_center_grps`',
+        'Reply to the draft (swipe → Reply), then e.g.\n`@sandesha send this` (or `send it`)\n`@sandesha send this now`\n`@sandesha send this at 6pm today`\n`@sandesha send this now to vjn_sub_center_grps`',
       );
       return true;
     }
@@ -829,7 +845,7 @@ function createPlanningSendWizard(deps) {
     if (isSandeshaMentioned(msg, getMyNumber?.(), mentionAliases, normalizePhoneDigits)) {
       await botReply(
         msg,
-        'Reply to the draft (swipe → Reply), then e.g.\n`@sandesha send this now`\n`@sandesha send this at 6pm today`\n`@sandesha send this now to vjn_sub_center_grps`\n\n*@sandesha queue* · *@sandesha cancel 1* (scheduled sends)',
+        'Reply to the draft (swipe → Reply), then e.g.\n`@sandesha send this` (or `send it`)\n`@sandesha send this now`\n`@sandesha send this at 6pm today`\n`@sandesha send this now to vjn_sub_center_grps`\n\n*@sandesha queue* · *@sandesha cancel 1* (scheduled sends)',
       );
       return true;
     }
@@ -841,6 +857,7 @@ function createPlanningSendWizard(deps) {
 }
 
 module.exports = {
+  PLANNING_ACTOR,
   createPlanningSendWizard,
   parsePlanningCommand,
   parsePlanningQueueCommand,

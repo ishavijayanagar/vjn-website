@@ -205,13 +205,13 @@ function setMode(mode) {
   } else if (mode === 'reach') {
     const host = $('sandeshaReach');
     if (host) {
-      import('./pages/promo-reach.js').then((m) => m.renderPromoReach(host)).catch((err) => {
+      import('./pages/promo-reach.js?v=2').then((m) => m.renderPromoReach(host)).catch((err) => {
         showPanelError('reach', err?.message || 'Could not load reach');
       });
     }
   } else if (mode === 'server') {
     pollHealth();
-    import('./promo-activity.js?v=detail1').then((m) => {
+    import('./promo-activity.js?v=detail2').then((m) => {
       activityMod = m;
       m.bindPromoActivity();
     }).catch(() => {});
@@ -456,7 +456,7 @@ function startLiveRefresh() {
     } else if (currentMode === 'reach') {
       const host = $('sandeshaReach');
       if (host?.classList.contains('is-active')) {
-        const { renderPromoReach } = await import('./pages/promo-reach.js');
+        const { renderPromoReach } = await import('./pages/promo-reach.js?v=2');
         renderPromoReach(host);
       }
     }

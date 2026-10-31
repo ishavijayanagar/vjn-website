@@ -29,6 +29,7 @@ const VIA = {
   broadcast: 'Broadcast',
   bulk: 'Bulk send',
   api: 'From the app',
+  'planning-group': 'From planning group',
 };
 
 let rows = [];
