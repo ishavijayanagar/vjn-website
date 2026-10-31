@@ -262,7 +262,7 @@ function formatSetsMenu(sets, planningGroupJid) {
     else label = `${outward} group${outward === 1 ? '' : 's'}`;
     text += `${i + 1}. *${k}* (${label})\n`;
   });
-  text += '\nReply with a number or set name · *cancel*';
+  text += '\nReply with *@sandesha* + number or set name · *@sandesha cancel* to stop';
   return { text, setKeys: keys };
 }
 
@@ -367,11 +367,7 @@ function createPlanningSendWizard(deps) {
     if (!quoted) return false;
     if (isBotReplyText && getQuotedText && isBotReplyText(getQuotedText(quoted))) return false;
 
-    if (isSandeshaMentioned(msg, getMyNumber?.(), mentionAliases, normalizePhoneDigits)) {
-      return true;
-    }
-    // Follow-up on the flyer: "send this now" / "send this at 5.51pm today" without repeating @
-    return true;
+    return isSandeshaMentioned(msg, getMyNumber?.(), mentionAliases, normalizePhoneDigits);
   }
 
   async function saveQuotedMedia(quotedMsg, stanzaHint) {
@@ -608,7 +604,7 @@ function createPlanningSendWizard(deps) {
     }
 
     touchSession(chatId, operatorId, { step: 'await_when', setKey });
-    await botReply(msg, `Set: *${setKey}* (${outward} groups)\n\n1 — Send now\n2 — Schedule\n\nReply *1* or *2*, or *cancel*`);
+    await botReply(msg, `Set: *${setKey}* (${outward} groups)\n\n1 — Send now\n2 — Schedule\n\nReply *@sandesha 1* or *@sandesha 2*, or *@sandesha cancel*`);
     return true;
   }
 
@@ -700,7 +696,11 @@ function createPlanningSendWizard(deps) {
     const session = getSession(chatId, operatorId);
     if (!session) return false;
 
-    const text = (msg.body || '').trim();
+    if (!isSandeshaMentioned(msg, getMyNumber?.(), mentionAliases, normalizePhoneDigits)) {
+      return false;
+    }
+
+    const text = stripMentionTokens(msg.body).trim();
     if (!text) return true;
 
     if (isCancel(text)) {
@@ -713,7 +713,7 @@ function createPlanningSendWizard(deps) {
       if (session.step === 'await_set') {
         const setKey = parseSetChoice(text, session.setKeys);
         if (!setKey) {
-          await botReply(msg, 'Reply with a number or exact set name from the list, or *cancel*.');
+          await botReply(msg, 'Reply with a number or exact set name from the list, or *@sandesha cancel*.');
           return true;
         }
         return proceedAfterSetKey(msg, operatorId, chat, session, setKey);
@@ -735,7 +735,7 @@ function createPlanningSendWizard(deps) {
           );
           return true;
         }
-        await botReply(msg, 'Reply *1* (send now) or *2* (schedule), or *cancel*.');
+        await botReply(msg, 'Reply *@sandesha 1* (send now) or *@sandesha 2* (schedule), or *@sandesha cancel*.');
         return true;
       }
 

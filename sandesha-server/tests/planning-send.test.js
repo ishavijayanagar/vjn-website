@@ -232,7 +232,7 @@ test('wizard cancel clears session', async () => {
   assert.ok(replies.some((r) => r.includes('Pick a set')));
 
   await wizard.handleSession(
-    { from: chatId, fromMe: true, body: 'cancel', author: '919876543210@c.us' },
+    { from: chatId, fromMe: true, body: '@sandesha cancel', author: '919876543210@c.us' },
     '919876543210',
   );
   assert.ok(replies.some((r) => r.includes('cancelled')));

@@ -31,10 +31,14 @@ test('thanks with @sandesha', () => {
   );
 });
 
-test('short thanks without mention', () => {
+test('short thanks without mention is ignored', () => {
   assert.strictEqual(
-    isComplimentMessage('Thank you 🙏', { msg: { body: 'Thank you 🙏' }, normalizePhoneDigits: norm }),
-    true,
+    isComplimentMessage('Thank you 🙏', {
+      msg: { body: 'Thank you 🙏' },
+      mentionAliases: ['sandesha', 'sv'],
+      normalizePhoneDigits: norm,
+    }),
+    false,
   );
 });
 
@@ -49,14 +53,30 @@ test('well done with mention', () => {
   );
 });
 
-test('u r great and you are great', () => {
+test('u r great requires @sandesha', () => {
   assert.strictEqual(
-    isComplimentMessage('u r great!', { msg: { body: 'u r great!' }, normalizePhoneDigits: norm }),
+    isComplimentMessage('u r great!', {
+      msg: { body: 'u r great!' },
+      mentionAliases: ['sandesha', 'sv'],
+      normalizePhoneDigits: norm,
+    }),
+    false,
+  );
+  assert.strictEqual(
+    isComplimentMessage('@sandesha u r great!', {
+      msg: { body: '@sandesha u r great!' },
+      mentionAliases: ['sandesha', 'sv'],
+      normalizePhoneDigits: norm,
+    }),
     true,
   );
   assert.strictEqual(
-    isComplimentMessage("you're great", { msg: { body: "you're great" }, normalizePhoneDigits: norm }),
-    true,
+    isComplimentMessage("you're great", {
+      msg: { body: "you're great" },
+      mentionAliases: ['sandesha', 'sv'],
+      normalizePhoneDigits: norm,
+    }),
+    false,
   );
   assert.strictEqual(
     isComplimentMessage('@sandesha u r amazing', {

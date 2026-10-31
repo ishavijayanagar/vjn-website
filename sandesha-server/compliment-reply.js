@@ -10,13 +10,15 @@ const REPLIES = [
   'All the best 🙏',
 ];
 
-/** Short gratitude / praise aimed at Sandesha (mention optional in groups). */
+/** Short gratitude / praise — only when @sandesha or @sv is in the message. */
 function isComplimentMessage(body, { mentionAliases, getMyNumber, normalizePhoneDigits, msg } = {}) {
   const raw = String(body || '').trim();
   if (!raw || raw.length > 160) return false;
   if (raw.startsWith('> Namaskaram')) return false;
 
   const mentioned = msg && isSandeshaMentioned(msg, getMyNumber?.(), mentionAliases, normalizePhoneDigits);
+  if (!mentioned) return false;
+
   let t = stripMentionTokens(raw).toLowerCase().replace(/[!.🙏]+$/g, '').trim();
   t = t
     .replace(/\bu\s*r\b/g, 'you are')
@@ -24,9 +26,7 @@ function isComplimentMessage(body, { mentionAliases, getMyNumber, normalizePhone
     .replace(/\byoure\b/g, 'you are')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!t) return mentioned;
-
-  const addressed = mentioned || /\b(sandesha|@sandesha|@sv)\b/i.test(raw);
+  if (!t) return true;
 
   const youPraise =
     /^(you are|you're)\s+(great|awesome|amazing|the best|good|nice|wonderful|fantastic|a star|the goat)[\s!.🙏]*$/i.test(t);
@@ -37,14 +37,8 @@ function isComplimentMessage(body, { mentionAliases, getMyNumber, normalizePhone
     || /^(good\s+(job|work)|well done|nice one|nice work|great work|great job|awesome|super|excellent|perfect|lovely|amazing|fantastic|brilliant|kudos)[\s!.🙏]*$/i.test(t)
     || /^(you are|you're)\s+(the best|awesome|great|amazing|a star|the goat)[\s!.🙏]*$/i.test(t);
 
-  // "u r great!" / "you're great" in the Sandesha group — no @ needed if the whole line is praise
-  if (youPraise && t.length <= 48) return true;
-
-  if (addressed && praise) return true;
-  if (addressed && /thank|dhanyavada|ಧನ್ಯವಾದ|good job|well done|nice work|great work/i.test(t)) return true;
-
-  // Short thanks in the planning group without @ — still reply once in a while
-  if (!addressed && /^(thanks?|thank you|thx|ty|dhanyavada?)[\s!.🙏]*$/i.test(t)) return true;
+  if (praise) return true;
+  if (/thank|dhanyavada|ಧನ್ಯವಾದ|good job|well done|nice work|great work/i.test(t)) return true;
 
   return false;
 }

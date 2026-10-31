@@ -35,7 +35,7 @@ Sandesha listens in one **planning / promotions** WhatsApp group when an allowed
 ## Troubleshooting
 
 - **No menu:** Sender must be one of the numbers in `SANDESHA_PLANNING_OPERATOR` (country code, e.g. `91…`). For a team member, Sandesha uses their **group sender id**, not the linked device’s “you”.
-- **Mention required:** Body must include `@sandesha` or `@sv` (or aliases from `SANDESHA_PLANNING_MENTION_ALIASES`). Plain `send` without a mention is ignored.
+- **Mention required:** Every Sandesha reply in this group needs `@sandesha` or `@sv` in the message (including wizard steps like `@sandesha 1`, `@sandesha cancel`, `@sandesha queue`). Plain `send` or `2` without a mention is ignored.
 - **Natural language (reply to draft):** `@sandesha send this now` · `@sandesha send this at 6pm today` · optional `to vjn_sub_center_grps` to skip the set menu.
 - **Board “Sent”:** If the quoted draft text matches an open promotions post, **Send now** marks it sent; **Schedule** links the queue row (`sourceId` + `wa_schedule_ids`) and marks sent when the scheduler delivers.
 - **Group not found:** Set `SANDESHA_PLANNING_GROUP_JID` from `node send.js --list`.
