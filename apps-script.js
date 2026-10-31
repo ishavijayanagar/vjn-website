@@ -1112,6 +1112,11 @@ function setCheckinSheet(urlOrId) {
   PropertiesService.getScriptProperties().setProperty(CHECKIN_SHEET_ID_PROP, id);
 }
 
+/** Editor-friendly: paste the sheet URL below, Save, then Run this once. */
+function linkCheckinSheet() {
+  setCheckinSheet("PASTE_THE_SHEET_URL_HERE");
+}
+
 function checkinBook_() {
   const id = PropertiesService.getScriptProperties().getProperty(CHECKIN_SHEET_ID_PROP);
   return id ? SpreadsheetApp.openById(id) : null;
