@@ -26,6 +26,8 @@ const MODES = ['board', 'schedule', 'send', 'banner', 'reach', 'server'];
 const MODE_KEY = 'promo_sandesha_mode';
 let currentMode = 'board';
 let bannerUi = null;
+// Declared up here: setMode(initialMode()) runs before the code further down is reached.
+let liveHealthTimer = null;
 /** Where the settings icon returns to when tapped a second time. */
 let lastTabMode = 'board';
 /** The board owns #dayTitle, so remember its text before borrowing it. */
@@ -428,7 +430,6 @@ window.addEventListener('sandesha:refresh', async () => {
 });
 
 /** Settings open: follow WhatsApp's connect progress closely, then relax once linked. */
-let liveHealthTimer = null;
 function pollHealth() {
   clearTimeout(liveHealthTimer);
   liveHealthTimer = null;
