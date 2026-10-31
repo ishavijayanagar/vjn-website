@@ -244,6 +244,66 @@ test('wizard cancel clears session', async () => {
   assert.strictEqual(continued, false);
 });
 
+test('once started, plain replies continue the wizard; wrong replies are told the format', async () => {
+  const replies = [];
+  const sent = [];
+  const quoted = { hasMedia: false, body: 'Hello draft', id: { _serialized: 'q1' } };
+  const chatId = '120363555@g.us'; // own chat: sessions are shared across concurrently running tests
+  const wizard = createPlanningSendWizard({
+    loadSets: () => ({ vols: ['1@g.us'] }),
+    botReply: async (_msg, text) => { replies.push(text); },
+    log: () => {},
+    normalizePhoneDigits: norm,
+    getQuotedMessageSafe: async () => quoted,
+    resolveQuotedTextBundle: async () => ({ text: 'Hello draft' }),
+    sendQuotedToSet: async (...a) => { sent.push(a); },
+    parseScheduleTime: () => null,
+    validateScheduleTarget: async () => {},
+    loadSchedules: () => [],
+    saveSchedules: () => {},
+    nextLocalScheduleId: () => 1,
+    formatTimeUntil: () => 'soon',
+    MEDIA_DIR: '/tmp',
+    getMyNumber: () => '919876543210@c.us',
+    configuredOperator: '919876543210',
+    mentionAliases: ['sandesha'],
+  });
+  const op = '919876543210';
+  const mk = (body) => ({ from: chatId, fromMe: true, body, author: '919876543210@c.us', id: { _serialized: 'm' + body } });
+
+  await wizard.tryStartFromTrigger({ ...mk('@sandesha send'), hasQuotedMsg: true }, op);
+  assert.ok(replies.some((r) => r.includes('Pick a set')));
+
+  // Wrong at the set step: told exactly what to type, with the list.
+  assert.strictEqual(await wizard.handleSession(mk('lunch at 1?'), op), true);
+  const g1 = replies[replies.length - 1];
+  assert.ok(g1.includes('Reply with *only* the number'));
+  assert.ok(g1.includes('1. *vols*') && g1.includes('Example: *1*') && g1.includes('*cancel*'));
+
+  // A new flyer (no text) posted mid-wizard is left alone.
+  const n = replies.length;
+  assert.strictEqual(await wizard.handleSession({ ...mk(''), hasMedia: true }, op), false);
+  assert.strictEqual(replies.length, n);
+
+  // Plain "1" is accepted without a mention.
+  assert.strictEqual(await wizard.handleSession(mk('1'), op), true);
+  assert.ok(replies[replies.length - 1].includes('*1* — send now'));
+
+  // Wrong at the send-now/schedule step.
+  assert.strictEqual(await wizard.handleSession(mk('maybe'), op), true);
+  const g2 = replies[replies.length - 1];
+  assert.ok(g2.includes('I need a 1 or a 2') && g2.includes('*2* — schedule for later'));
+
+  // Wrong at the time step keeps the wizard going.
+  assert.strictEqual(await wizard.handleSession(mk('2'), op), true);
+  assert.strictEqual(await wizard.handleSession(mk('soonish'), op), true);
+  const g3 = replies[replies.length - 1];
+  assert.ok(g3.includes('could not read that as a time') && g3.includes('*9am tomorrow*'));
+
+  assert.strictEqual(await wizard.handleSession(mk('cancel'), op), true);
+  assert.ok(replies.some((r) => r.includes('cancelled')));
+});
+
 test('handleIngress queue lists schedules and cancel N removes by id', async () => {
   const replies = [];
   const schedules = [

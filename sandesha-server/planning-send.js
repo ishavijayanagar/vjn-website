@@ -262,7 +262,7 @@ function formatSetsMenu(sets, planningGroupJid) {
     else label = `${outward} group${outward === 1 ? '' : 's'}`;
     text += `${i + 1}. *${k}* (${label})\n`;
   });
-  text += '\nReply with *@sandesha* + number or set name · *@sandesha cancel* to stop';
+  text += '\nReply with *only* the number or the exact set name · *cancel* to stop';
   return { text, setKeys: keys };
 }
 
@@ -277,6 +277,39 @@ function parseSetChoice(body, setKeys) {
   const exact = setKeys.find((k) => k.toLowerCase() === lower);
   if (exact) return exact;
   return null;
+}
+
+const TIME_EXAMPLES = '*9am* · *9:30am* · *14:30* · *9am tomorrow* · *9am monday*';
+
+/** What to type next, for a reply that did not fit the step the wizard is waiting on. */
+function wrongReplyGuide(session) {
+  const stop = 'To stop: *cancel*';
+  if (session.step === 'await_set') {
+    const list = (session.setKeys || []).map((k, i) => `${i + 1}. *${k}*`).join('\n');
+    return (
+      '❌ That is not one of the options.\n\n' +
+      'Reply with *only* the number, or the exact set name:\n' +
+      `${list}\n\n` +
+      `Example: *1*\n${stop}`
+    );
+  }
+  if (session.step === 'await_when') {
+    return (
+      '❌ I need a 1 or a 2.\n\n' +
+      'Reply with *only*:\n' +
+      '*1* — send now\n' +
+      '*2* — schedule for later\n\n' +
+      stop
+    );
+  }
+  if (session.step === 'await_time') {
+    return (
+      '❌ I could not read that as a time.\n\n' +
+      `Reply with a time like:\n${TIME_EXAMPLES}\n\n` +
+      stop
+    );
+  }
+  return `❌ I did not understand that.\n\n${stop}`;
 }
 
 function createPlanningSendWizard(deps) {
@@ -482,11 +515,9 @@ function createPlanningSendWizard(deps) {
   async function executeSchedule(msg, session, timeStr) {
     const runAt = parseScheduleTime(timeStr);
     if (!runAt) {
-      await botReply(
-        msg,
-        `Could not understand time: "${timeStr}"\nTry: 9am, 9:30am, 9am tomorrow, 9am monday, 14:30`,
-      );
-      touchSession(chatIdFor(msg, null), session.operatorId, { step: 'await_time' });
+      await botReply(msg, wrongReplyGuide({ step: 'await_time' }));
+      // Keep everything the wizard knows, so the corrected time still has its set and draft.
+      touchSession(session.chatId || chatIdFor(msg, null), session.operatorId, { ...session, step: 'await_time' });
       return;
     }
 
@@ -604,7 +635,7 @@ function createPlanningSendWizard(deps) {
     }
 
     touchSession(chatId, operatorId, { step: 'await_when', setKey });
-    await botReply(msg, `Set: *${setKey}* (${outward} groups)\n\n1 — Send now\n2 — Schedule\n\nReply *@sandesha 1* or *@sandesha 2*, or *@sandesha cancel*`);
+    await botReply(msg, `Set: *${setKey}* (${outward} groups)\n\nReply with *only*:\n*1* — send now\n*2* — schedule for later\n\nTo stop: *cancel*`);
     return true;
   }
 
@@ -696,12 +727,18 @@ function createPlanningSendWizard(deps) {
     const session = getSession(chatId, operatorId);
     if (!session) return false;
 
-    if (!isSandeshaMentioned(msg, getMyNumber?.(), mentionAliases, normalizePhoneDigits)) {
-      return false;
-    }
-
+    // @sandesha / @sv starts the wizard; once it is running, plain replies carry on.
+    // A mention is still accepted. Without one, chatter that is not an answer is ignored.
+    const mentioned = isSandeshaMentioned(msg, getMyNumber?.(), mentionAliases, normalizePhoneDigits);
     const text = stripMentionTokens(msg.body).trim();
-    if (!text) return true;
+    // Anything that is not an answer to the current step gets told what to type.
+    // (A new flyer or sticker posted mid-wizard has no text and is left alone.)
+    const guide = async () => {
+      if (!mentioned && (msg.hasMedia || !text)) return false;
+      await botReply(msg, wrongReplyGuide(session));
+      return true;
+    };
+    if (!text) return guide();
 
     if (isCancel(text)) {
       clearSession(chatId, operatorId);
@@ -712,10 +749,7 @@ function createPlanningSendWizard(deps) {
     try {
       if (session.step === 'await_set') {
         const setKey = parseSetChoice(text, session.setKeys);
-        if (!setKey) {
-          await botReply(msg, 'Reply with a number or exact set name from the list, or *@sandesha cancel*.');
-          return true;
-        }
+        if (!setKey) return guide();
         return proceedAfterSetKey(msg, operatorId, chat, session, setKey);
       }
 
@@ -731,12 +765,11 @@ function createPlanningSendWizard(deps) {
           touchSession(chatId, operatorId, { step: 'await_time', setKey: session.setKey });
           await botReply(
             msg,
-            'When should it go out?\nExamples: 9am, 9:30am, 9am tomorrow, 9am monday, 14:30',
+            `When should it go out?\nReply with a time like:\n${TIME_EXAMPLES}\n\nTo stop: *cancel*`,
           );
           return true;
         }
-        await botReply(msg, 'Reply *@sandesha 1* (send now) or *@sandesha 2* (schedule), or *@sandesha cancel*.');
-        return true;
+        return guide();
       }
 
       if (session.step === 'await_time') {
