@@ -11,8 +11,8 @@
 const TZ_OFFSET_MS = 5.5 * 3600e3;
 
 function createReminders({ db, ev, listings, notify, now = () => Date.now(), log = () => {} }) {
-  const kvGet = db.prepare('SELECT value FROM kv WHERE key = ?');
-  const kvPut = db.prepare('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value');
+  const kvGet = db.prepare('SELECT value FROM app_setting WHERE key = ?');
+  const kvPut = db.prepare('INSERT INTO app_setting (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value');
 
   async function attendance() {
     for (const { need, title } of ev.dueAttendanceReminders()) {

@@ -23,12 +23,12 @@ function statusLabel(raw) {
 
 function createInquiries({ db, onChange = () => {}, now = () => Date.now() }) {
   const q = {
-    all: db.prepare('SELECT id, status, data FROM inquiries WHERE sheet = ? ORDER BY id'),
-    one: db.prepare('SELECT id, status, data FROM inquiries WHERE sheet = ? AND id = ?'),
-    put: db.prepare('INSERT INTO inquiries (sheet, id, status, data) VALUES (?, ?, ?, ?) ON CONFLICT (sheet, id) DO UPDATE SET status = excluded.status, data = excluded.data'),
-    maxId: db.prepare('SELECT COALESCE(MAX(id), 0) AS n FROM inquiries WHERE sheet = ?'),
-    tail: db.prepare('SELECT id, status, data FROM inquiries WHERE sheet = ? ORDER BY id DESC LIMIT 8'),
-    counts: db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status != 'Resolved' THEN 1 ELSE 0 END) AS open FROM inquiries WHERE sheet = ?"),
+    all: db.prepare('SELECT id, status, data FROM website_inquiries WHERE sheet = ? ORDER BY id'),
+    one: db.prepare('SELECT id, status, data FROM website_inquiries WHERE sheet = ? AND id = ?'),
+    put: db.prepare('INSERT INTO website_inquiries (sheet, id, status, data) VALUES (?, ?, ?, ?) ON CONFLICT (sheet, id) DO UPDATE SET status = excluded.status, data = excluded.data'),
+    maxId: db.prepare('SELECT COALESCE(MAX(id), 0) AS n FROM website_inquiries WHERE sheet = ?'),
+    tail: db.prepare('SELECT id, status, data FROM website_inquiries WHERE sheet = ? ORDER BY id DESC LIMIT 8'),
+    counts: db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status != 'Resolved' THEN 1 ELSE 0 END) AS open FROM website_inquiries WHERE sheet = ?"),
   };
 
   const stamp = () => new Date(now() + TZ_OFFSET_MS).toISOString().slice(0, 19);

@@ -24,7 +24,7 @@
     adminUpdateEventVolunteer: 1, adminDeleteEventVolunteer: 1, adminMarkVolunteersInGroup: 1, adminSetVolunteerForm: 1, adminSession: 1,
     adminUploadImage: 1,
   };
-  var API_READS = { programs: 1, volunteering: 1, inquiries: 1, volunteerNeeds: 1, programTitles: 1 };
+  var API_READS = { programs: 1, volunteering: 1, inquiries: 1, volunteerNeeds: 1, programTitles: 1, volunteerRoster: 1 };
   var PROMO_READS = { promotions: 1, inviteMessages: 1 };
 
   function base() {

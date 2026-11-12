@@ -57,15 +57,15 @@ function publicUser(u) {
 
 function createVjnUsers({ db, secret, notifySheet = async () => {}, now = () => Date.now() }) {
   const q = {
-    all: db.prepare('SELECT * FROM users ORDER BY created_at, username'),
-    byId: db.prepare('SELECT * FROM users WHERE id = ?'),
-    byRole: db.prepare("SELECT * FROM users WHERE role = ? AND status = 'active'"),
-    count: db.prepare('SELECT COUNT(*) AS n FROM users'),
-    activeAdmins: db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active' AND id != ?"),
-    usernames: db.prepare('SELECT username FROM users'),
-    insert: db.prepare(`INSERT INTO users (id, username, display_name, role, password_salt, password_hash, status, created_at, revoked_before)
+    all: db.prepare('SELECT * FROM team_users ORDER BY created_at, username'),
+    byId: db.prepare('SELECT * FROM team_users WHERE id = ?'),
+    byRole: db.prepare("SELECT * FROM team_users WHERE role = ? AND status = 'active'"),
+    count: db.prepare('SELECT COUNT(*) AS n FROM team_users'),
+    activeAdmins: db.prepare("SELECT COUNT(*) AS n FROM team_users WHERE role = 'admin' AND status = 'active' AND id != ?"),
+    usernames: db.prepare('SELECT username FROM team_users'),
+    insert: db.prepare(`INSERT INTO team_users (id, username, display_name, role, password_salt, password_hash, status, created_at, revoked_before)
       VALUES (@id, @username, @display_name, @role, @password_salt, @password_hash, @status, @created_at, @revoked_before)`),
-    update: db.prepare(`UPDATE users SET display_name = @display_name, role = @role, password_salt = @password_salt,
+    update: db.prepare(`UPDATE team_users SET display_name = @display_name, role = @role, password_salt = @password_salt,
       password_hash = @password_hash, status = @status, revoked_before = @revoked_before WHERE id = @id`),
   };
 

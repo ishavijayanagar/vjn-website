@@ -46,7 +46,7 @@ async function main() {
     n(def.title, inquiries.importRows(def.key, rows), rows.length);
   }
   n('event volunteers', ev.importRows(data.ev), (data.ev || []).length);
-  db.prepare("INSERT INTO kv (key, value) VALUES ('data_on_pi', '1') ON CONFLICT (key) DO UPDATE SET value = '1'").run();
+  db.prepare("INSERT INTO app_setting (key, value) VALUES ('data_on_pi', '1') ON CONFLICT (key) DO UPDATE SET value = '1'").run();
   console.log('The Sheet is now a copy of the database; changes are made in Sandesha.');
 }
 

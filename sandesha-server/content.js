@@ -25,10 +25,10 @@ function createContent({ db, onChange = () => {} }) {
   const q = {
     siteAll: db.prepare('SELECT key, value FROM site_content'),
     sitePut: db.prepare('INSERT INTO site_content (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value'),
-    titlesAll: db.prepare('SELECT title, active FROM program_titles'),
-    titleGet: db.prepare('SELECT title, active FROM program_titles WHERE lower(title) = lower(?)'),
-    titlePut: db.prepare('INSERT INTO program_titles (title, active) VALUES (?, 1) ON CONFLICT (title) DO UPDATE SET active = 1'),
-    titleSet: db.prepare('UPDATE program_titles SET active = ? WHERE title = ?'),
+    titlesAll: db.prepare('SELECT title, active FROM program_names'),
+    titleGet: db.prepare('SELECT title, active FROM program_names WHERE lower(title) = lower(?)'),
+    titlePut: db.prepare('INSERT INTO program_names (title, active) VALUES (?, 1) ON CONFLICT (title) DO UPDATE SET active = 1'),
+    titleSet: db.prepare('UPDATE program_names SET active = ? WHERE title = ?'),
   };
 
   function site() {

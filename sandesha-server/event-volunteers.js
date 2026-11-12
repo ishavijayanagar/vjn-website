@@ -33,13 +33,13 @@ function isOpenStatus(raw) {
 
 function createEventVolunteers({ db, listings, onChange = () => {}, now = () => Date.now() }) {
   const q = {
-    all: db.prepare('SELECT row_id, kind, event_id, data FROM ev_rows'),
-    byId: db.prepare('SELECT row_id, kind, event_id, data FROM ev_rows WHERE row_id = ?'),
-    need: db.prepare("SELECT row_id, kind, event_id, data FROM ev_rows WHERE kind = 'need' AND event_id = ?"),
-    vols: db.prepare("SELECT row_id, kind, event_id, data FROM ev_rows WHERE kind = 'volunteer' AND event_id = ?"),
-    put: db.prepare('INSERT INTO ev_rows (row_id, kind, event_id, data) VALUES (?, ?, ?, ?) ON CONFLICT (row_id) DO UPDATE SET kind = excluded.kind, event_id = excluded.event_id, data = excluded.data'),
-    del: db.prepare('DELETE FROM ev_rows WHERE row_id = ?'),
-    counts: db.prepare("SELECT event_id, COUNT(*) AS n FROM ev_rows WHERE kind = 'volunteer' GROUP BY event_id"),
+    all: db.prepare('SELECT row_id, kind, event_id, data FROM event_vols'),
+    byId: db.prepare('SELECT row_id, kind, event_id, data FROM event_vols WHERE row_id = ?'),
+    need: db.prepare("SELECT row_id, kind, event_id, data FROM event_vols WHERE kind = 'need' AND event_id = ?"),
+    vols: db.prepare("SELECT row_id, kind, event_id, data FROM event_vols WHERE kind = 'volunteer' AND event_id = ?"),
+    put: db.prepare('INSERT INTO event_vols (row_id, kind, event_id, data) VALUES (?, ?, ?, ?) ON CONFLICT (row_id) DO UPDATE SET kind = excluded.kind, event_id = excluded.event_id, data = excluded.data'),
+    del: db.prepare('DELETE FROM event_vols WHERE row_id = ?'),
+    counts: db.prepare("SELECT event_id, COUNT(*) AS n FROM event_vols WHERE kind = 'volunteer' GROUP BY event_id"),
   };
 
   const stamp = () => new Date(now() + TZ_OFFSET_MS).toISOString().slice(0, 19);

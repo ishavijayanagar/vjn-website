@@ -16,5 +16,5 @@ const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' A
 for (const t of tables) {
   console.log(`  ${t.name.padEnd(16)}${db.prepare(`SELECT COUNT(*) AS n FROM ${t.name}`).get().n} rows`);
 }
-const q = db.prepare('SELECT COUNT(*) AS n, MIN(created_at) AS o FROM sync_queue').get();
+const q = db.prepare('SELECT COUNT(*) AS n, MIN(created_at) AS o FROM sheet_sync_queue').get();
 console.log(`Waiting to be copied to the Sheet: ${q.n}${q.n ? ` (oldest ${new Date(q.o).toISOString()})` : ''}`);

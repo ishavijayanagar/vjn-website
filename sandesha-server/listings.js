@@ -132,13 +132,13 @@ function canonical(raw) {
 
 function createListings({ db, evCounts = () => ({}), onChange = () => {}, now = () => Date.now() }) {
   const q = {
-    all: db.prepare('SELECT id, data FROM listings WHERE resource = ? ORDER BY id'),
-    one: db.prepare('SELECT id, data FROM listings WHERE resource = ? AND id = ?'),
-    put: db.prepare('INSERT INTO listings (resource, id, data) VALUES (?, ?, ?) ON CONFLICT (resource, id) DO UPDATE SET data = excluded.data'),
-    del: db.prepare('DELETE FROM listings WHERE resource = ? AND id = ?'),
-    counter: db.prepare('SELECT value FROM counters WHERE name = ?'),
-    setCounter: db.prepare('INSERT INTO counters (name, value) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET value = MAX(value, excluded.value)'),
-    maxId: db.prepare('SELECT COALESCE(MAX(id), 0) AS n FROM listings WHERE resource = ?'),
+    all: db.prepare('SELECT id, data FROM event_listings WHERE resource = ? ORDER BY id'),
+    one: db.prepare('SELECT id, data FROM event_listings WHERE resource = ? AND id = ?'),
+    put: db.prepare('INSERT INTO event_listings (resource, id, data) VALUES (?, ?, ?) ON CONFLICT (resource, id) DO UPDATE SET data = excluded.data'),
+    del: db.prepare('DELETE FROM event_listings WHERE resource = ? AND id = ?'),
+    counter: db.prepare('SELECT value FROM id_counters WHERE name = ?'),
+    setCounter: db.prepare('INSERT INTO id_counters (name, value) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET value = MAX(value, excluded.value)'),
+    maxId: db.prepare('SELECT COALESCE(MAX(id), 0) AS n FROM event_listings WHERE resource = ?'),
   };
 
   function nextId(resource) {

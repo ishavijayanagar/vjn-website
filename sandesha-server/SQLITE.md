@@ -7,14 +7,17 @@ copy and the public pages can read it if the Pi is down.
 
 | Table | What | Sheet copy |
 |---|---|---|
-| `users` | VJN admin logins (salted password hashes) | *Users* (frozen at the move; passwords are not re-copied) |
-| `promos` | Promotion posts | *Promotions* |
-| `listings` | Programs and volunteering | *Programs*, *Volunteering* |
+| `team_users` | VJN admin logins (salted password hashes) | *Users* (frozen at the move; passwords are not re-copied) |
+| `promotional_msgs` | Promotion posts | *Promotions* |
+| `event_listings` | Programs and volunteering | *Programs*, *Volunteering* |
 | `site_content` | Site text and the banner | *Site* |
-| `program_titles` | The fixed list of program names | *ProgramTitles* |
-| `inquiries` | Website enquiries and what Nurturing did with them | *HomeQueries*, *ProgramInterest*, *ProgramVolunteer*, *VolunteeringInterest*, *VolunteerAttendance* |
-| `ev_rows` | Event-volunteer pipeline (needs and volunteers) | *EventVolunteers* |
-| `sync_queue` | Changes not yet copied to the Sheet | — |
+| `program_names` | The fixed list of program names | *ProgramTitles* |
+| `website_inquiries` | Website enquiries and what Nurturing did with them | *HomeQueries*, *ProgramInterest*, *ProgramVolunteer*, *VolunteeringInterest*, *VolunteerAttendance* |
+| `event_vols` | Event-volunteer pipeline (needs and volunteers) | *EventVolunteers* |
+| `sheet_sync_queue` | Changes not yet copied to the Sheet | — |
+| `app_setting` | Small settings and flags (e.g. `data_on_pi`, the volunteer roster copy) | — |
+| `id_counters` | Next ID numbers, so deleted IDs are never reused | — |
+| `checkins` | Volunteer check-ins (to be folded into `event_vols`) | *monthly tabs* |
 
 Still in Apps Script, because they need Google: **Google Forms** (making,
 connecting, responses), **Slides flyers** (templates, rendering, thumbnails),
@@ -59,7 +62,7 @@ Do the earlier SQLITE steps first if you have not (logins, promotions): `VJN_AUT
 - The public site keeps working from the Sheet copy (programs, volunteering, site text);
   form submissions are saved in the Sheet and collected later.
 - Signing in and every admin edit need the Pi.
-- Changes made on the Pi while Google is unreachable wait in `sync_queue` and are copied
+- Changes made on the Pi while Google is unreachable wait in `sheet_sync_queue` and are copied
   as soon as it is reachable again.
 
 ## Everyday commands

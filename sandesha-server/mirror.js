@@ -3,7 +3,7 @@
 /**
  * The Sheet as a backup of the database.
  *
- * Every change made here is queued (sync_queue) and copied to the Sheet in
+ * Every change made here is queued (sheet_sync_queue) and copied to the Sheet in
  * the background through Apps Script's `vjnMirror`. A change that cannot be
  * copied yet stays queued and is retried, so the Pi never waits on Google and
  * nothing is lost while the Sheet is unreachable. If the Pi itself is down,
@@ -14,13 +14,13 @@ const BATCH = 150;
 
 function createMirror({ db, send, now = () => Date.now(), log = () => {} }) {
   const q = {
-    drop: db.prepare('DELETE FROM sync_queue WHERE tbl = ? AND key = ?'),
-    add: db.prepare('INSERT INTO sync_queue (tbl, op, key, payload, created_at) VALUES (?, ?, ?, ?, ?)'),
-    head: db.prepare('SELECT * FROM sync_queue ORDER BY seq LIMIT ?'),
-    del: db.prepare('DELETE FROM sync_queue WHERE seq = ?'),
-    fail: db.prepare('UPDATE sync_queue SET attempts = attempts + 1, last_error = ? WHERE seq = ?'),
-    count: db.prepare('SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM sync_queue'),
-    lastErr: db.prepare("SELECT last_error FROM sync_queue WHERE last_error != '' ORDER BY seq DESC LIMIT 1"),
+    drop: db.prepare('DELETE FROM sheet_sync_queue WHERE tbl = ? AND key = ?'),
+    add: db.prepare('INSERT INTO sheet_sync_queue (tbl, op, key, payload, created_at) VALUES (?, ?, ?, ?, ?)'),
+    head: db.prepare('SELECT * FROM sheet_sync_queue ORDER BY seq LIMIT ?'),
+    del: db.prepare('DELETE FROM sheet_sync_queue WHERE seq = ?'),
+    fail: db.prepare('UPDATE sheet_sync_queue SET attempts = attempts + 1, last_error = ? WHERE seq = ?'),
+    count: db.prepare('SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM sheet_sync_queue'),
+    lastErr: db.prepare("SELECT last_error FROM sheet_sync_queue WHERE last_error != '' ORDER BY seq DESC LIMIT 1"),
   };
   let timer = null;
   let running = null;

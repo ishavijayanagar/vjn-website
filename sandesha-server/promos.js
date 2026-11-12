@@ -61,17 +61,17 @@ function isOpenStatus(raw) {
 
 function createPromos({ db, fetchListings = async () => ({}), listingTtlMs = LISTING_TTL_MS, onChange = () => {}, now = () => Date.now() }) {
   const q = {
-    all: db.prepare('SELECT * FROM promos'),
-    byId: db.prepare('SELECT * FROM promos WHERE id = ?'),
-    byEvent: db.prepare('SELECT id FROM promos WHERE event_type = ? AND event_id = ?'),
-    count: db.prepare('SELECT COUNT(*) AS n FROM promos'),
-    insert: db.prepare(`INSERT INTO promos (id, event_type, event_id, event_title, message, flyer_url, send_at, status,
+    all: db.prepare('SELECT * FROM promotional_msgs'),
+    byId: db.prepare('SELECT * FROM promotional_msgs WHERE id = ?'),
+    byEvent: db.prepare('SELECT id FROM promotional_msgs WHERE event_type = ? AND event_id = ?'),
+    count: db.prepare('SELECT COUNT(*) AS n FROM promotional_msgs'),
+    insert: db.prepare(`INSERT INTO promotional_msgs (id, event_type, event_id, event_title, message, flyer_url, send_at, status,
         created_by, updated_at, sent_at, sent_by, target, wa_schedule_ids, event_date, event_location, event_status,
         event_image, event_open)
       VALUES (@id, @event_type, @event_id, @event_title, @message, @flyer_url, @send_at, @status, @created_by,
         @updated_at, @sent_at, @sent_by, @target, @wa_schedule_ids, @event_date, @event_location, @event_status,
         @event_image, @event_open)`),
-    update: db.prepare(`UPDATE promos SET event_title = @event_title, message = @message, flyer_url = @flyer_url,
+    update: db.prepare(`UPDATE promotional_msgs SET event_title = @event_title, message = @message, flyer_url = @flyer_url,
         send_at = @send_at, status = @status, updated_at = @updated_at, sent_at = @sent_at, sent_by = @sent_by,
         target = @target, wa_schedule_ids = @wa_schedule_ids, event_date = @event_date, event_location = @event_location,
         event_status = @event_status, event_image = @event_image, event_open = @event_open WHERE id = @id`),

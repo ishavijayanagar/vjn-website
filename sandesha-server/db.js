@@ -95,6 +95,27 @@ const MIGRATIONS = [
      month TEXT NOT NULL,
      data TEXT NOT NULL DEFAULT '{}'
    )`,
+  // 10 — clearer table names (purpose is in the name); data untouched
+  `ALTER TABLE users RENAME TO team_users;
+   ALTER TABLE promos RENAME TO promotions;
+   DROP INDEX promos_event;
+   CREATE INDEX promotions_event ON promotions (event_type, event_id);
+   ALTER TABLE listings RENAME TO event_listings;
+   ALTER TABLE counters RENAME TO id_counters;
+   ALTER TABLE site_content RENAME TO site_text;
+   ALTER TABLE program_titles RENAME TO program_names;
+   ALTER TABLE inquiries RENAME TO website_inquiries;
+   ALTER TABLE ev_rows RENAME TO event_vols;
+   DROP INDEX ev_rows_event;
+   CREATE INDEX event_vols_event ON event_vols (event_id, kind);
+   ALTER TABLE sync_queue RENAME TO sheet_sync_queue;
+   ALTER TABLE kv RENAME TO app_settings`,
+  // 11 — final names chosen by the team: promotional_msgs, site_content (unchanged), app_setting
+  `ALTER TABLE promotions RENAME TO promotional_msgs;
+   DROP INDEX promotions_event;
+   CREATE INDEX promotional_msgs_event ON promotional_msgs (event_type, event_id);
+   ALTER TABLE site_text RENAME TO site_content;
+   ALTER TABLE app_settings RENAME TO app_setting`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {

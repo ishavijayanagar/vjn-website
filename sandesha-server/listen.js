@@ -10,6 +10,7 @@ const { createInquiries } = require('./inquiries');
 const { createEventVolunteers } = require('./event-volunteers');
 const { createMirror } = require('./mirror');
 const { createVjnApi } = require('./vjn-api');
+const { createRoster } = require('./roster');
 const { createCheckins } = require('./checkins');
 const { createReminders } = require('./reminders');
 const { createInbox } = require('./inbox');
@@ -3790,7 +3791,7 @@ async function sheetCall(formType, payload) {
 }
 
 const vjnDb = openDb();
-const dataFlag = vjnDb.prepare("SELECT value FROM kv WHERE key = 'data_on_pi'");
+const dataFlag = vjnDb.prepare("SELECT value FROM app_setting WHERE key = 'data_on_pi'");
 // Every change is copied to the Sheet in the background; the Sheet is the backup.
 const vjnMirror = createMirror({
   db: vjnDb,
@@ -3815,7 +3816,7 @@ const vjnInbox = createInbox({
 });
 const vjnCheckins = createCheckins({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
 const vjnApi = createVjnApi({
-  listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, checkins: vjnCheckins,
+  listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, checkins: vjnCheckins, roster: vjnRoster,
   // Until scripts/import-data.js has run, the Sheet is still the record.
   ready: () => !!dataFlag.get(),
 });
@@ -3835,6 +3836,7 @@ const vjnPromos = createPromos({
   fetchListings: async () => {
     // Until the Sheet's data is copied in, the Sheet is still the record.
     if (!dataFlag.get()) return sheetCall('vjnListings', {});
+const vjnRoster = createRoster({ db: vjnDb, fetchRoster: () => sheetCall('vjnExportRoster', {}), log });
     const pick = (i) => ({
       id: String(i.id), title: i.title || '', date: i.date || '', startdate: i.startdate || '',
       location: i.location || '', status: i.status || '', image: i.image || '',
@@ -4797,6 +4799,7 @@ async function runScheduleHeadsUp() {
     log('[HEADSUP]', err.message);
   } finally {
     headsUpRunning = false;
+  vjnRoster.start();
   }
 }
 

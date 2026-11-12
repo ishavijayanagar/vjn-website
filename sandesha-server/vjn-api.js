@@ -36,7 +36,7 @@ class HttpError extends Error {
   }
 }
 
-function createVjnApi({ listings, content, inquiries, ev, checkins = null, ready = () => true }) {
+function createVjnApi({ listings, content, inquiries, ev, checkins = null, roster = null, ready = () => true }) {
   function need(session, roles) {
     if (!roles.includes(session.role)) throw new HttpError(403, 'You do not have access to this.');
   }
@@ -53,6 +53,7 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, ready
     } },
     volunteerNeeds: { roles: ['admin', 'nurturing', 'programs'], run: () => ev.needs() },
     programTitles: { roles: ['admin', 'programs'], run: () => ({ titles: content.titles() }) },
+    volunteerRoster: { roles: ['admin', 'nurturing'], run: () => (roster ? roster.read() : undefined) },
   };
 
   function read(session, data) {

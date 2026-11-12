@@ -489,6 +489,10 @@ function doPost(e) {
     if (formType === "vjnMirror") {
       return json_(vjnMirror_(data));
     }
+    if (formType === "vjnExportRoster") {
+      requireVjnSecret_(data);
+      return json_(getVolunteerRoster_());
+    }
     if (formType === "vjnInboxList") {
       return json_(vjnInboxList_(data));
     }
