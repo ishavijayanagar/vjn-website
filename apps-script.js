@@ -1,15 +1,16 @@
 // =============================================
 // Isha Place, Vijayanagar — Google Apps Script
 //
-// FIRST-TIME ADMIN SETUP (do this in the Apps Script editor):
-// 1. If this is a brand-new spreadsheet, put a password in ADMIN_PASSWORD
-//    below (6+ characters). If you already set a password earlier, leave
-//    ADMIN_PASSWORD as REPLACE_ME — setupAdmin will reuse the saved one.
-// 2. Click Save (disk icon).
-// 3. At the top, choose function: setupAdmin
-// 4. Click Run.
-// 5. Review permissions → your Google account → Advanced →
-//    Go to Centre Website (unsafe) → Allow.
+// WHAT THIS IS NOW: the Sandesha Pi (sandesha-server/) keeps the data and runs the admin
+// logins. This script only does what needs Google: Forms, Slides flyers, Drive images, the
+// volunteer roster sheet, and a Sheet copy of the data that the Pi keeps up to date.
+//
+// FIRST-TIME SETUP (Apps Script editor):
+// 1. Click Save (disk icon).
+// 2. At the top, choose function: setupDrive
+// 3. Click Run.
+// 4. Review permissions -> your Google account -> Advanced ->
+//    Go to Centre Website (unsafe) -> Allow.
 //    That screen is where Drive access is granted. Deploying
 //    a web app does NOT show it.
 // 6. Deploy → Manage deployments → pencil → New version → Deploy.
@@ -306,48 +307,6 @@ function invalidatePublicCache_(resource) {
   if (!resource || resource === "site") cache.remove(CACHE_SITE);
 }
 
-function onOpen() {
-  try {
-    SpreadsheetApp.getUi()
-      .createMenu("Website")
-      .addItem("Set admin password", "promptSetAdminPassword")
-      .addItem("Authorize Drive / create image folder", "setupAdmin")
-      .addToUi();
-  } catch (err) {
-    // Menu is optional. Password + Drive setup work via setupAdmin() in the editor.
-  }
-}
-
-/**
- * Run this once from the Apps Script editor (function dropdown → setupAdmin → Run).
- * Google will then ask you to Allow Drive. That prompt does not appear on Deploy.
- */
-function setupAdmin() {
-  const fromFile = String(ADMIN_PASSWORD || "").trim();
-  let password = "";
-  if (fromFile && fromFile !== "REPLACE_ME" && fromFile.length >= 6) {
-    password = fromFile;
-    PropertiesService.getScriptProperties().setProperty("ADMIN_PASSWORD", password);
-  } else {
-    password = getAdminPassword_();
-  }
-  if (!password || password.length < 6) {
-    throw new Error(
-      "No admin password is saved yet. In the spreadsheet use Website → Set admin password, or put it in ADMIN_PASSWORD at the top of this file, Save, then Run setupAdmin again."
-    );
-  }
-  upsertAdminUser_(password);
-  ensureSheet_(USERS_SHEET, USER_HEADERS);
-  ensureSheet_(PROMOTIONS_SHEET, PROMO_HEADERS);
-  ensureSheet_(EVENT_VOLUNTEERS_SHEET, EV_HEADERS);
-  ensureDuePromoTrigger_();
-  ensureAttendanceTrigger_();
-  ensureProgramReminderTrigger_();
-  const folder = getCentreImagesFolder_();
-  Logger.log("Setup complete. Sign in at /admin.html: choose Admin, then the existing admin password.");
-  Logger.log("Drive folder: " + folder.getName() + " (" + folder.getUrl() + ")");
-}
-
 /**
  * Run this once (function dropdown → authorizeFlyerFeature → Run) after
  * adding the flyer feature, so Google prompts for the extra Slides
@@ -405,24 +364,6 @@ function refreshAllFlyerThumbnails() {
     }
   }
   Logger.log("Refreshed " + refreshed + " thumbnail(s).");
-}
-
-function promptSetAdminPassword() {
-  const ui = SpreadsheetApp.getUi();
-  const result = ui.prompt(
-    "Website admin password",
-    "This sets the password for username \"admin\" on /admin.html",
-    ui.ButtonSet.OK_CANCEL
-  );
-  if (result.getSelectedButton() !== ui.Button.OK) return;
-  const password = String(result.getResponseText() || "").trim();
-  if (password.length < 6) {
-    ui.alert("Password must be at least 6 characters.");
-    return;
-  }
-  PropertiesService.getScriptProperties().setProperty("ADMIN_PASSWORD", password);
-  upsertAdminUser_(password);
-  ui.alert("Saved. Sign in at /admin.html with username admin and this password.");
 }
 
 function json_(obj) {
@@ -502,30 +443,11 @@ function doPost(e) {
     if (formType === "vjnInboxAck") {
       return json_(vjnInboxAck_(data));
     }
-    if (formType === "adminLogin") {
-      return json_(adminLogin(data));
-    }
-    if (formType === "adminLogout") {
-      return json_(adminLogout(data));
-    }
-    if (formType === "adminSession") {
-      const session = requireLiveSession_(data.token);
-      return json_({ user: publicSession_(session) });
-    }
     if (formType === "adminGet") {
       return json_(adminRead_(data));
     }
     if (formType === "adminGetMany") {
       return json_(adminReadMany_(data));
-    }
-    if (formType === "adminSaveItem") {
-      return json_(adminSaveItem(data));
-    }
-    if (formType === "adminDeleteItem") {
-      return json_(adminDeleteItem(data));
-    }
-    if (formType === "adminClearClosed") {
-      return json_(adminClearClosed(data));
     }
     if (formType === "adminUploadImage") {
       return json_(adminUploadImage(data));
@@ -544,51 +466,6 @@ function doPost(e) {
     }
     if (formType === "adminDeleteFlyerTemplate") {
       return json_(adminDeleteFlyerTemplate(data));
-    }
-    if (formType === "adminAddProgramTitle") {
-      return json_(adminAddProgramTitle(data));
-    }
-    if (formType === "adminSaveSite") {
-      return json_(adminSaveSite(data));
-    }
-    if (formType === "adminUpdateInquiry") {
-      return json_(adminUpdateInquiry(data));
-    }
-    if (formType === "adminInquiriesAddedToGroup") {
-      return json_(adminInquiriesAddedToGroup(data));
-    }
-    if (formType === "adminSaveUser") {
-      return json_(adminSaveUser(data));
-    }
-    if (formType === "adminSetUserStatus") {
-      return json_(adminSetUserStatus(data));
-    }
-    if (formType === "adminSavePromotion") {
-      return json_(adminSavePromotion(data));
-    }
-    if (formType === "adminAddPromotion") {
-      return json_(adminAddPromotion(data));
-    }
-    if (formType === "adminMarkPromotionSent") {
-      return json_(adminMarkPromotionSent(data));
-    }
-    if (formType === "adminUnmarkPromotionSent") {
-      return json_(adminUnmarkPromotionSent(data));
-    }
-    if (formType === "adminSaveVolunteerNeed") {
-      return json_(adminSaveVolunteerNeed(data));
-    }
-    if (formType === "adminAddEventVolunteer") {
-      return json_(adminAddEventVolunteer(data));
-    }
-    if (formType === "adminUpdateEventVolunteer") {
-      return json_(adminUpdateEventVolunteer(data));
-    }
-    if (formType === "adminDeleteEventVolunteer") {
-      return json_(adminDeleteEventVolunteer(data));
-    }
-    if (formType === "adminMarkVolunteersInGroup") {
-      return json_(adminMarkVolunteersInGroup(data));
     }
     if (formType === "adminCreateProgramVolunteerForm") {
       return json_(adminCreateProgramVolunteerForm(data));
@@ -612,35 +489,6 @@ function doPost(e) {
   }
 }
 
-function getAdminPassword_() {
-  const fromProps = PropertiesService.getScriptProperties().getProperty("ADMIN_PASSWORD");
-  if (fromProps && fromProps !== "REPLACE_ME") return fromProps;
-  const fromConst = String(ADMIN_PASSWORD || "").trim();
-  if (fromConst && fromConst !== "REPLACE_ME") return fromConst;
-  return "";
-}
-
-function hashPassword_(password, salt) {
-  const raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(salt || "") + String(password || ""));
-  return raw
-    .map(function (b) {
-      const v = b < 0 ? b + 256 : b;
-      return ("0" + v.toString(16)).slice(-2);
-    })
-    .join("");
-}
-
-function newSalt_() {
-  return Utilities.getUuid().replace(/-/g, "");
-}
-
-function normalizeUsername_(raw) {
-  return String(raw || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, "");
-}
-
 function normalizeRole_(raw) {
   const r = String(raw || "")
     .trim()
@@ -650,15 +498,6 @@ function normalizeRole_(raw) {
 
 function nowIsoKolkata_() {
   return Utilities.formatDate(new Date(), PROGRAM_TZ_, "yyyy-MM-dd'T'HH:mm:ss");
-}
-
-function publicSession_(session) {
-  return {
-    id: session.id,
-    username: session.username,
-    displayName: session.displayName || session.username,
-    role: session.role,
-  };
 }
 
 function tokenCacheKey_(token) {
@@ -715,20 +554,6 @@ function dropToken_(token) {
   if (!token) return;
   CacheService.getScriptCache().remove(tokenCacheKey_(token));
   dropPersistedSession_(token);
-}
-
-function rememberUserToken_(userId, token) {
-  if (!userId || !token) return;
-  const cache = CacheService.getScriptCache();
-  const key = userTokensKey_(userId);
-  let list = [];
-  try {
-    list = JSON.parse(cache.get(key) || "[]");
-  } catch (err) {
-    list = [];
-  }
-  if (list.indexOf(token) < 0) list.push(token);
-  cache.put(key, JSON.stringify(list), TOKEN_TTL_SECONDS);
 }
 
 function dropUserTokens_(userId) {
@@ -818,15 +643,6 @@ function readSession_(token) {
   return { session: session };
 }
 
-function getSession_(token) {
-  const result = readSession_(token);
-  return result.session || null;
-}
-
-function isValidAdminToken(token) {
-  return !!getSession_(token);
-}
-
 function authEndedError_(reason) {
   if (reason === "disabled") {
     throw new Error("Unauthorized. This login has been disabled.");
@@ -867,36 +683,10 @@ function requireRole_(token, allowedRoles) {
   return session;
 }
 
-function requireAdmin_(token) {
-  return requireRole_(token, ["admin"]);
-}
-
-function findUserByRoleAndPassword_(role, password) {
-  const wanted = normalizeRole_(role);
-  if (!wanted || !password) return { user: null, hasRole: false };
-  const loaded = loadUsers_();
-  let hasRole = false;
-  for (let i = 0; i < loaded.users.length; i++) {
-    const user = loaded.users[i];
-    if (normalizeRole_(user.role) !== wanted) continue;
-    if (String(user.status || "").toLowerCase() !== "active") continue;
-    hasRole = true;
-    const expectedHash = String(user.password_hash || "");
-    if (expectedHash && hashPassword_(password, user.password_salt) === expectedHash) {
-      return { user: user, hasRole: true };
-    }
-  }
-  return { user: null, hasRole: hasRole };
-}
-
 /* ───────── logins signed by the Sandesha Pi ───────── */
 
 function vjnSecret_() {
   return String(PropertiesService.getScriptProperties().getProperty(VJN_AUTH_SECRET_PROP) || "");
-}
-
-function loginsOnPi_() {
-  return !!vjnSecret_();
 }
 
 function webSafe_(bytes) {
@@ -966,14 +756,6 @@ function vjnExportUsers_(data) {
       };
     }),
   };
-}
-
-function promosOnPi_() {
-  return PropertiesService.getScriptProperties().getProperty(VJN_PROMOS_ON_PI_PROP) === "1";
-}
-
-function promosMovedError_() {
-  throw new Error("Promotions are on Sandesha now. Sign out and sign in again.");
 }
 
 /**
@@ -1053,11 +835,6 @@ function pokePi_() {
 
 function dataOnPi_() {
   return PropertiesService.getScriptProperties().getProperty(VJN_DATA_ON_PI_PROP) === "1";
-}
-
-/** An admin edit reached the Sheet while the Pi owns this data. */
-function dataMovedError_() {
-  throw new Error("Sandesha is offline, so this can't be saved right now. Try again in a minute.");
 }
 
 /** Which tab and key column each mirrored table lives in. */
@@ -1335,43 +1112,6 @@ function vjnInboxAck_(data) {
   return { success: true };
 }
 
-function adminLogin(data) {
-  if (loginsOnPi_()) return { error: "Sign-in has moved. Reload the page and try again." };
-  bootstrapAdminUser_(getAdminPassword_());
-  const role = normalizeRole_(data.role);
-  const password = String(data.password || "");
-  if (!role) return { error: "Choose your team." };
-  if (!password) return { error: "Enter the password." };
-  if (loadUsers_().users.length === 0) {
-    return {
-      error: "Admin is not set up. In Apps Script, set ADMIN_PASSWORD and Run setupAdmin.",
-    };
-  }
-  const found = findUserByRoleAndPassword_(role, password);
-  if (!found.hasRole) {
-    return { error: "This team is not set up yet. Ask admin to add a login." };
-  }
-  if (!found.user) return { error: "Invalid password." };
-  const user = found.user;
-  clearUserDisabled_(user.id);
-  const token = Utilities.getUuid();
-  const session = {
-    id: user.id,
-    username: user.username,
-    displayName: user.display_name || user.username,
-    role: user.role,
-  };
-  CacheService.getScriptCache().put(tokenCacheKey_(token), JSON.stringify(session), TOKEN_TTL_SECONDS);
-  persistSession_(token, session);
-  rememberUserToken_(user.id, token);
-  return { success: true, token: token, user: publicSession_(session) };
-}
-
-function adminLogout(data) {
-  dropToken_(data && data.token);
-  return { success: true };
-}
-
 /**
  * Several adminGet reads in one request. Each web-app call pays ~1.5s of
  * fixed overhead, so the hub's six counts cost one round trip, not six.
@@ -1396,45 +1136,9 @@ function adminRead_(data) {
   const token = data && data.token;
   const id = data && data.id;
 
-  if (type === "session") {
-    const session = requireLiveSession_(token);
-    return { user: publicSession_(session) };
-  }
-  if (type === "programs" || type === "volunteering") {
-    if (type === "volunteering") requireRole_(token, ["admin", "nurturing"]);
-    else requireRole_(token, ["admin", "programs", "promotions"]);
-    const sheetName = type === "programs" ? PROGRAMS_SHEET : VOLUNTEER_SHEET;
-    return id ? getSingleItem(sheetName, id, true) : getAllItems(sheetName, true);
-  }
-  if (type === "inquiries") {
-    requireRole_(token, ["admin", "nurturing"]);
-    const groupKey = String((data && data.group) || "").trim();
-    if (groupKey) return getInquiryGroup_(groupKey);
-    return getInquiryMeta_();
-  }
-  if (type === "inviteMessages") {
-    requireRole_(token, ["admin", "nurturing"]);
-    if (promosOnPi_()) promosMovedError_();
-    return { messages: programInviteMessages_() };
-  }
-  if (type === "promotions") {
-    requireRole_(token, ["admin", "promotions"]);
-    if (promosOnPi_()) promosMovedError_();
-    const dueOnly = String((data && data.due) || "") === "1";
-    return listPromotions_({ dueOnly: dueOnly });
-  }
-  if (type === "users") {
-    requireRole_(token, ["admin"]);
-    if (loginsOnPi_()) throw new Error("Team is managed on Sandesha now. Sign out and sign in again.");
-    return { users: listUsersPublic_() };
-  }
   if (type === "volunteerRoster") {
     requireRole_(token, ["admin", "nurturing"]);
     return getVolunteerRoster_();
-  }
-  if (type === "volunteerNeeds") {
-    requireRole_(token, ["admin", "nurturing", "programs"]);
-    return getVolunteerNeeds_();
   }
   if (type === "formTemplates") {
     requireRole_(token, ["admin", "nurturing"]);
@@ -1447,10 +1151,6 @@ function adminRead_(data) {
   if (type === "formTemplateQuestions") {
     requireRole_(token, ["admin", "nurturing"]);
     return { questions: formTemplateQuestions_(String((data && data.templateId) || "")) };
-  }
-  if (type === "programTitles") {
-    requireRole_(token, ["admin", "programs"]);
-    return { titles: listProgramTitles_() };
   }
   if (type === "flyerTemplates") {
     requireRole_(token, ["admin", "programs"]);
@@ -1496,66 +1196,6 @@ function getVolunteerRoster_() {
     return r.some(function (c) { return String(c).trim() !== ""; });
   });
   return { configured: true, title: book.getName(), headers: headers, rows: rows };
-}
-
-function sheetNameForResource_(resource) {
-  if (resource === "programs") return PROGRAMS_SHEET;
-  if (resource === "volunteering") return VOLUNTEER_SHEET;
-  throw new Error("Unknown resource. Use programs or volunteering.");
-}
-
-function expectedHeadersFor_(sheetName) {
-  if (sheetName === PROGRAMS_SHEET) return PROGRAM_HEADERS;
-  if (sheetName === VOLUNTEER_SHEET) return VOLUNTEER_HEADERS;
-  return [];
-}
-
-function valueForHeader_(item, header) {
-  if (item[header] !== undefined && item[header] !== null) return String(item[header]).trim();
-  if (header === "register link" || header === "registerlink") {
-    const v = item.registerlink || item["register link"] || item.registerLink;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "free offering" || header === "free_offering" || header === "freeoffering") {
-    const v = item.free_offering || item["free offering"] || item.freeoffering;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "start date" || header === "startdate") {
-    const v = item.startdate || item["start date"] || item.startDate;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "end date" || header === "enddate") {
-    const v = item.enddate || item["end date"] || item.endDate;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "start time" || header === "starttime") {
-    const v = item.starttime || item["start time"] || item.startTime;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "end time" || header === "endtime") {
-    const v = item.endtime || item["end time"] || item.endTime;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "start time 2" || header === "starttime2") {
-    const v = item.starttime2 || item["start time 2"] || item.startTime2;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "end time 2" || header === "endtime2") {
-    const v = item.endtime2 || item["end time 2"] || item.endTime2;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "start time 3" || header === "starttime3") {
-    const v = item.starttime3 || item["start time 3"] || item.startTime3;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "end time 3" || header === "endtime3") {
-    const v = item.endtime3 || item["end time 3"] || item.endTime3;
-    if (v !== undefined && v !== null) return String(v).trim();
-  }
-  if (header === "program status" || header === "listing status") {
-    if (item.status !== undefined && item.status !== null) return String(item.status).trim();
-  }
-  return undefined;
 }
 
 /** Strips zero-width/invisible Unicode characters that sneak in from copy-paste
@@ -1819,125 +1459,9 @@ function enrichListingDates_(item, headers, row) {
   return item;
 }
 
-function adminSaveItem(data) {
-  const resource = String(data.resource || "programs");
-  const session =
-    resource === "volunteering"
-      ? requireRole_(data.token, ["admin", "nurturing"])
-      : requireRole_(data.token, ["admin", "programs"]);
-  if (dataOnPi_()) dataMovedError_();
-  const sheetName = sheetNameForResource_(resource);
-  ensureSheet_(sheetName, expectedHeadersFor_(sheetName));
-  const sheet = ss_().getSheetByName(sheetName);
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0].map(function (h) {
-    return h.toString().trim().toLowerCase();
-  });
-  const item = data.item || {};
-  const id = data.id ? String(data.id).trim() : "";
-  let savedId = id;
-
-  if (!id) {
-    const values = headers.map(function (h) {
-      const v = valueForHeader_(item, h);
-      return v === undefined ? "" : v;
-    });
-    sheet.appendRow(values);
-    savedId = String(sheet.getLastRow() - 1);
-    invalidatePublicCache_(resource);
-    maybeCreatePromoForListing_(resource, savedId, item, session);
-    return { success: true, id: savedId };
-  }
-
-  const rowIndex = parseInt(id, 10);
-  if (isNaN(rowIndex) || rowIndex < 1) throw new Error("Invalid item id.");
-  const lastRow = Math.max(sheet.getLastRow(), 1);
-  if (rowIndex > lastRow) throw new Error("Item not found.");
-  const existing = sheet.getRange(rowIndex + 1, 1, 1, headers.length).getValues()[0];
-  const values = headers.map(function (h, idx) {
-    const v = valueForHeader_(item, h);
-    if (v === undefined) return existing[idx];
-    return v;
-  });
-  sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([values]);
-  invalidatePublicCache_(resource);
-  maybeCreatePromoForListing_(resource, savedId, item, session);
-  return { success: true, id: String(rowIndex) };
-}
-
 function isClosedStatus_(raw) {
   const s = normalizeProgramStatusValue_(raw);
   return s === "closed" || s === "inactive";
-}
-
-function statusValueFromRow_(headers, row) {
-  const keys = ["status", "program status", "listing status"];
-  for (let i = 0; i < keys.length; i++) {
-    const ix = headers.indexOf(keys[i]);
-    if (ix >= 0 && row[ix] !== undefined && String(row[ix]).replace(/\u00a0/g, " ").trim() !== "") {
-      return row[ix];
-    }
-  }
-  return "";
-}
-
-function adminClearClosed(data) {
-  const resource = String(data.resource || "programs");
-  if (resource === "volunteering") requireRole_(data.token, ["admin", "nurturing"]);
-  if (dataOnPi_()) dataMovedError_();
-  else requireRole_(data.token, ["admin", "programs"]);
-  const sheetName = sheetNameForResource_(resource);
-  if (sheetName === PROGRAMS_SHEET) {
-    ensureSheet_(PROGRAMS_SHEET, PROGRAM_HEADERS);
-  } else if (sheetName === VOLUNTEER_SHEET) {
-    ensureSheet_(VOLUNTEER_SHEET, VOLUNTEER_HEADERS);
-  }
-  const sheet = ss_().getSheetByName(sheetName);
-  if (!sheet) throw new Error("Sheet not found.");
-  const rows = sheet.getDataRange().getValues();
-  if (rows.length < 2) {
-    invalidatePublicCache_(resource);
-    return { success: true, deleted: 0 };
-  }
-
-  const headers = rows[0].map(function (h) {
-    return h.toString().trim().toLowerCase();
-  });
-  if (sheetName === PROGRAMS_SHEET || sheetName === VOLUNTEER_SHEET) {
-    for (let i = 1; i < rows.length; i++) {
-      if (!rows[i][0]) continue;
-      rows[i] = applyListingAutoClose_(sheet, sheetName, headers, i + 1, rows[i]);
-    }
-  }
-  const sheetRowsToDelete = [];
-  for (let i = 1; i < rows.length; i++) {
-    if (!rows[i][0]) continue;
-    if (isClosedStatus_(statusValueFromRow_(headers, rows[i]))) {
-      sheetRowsToDelete.push(i + 1);
-    }
-  }
-  sheetRowsToDelete.sort(function (a, b) {
-    return b - a;
-  });
-  for (let d = 0; d < sheetRowsToDelete.length; d++) {
-    sheet.deleteRow(sheetRowsToDelete[d]);
-  }
-  invalidatePublicCache_(resource);
-  return { success: true, deleted: sheetRowsToDelete.length };
-}
-
-function adminDeleteItem(data) {
-  const resource = String(data.resource || "programs");
-  if (resource === "volunteering") requireRole_(data.token, ["admin", "nurturing"]);
-  if (dataOnPi_()) dataMovedError_();
-  else requireRole_(data.token, ["admin", "programs"]);
-  const sheetName = sheetNameForResource_(resource);
-  const sheet = ss_().getSheetByName(sheetName);
-  if (!sheet) throw new Error("Sheet not found.");
-  const rowIndex = parseInt(data.id, 10);
-  if (isNaN(rowIndex) || rowIndex < 1) throw new Error("Invalid item id.");
-  sheet.deleteRow(rowIndex + 1);
-  invalidatePublicCache_(resource);
-  return { success: true };
 }
 
 function adminUploadImage(data) {
@@ -1978,58 +1502,6 @@ function adminGetImage(data) {
     mimeType: mime,
     filename: name,
   };
-}
-
-function listProgramTitles_() {
-  ensureSheet_(PROGRAM_TITLES_SHEET, PROGRAM_TITLE_HEADERS);
-  const sheet = ss_().getSheetByName(PROGRAM_TITLES_SHEET);
-  const rows = sheet.getDataRange().getValues();
-  if (rows.length < 2) return [];
-  const headers = rows[0].map(function (h) {
-    return h.toString().trim().toLowerCase();
-  });
-  const titleIdx = headers.indexOf("title");
-  const activeIdx = headers.indexOf("active");
-  const titles = [];
-  for (let i = 1; i < rows.length; i++) {
-    const title = cellToDisplay_(rows[i][titleIdx]);
-    if (!title) continue;
-    if (activeIdx >= 0 && /^no$/i.test(cellToDisplay_(rows[i][activeIdx]))) continue;
-    titles.push(title);
-  }
-  return titles;
-}
-
-/** Adds a name to ProgramTitles (re-activates it if it was switched off). */
-function adminAddProgramTitle(data) {
-  requireRole_(data.token, ["admin"]);
-  if (dataOnPi_()) dataMovedError_();
-  const title = stripInvisibleChars_(String(data.title || "").replace(/\u00a0/g, " ")).replace(/\s+/g, " ").trim();
-  if (!title) throw new Error("Enter a program name.");
-  ensureSheet_(PROGRAM_TITLES_SHEET, PROGRAM_TITLE_HEADERS);
-  const sheet = ss_().getSheetByName(PROGRAM_TITLES_SHEET);
-  const rows = sheet.getDataRange().getValues();
-  const headers = rows[0].map(function (h) {
-    return h.toString().trim().toLowerCase();
-  });
-  const titleIdx = headers.indexOf("title");
-  const activeIdx = headers.indexOf("active");
-  for (let i = 1; i < rows.length; i++) {
-    if (cellToDisplay_(rows[i][titleIdx]).toLowerCase() !== title.toLowerCase()) continue;
-    if (activeIdx >= 0 && /^no$/i.test(cellToDisplay_(rows[i][activeIdx]))) {
-      sheet.getRange(i + 1, activeIdx + 1).setValue("yes");
-      return { success: true, titles: listProgramTitles_() };
-    }
-    throw new Error("That program name is already in the list.");
-  }
-  sheet.appendRow(
-    headers.map(function (h) {
-      if (h === "title") return title;
-      if (h === "active") return "yes";
-      return "";
-    })
-  );
-  return { success: true, titles: listProgramTitles_() };
 }
 
 function parseFlyerProgramTitles_(raw) {
@@ -2869,32 +2341,6 @@ function getSiteContent() {
   return payload;
 }
 
-function adminSaveSite(data) {
-  requireRole_(data.token, ["admin", "promotions"]);
-  if (dataOnPi_()) dataMovedError_();
-  const incoming = data.content || {};
-  const sheet = ensureSheet_(SITE_SHEET, ["key", "value"]);
-  const keys = Object.keys(SITE_DEFAULTS);
-  const existing = {};
-  const rows = sheet.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    const key = String(rows[i][0] || "").trim();
-    if (key) existing[key] = i + 1;
-  }
-  keys.forEach(function (key) {
-    // Only touch keys the caller sent, so saving the banner never blanks other site text.
-    if (incoming[key] === undefined) return;
-    const value = String(incoming[key]);
-    if (existing[key]) {
-      sheet.getRange(existing[key], 2).setValue(value);
-    } else {
-      sheet.appendRow([key, value]);
-    }
-  });
-  invalidatePublicCache_("site");
-  return { success: true };
-}
-
 function normalizeProgramStatusValue_(raw) {
   if (raw === undefined || raw === null) return "";
   return String(raw)
@@ -3146,248 +2592,11 @@ const INQUIRY_DEFS = [
   },
 ];
 
-function inquiryStatusLabel_(raw) {
-  const s = String(raw || "")
-    .replace(/\u00a0/g, " ")
-    .trim()
-    .toLowerCase();
-  if (s === "resolved" || s === "closed" || s === "done" || s === "inactive") return "Resolved";
-  return "Open";
-}
-
-function parseInquiryItems_(def, rows) {
-  const items = [];
-  if (!rows || rows.length < 2) return items;
-  const headers = rows[0].map(function (h) {
-    return h.toString().trim().toLowerCase();
-  });
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const hasValue = row.some(function (cell) {
-      return String(cell || "").trim() !== "";
-    });
-    if (!hasValue) continue;
-    const item = { id: String(i), sheet: def.key };
-    headers.forEach(function (h, idx) {
-      item[h] = row[idx] === undefined || row[idx] === null ? "" : String(row[idx]).trim();
-    });
-    if (item.id === "" || headers.indexOf("id") < 0) item.id = String(i);
-    item.sheet = def.key;
-    item.status = inquiryStatusLabel_(item.status);
-    items.push(item);
-  }
-  items.reverse();
-  return items;
-}
-
-function inquiryPreviewFromRow_(headers, row) {
-  const map = {};
-  headers.forEach(function (h, idx) {
-    map[h] = row[idx] === undefined || row[idx] === null ? "" : String(row[idx]).trim();
-  });
-  return map.query || map["program name"] || map["opportunity name"] || map.area || "";
-}
-
-function latestInquiryFromSheet_(sheet, lastRow, lastCol, headers) {
-  const lookback = Math.min(8, lastRow - 1);
-  if (lookback < 1) return null;
-  const startRow = lastRow - lookback + 1;
-  const values = sheet.getRange(startRow, 1, lookback, lastCol).getValues();
-  const nameIx = headers.indexOf("name");
-  const tsIx = headers.indexOf("timestamp");
-  for (let i = values.length - 1; i >= 0; i--) {
-    const row = values[i];
-    const hasValue = row.some(function (cell) {
-      return String(cell || "").trim() !== "";
-    });
-    if (!hasValue) continue;
-    return {
-      id: String(startRow + i - 1),
-      name: nameIx >= 0 ? String(row[nameIx] || "").trim() : "",
-      preview: inquiryPreviewFromRow_(headers, row),
-      timestamp: tsIx >= 0 ? String(row[tsIx] || "").trim() : "",
-    };
-  }
-  return null;
-}
-
-/** Lightweight tab badges: open/total only (no full item payloads). */
-function getInquiryMeta_() {
-  const groups = INQUIRY_DEFS.map(function (def) {
-    const sheet = ensureSheet_(def.sheet, def.headers);
-    const lastRow = sheet.getLastRow();
-    const lastCol = sheet.getLastColumn() || 1;
-    if (lastRow < 2) {
-      return {
-        key: def.key,
-        title: def.title,
-        openCount: 0,
-        total: 0,
-        latest: null,
-        items: [],
-        loaded: false,
-      };
-    }
-    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
-      return h.toString().trim().toLowerCase();
-    });
-    const statusIx = headers.indexOf("status");
-    const nameIx = headers.indexOf("name");
-    const probeIx = nameIx >= 0 ? nameIx : 0;
-    const probe = sheet.getRange(2, probeIx + 1, lastRow, probeIx + 1).getValues();
-    const statuses =
-      statusIx >= 0 ? sheet.getRange(2, statusIx + 1, lastRow, statusIx + 1).getValues() : null;
-    let open = 0;
-    let total = 0;
-    for (let i = 0; i < probe.length; i++) {
-      const hasName = String(probe[i][0] || "").trim() !== "";
-      const stRaw = statuses ? statuses[i][0] : "";
-      if (!hasName && String(stRaw || "").trim() === "") continue;
-      total++;
-      if (inquiryStatusLabel_(stRaw) !== "Resolved") open++;
-    }
-    return {
-      key: def.key,
-      title: def.title,
-      openCount: open,
-      total: total,
-      latest: latestInquiryFromSheet_(sheet, lastRow, lastCol, headers),
-      items: [],
-      loaded: false,
-    };
-  });
-  const stamp = groups
-    .map(function (g) {
-      return g.key + ":" + (g.total || 0);
-    })
-    .join("|");
-  const total = groups.reduce(function (sum, g) {
-    return sum + (g.total || 0);
-  }, 0);
-  return { groups: groups, stamp: stamp, total: total };
-}
-
-/** Full items for one inquiry type. */
-function getInquiryGroup_(key) {
-  const def = inquiryDefByKey_(key);
-  if (!def) throw new Error("Unknown inquiry type.");
-  const sheet = ensureSheet_(def.sheet, def.headers);
-  const lastRow = sheet.getLastRow();
-  const rows = lastRow < 1 ? [] : sheet.getRange(1, 1, lastRow, sheet.getLastColumn() || 1).getValues();
-  const items = parseInquiryItems_(def, rows);
-  const openCount = items.filter(function (it) {
-    return it.status !== "Resolved";
-  }).length;
-  return {
-    group: {
-      key: def.key,
-      title: def.title,
-      items: items,
-      openCount: openCount,
-      total: items.length,
-      loaded: true,
-    },
-  };
-}
-
-function getAllInquiries_() {
-  const groups = INQUIRY_DEFS.map(function (def) {
-    const sheet = ensureSheet_(def.sheet, def.headers);
-    const lastRow = sheet.getLastRow();
-    const rows = lastRow < 1 ? [] : sheet.getRange(1, 1, lastRow, sheet.getLastColumn() || 1).getValues();
-    const items = parseInquiryItems_(def, rows);
-    return {
-      key: def.key,
-      title: def.title,
-      items: items,
-      openCount: items.filter(function (it) {
-        return it.status !== "Resolved";
-      }).length,
-      total: items.length,
-      loaded: true,
-    };
-  });
-  return { groups: groups };
-}
-
 function inquiryDefByKey_(key) {
   for (let i = 0; i < INQUIRY_DEFS.length; i++) {
     if (INQUIRY_DEFS[i].key === key) return INQUIRY_DEFS[i];
   }
   return null;
-}
-
-function adminUpdateInquiry(data) {
-  requireRole_(data.token, ["admin", "nurturing"]);
-  if (dataOnPi_()) dataMovedError_();
-  const def = inquiryDefByKey_(data.sheet);
-  if (!def) throw new Error("Unknown inquiry type.");
-  const sheet = ensureSheet_(def.sheet, def.headers);
-  const rowIndex = parseInt(data.id, 10);
-  if (isNaN(rowIndex) || rowIndex < 1) throw new Error("Invalid inquiry id.");
-  const lastCol = sheet.getLastColumn() || 1;
-  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
-    return h.toString().trim().toLowerCase();
-  });
-  const statusIx = headers.indexOf("status");
-  const remarksIx = headers.indexOf("remarks");
-  if (statusIx < 0 || remarksIx < 0) throw new Error("Status/Remarks columns missing. Save the updated Apps Script and try again.");
-  const status = inquiryStatusLabel_(data.status);
-  const remarks = data.remarks === undefined || data.remarks === null ? "" : String(data.remarks);
-  const row = sheet.getRange(rowIndex + 1, 1, 1, headers.length).getValues()[0];
-  row[statusIx] = status;
-  row[remarksIx] = remarks;
-  const inviteIx = headers.indexOf("invite sent");
-  let inviteSent;
-  if (data.inviteSent !== undefined && inviteIx >= 0) {
-    inviteSent = data.inviteSent ? nowIsoKolkata_() : "";
-    row[inviteIx] = inviteSent;
-  }
-  const groupIx = headers.indexOf("in group");
-  let inGroup;
-  if (data.inGroup !== undefined && groupIx >= 0) {
-    inGroup = data.inGroup ? String(data.inGroup).trim() + " · " + nowIsoKolkata_().slice(0, 10) : "";
-    row[groupIx] = inGroup;
-  }
-  sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([row]);
-  return { success: true, status: status, inviteSent: inviteSent, inGroup: inGroup };
-}
-
-/**
- * Enquiries Sandesha just added to a WhatsApp group: record the group in
- * "In Group" and mark each one Resolved. data.items = [{ sheet, id }], data.group = group name.
- */
-function adminInquiriesAddedToGroup(data) {
-  requireRole_(data.token, ["admin", "nurturing"]);
-  if (dataOnPi_()) dataMovedError_();
-  const items = Array.isArray(data && data.items) ? data.items : [];
-  const groupName = String((data && data.group) || "").trim() || "WhatsApp group";
-  const stamp = groupName + " · " + nowIsoKolkata_().slice(0, 10);
-  const bySheet = {};
-  items.forEach(function (it) {
-    const key = String((it && it.sheet) || "");
-    if (!inquiryDefByKey_(key)) return;
-    (bySheet[key] = bySheet[key] || []).push(parseInt(it.id, 10));
-  });
-  let updated = 0;
-  Object.keys(bySheet).forEach(function (key) {
-    const def = inquiryDefByKey_(key);
-    const sheet = ensureSheet_(def.sheet, def.headers);
-    const lastCol = sheet.getLastColumn() || 1;
-    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
-      return h.toString().trim().toLowerCase();
-    });
-    const statusIx = headers.indexOf("status");
-    const groupIx = headers.indexOf("in group");
-    if (statusIx < 0 || groupIx < 0) throw new Error("Status/In Group columns missing on " + def.sheet + ".");
-    bySheet[key].forEach(function (rowIndex) {
-      if (isNaN(rowIndex) || rowIndex < 1 || rowIndex + 1 > sheet.getLastRow()) return;
-      sheet.getRange(rowIndex + 1, statusIx + 1).setValue("Resolved");
-      sheet.getRange(rowIndex + 1, groupIx + 1).setValue(stamp);
-      updated += 1;
-    });
-  });
-  return { success: true, updated: updated, inGroup: stamp };
 }
 
 function saveHomeQuery(data) {
@@ -3519,17 +2728,6 @@ function userFromRow_(headers, row) {
   return user;
 }
 
-function publicUser_(user) {
-  return {
-    id: user.id,
-    username: user.username,
-    displayName: user.display_name || user.username,
-    role: user.role,
-    status: user.status || "active",
-    createdAt: user.created_at || "",
-  };
-}
-
 function loadUsers_() {
   const sheet = usersSheet_();
   const lastRow = sheet.getLastRow();
@@ -3549,16 +2747,6 @@ function loadUsers_() {
   return { sheet: sheet, headers: headers, users: users };
 }
 
-function findUserByUsername_(username) {
-  const wanted = normalizeUsername_(username);
-  if (!wanted) return null;
-  const loaded = loadUsers_();
-  for (let i = 0; i < loaded.users.length; i++) {
-    if (normalizeUsername_(loaded.users[i].username) === wanted) return loaded.users[i];
-  }
-  return null;
-}
-
 function findUserById_(id) {
   const wanted = String(id || "").trim();
   if (!wanted) return null;
@@ -3567,156 +2755,6 @@ function findUserById_(id) {
     if (String(loaded.users[i].id) === wanted) return loaded.users[i];
   }
   return null;
-}
-
-function writeUserRow_(sheet, headers, rowIndex, user) {
-  const values = headers.map(function (h) {
-    if (user[h] === undefined || user[h] === null) return "";
-    return String(user[h]);
-  });
-  sheet.getRange(rowIndex, 1, 1, headers.length).setValues([values]);
-}
-
-function setUserPasswordFields_(user, password) {
-  const salt = newSalt_();
-  user.password_salt = salt;
-  user.password_hash = hashPassword_(password, salt);
-}
-
-function upsertAdminUser_(password) {
-  const pw = String(password || "").trim();
-  if (!pw || pw === "REPLACE_ME") return;
-  const loaded = loadUsers_();
-  let existing = null;
-  for (let i = 0; i < loaded.users.length; i++) {
-    if (normalizeUsername_(loaded.users[i].username) === "admin") {
-      existing = loaded.users[i];
-      break;
-    }
-  }
-  if (existing) {
-    setUserPasswordFields_(existing, pw);
-    existing.status = "active";
-    existing.role = "admin";
-    if (!existing.display_name) existing.display_name = "Admin";
-    writeUserRow_(loaded.sheet, loaded.headers, existing._row, existing);
-    return;
-  }
-  const user = {
-    id: Utilities.getUuid(),
-    username: "admin",
-    display_name: "Admin",
-    role: "admin",
-    status: "active",
-    created_at: nowIsoKolkata_(),
-  };
-  setUserPasswordFields_(user, pw);
-  const values = loaded.headers.map(function (h) {
-    return user[h] || "";
-  });
-  loaded.sheet.appendRow(values);
-}
-
-function bootstrapAdminUser_(password) {
-  usersSheet_();
-  if (loadUsers_().users.length > 0) return;
-  upsertAdminUser_(password);
-}
-
-function listUsersPublic_() {
-  return loadUsers_().users.map(publicUser_);
-}
-
-function countActiveAdmins_(users, exceptId) {
-  let n = 0;
-  for (let i = 0; i < users.length; i++) {
-    const u = users[i];
-    if (exceptId && String(u.id) === String(exceptId)) continue;
-    if (u.role === "admin" && String(u.status || "").toLowerCase() === "active") n++;
-  }
-  return n;
-}
-
-function uniqueUsernameFor_(base, users) {
-  const root = normalizeUsername_(base) || "user";
-  const taken = {};
-  for (let i = 0; i < (users || []).length; i++) {
-    taken[normalizeUsername_(users[i].username)] = true;
-  }
-  if (!taken[root]) return root;
-  let n = 2;
-  while (taken[root + String(n)]) n++;
-  return root + String(n);
-}
-
-function adminSaveUser(data) {
-  const session = requireRole_(data.token, ["admin"]);
-  if (loginsOnPi_()) throw new Error("Team is managed on Sandesha now. Sign out and sign in again.");
-  const loaded = loadUsers_();
-  const id = String(data.id || "").trim();
-  const role = normalizeRole_(data.role);
-  const displayName = String(data.displayName || data.display_name || "").trim();
-  const password = String(data.password || "");
-
-  if (id) {
-    const user = findUserById_(id);
-    if (!user) throw new Error("Person not found.");
-    if (role) {
-      if (user.role === "admin" && role !== "admin" && countActiveAdmins_(loaded.users, user.id) < 1) {
-        throw new Error("Keep at least one active admin.");
-      }
-      if (String(user.id) === String(session.id) && role !== "admin") {
-        throw new Error("You cannot change your own role.");
-      }
-      user.role = role;
-    }
-    if (displayName) user.display_name = displayName;
-    if (password) {
-      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-      setUserPasswordFields_(user, password);
-    }
-    writeUserRow_(loaded.sheet, loaded.headers, user._row, user);
-    return { success: true, user: publicUser_(user) };
-  }
-
-  if (!role) throw new Error("Choose a team.");
-  if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-  const username = uniqueUsernameFor_(displayName || role, loaded.users);
-  const user = {
-    id: Utilities.getUuid(),
-    username: username,
-    display_name: displayName || role,
-    role: role,
-    status: "active",
-    created_at: nowIsoKolkata_(),
-  };
-  setUserPasswordFields_(user, password);
-  const values = loaded.headers.map(function (h) {
-    return user[h] || "";
-  });
-  loaded.sheet.appendRow(values);
-  return { success: true, user: publicUser_(user) };
-}
-
-function adminSetUserStatus(data) {
-  const session = requireRole_(data.token, ["admin"]);
-  if (loginsOnPi_()) throw new Error("Team is managed on Sandesha now. Sign out and sign in again.");
-  const loaded = loadUsers_();
-  const user = findUserById_(data.id);
-  if (!user) throw new Error("Person not found.");
-  const status = String(data.status || "").trim().toLowerCase() === "disabled" ? "disabled" : "active";
-  if (String(user.id) === String(session.id) && status === "disabled") {
-    throw new Error("You cannot disable your own account.");
-  }
-  if (user.role === "admin" && status === "disabled" && countActiveAdmins_(loaded.users, user.id) < 1) {
-    throw new Error("Keep at least one active admin.");
-  }
-  user.status = status;
-  writeUserRow_(loaded.sheet, loaded.headers, user._row, user);
-  SpreadsheetApp.flush();
-  if (status === "disabled") markUserDisabled_(user.id);
-  else clearUserDisabled_(user.id);
-  return { success: true, user: publicUser_(user) };
 }
 
 function promoSheet_() {
@@ -3737,124 +2775,14 @@ function promoFromRow_(headers, row) {
   return item;
 }
 
-function sendAtKey_(raw) {
-  if (raw instanceof Date && !isNaN(raw.getTime())) {
-    return Utilities.formatDate(raw, PROGRAM_TZ_, "yyyy-MM-dd HH:mm");
-  }
-  const s = String(raw || "")
-    .replace("T", " ")
-    .replace(/\u00a0/g, " ")
-    .trim();
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})/);
-  if (!m) return "";
-  const hh = ("0" + Math.min(23, parseInt(m[2], 10))).slice(-2);
-  return m[1] + " " + hh + ":" + m[3];
-}
-
-function isSendDue_(sendAt) {
-  const key = sendAtKey_(sendAt);
-  if (!key) return false;
-  const now = kolkataNowParts_();
-  return key <= now.ymd + " " + now.hm;
-}
-
 function isOpenListingStatus_(raw) {
   const s = normalizeProgramStatusValue_(raw);
   if (!s) return true;
   return s === "open" || s === "active";
 }
 
-function normalizePromoStatus_(raw) {
-  const s = String(raw || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_");
-  if (s === "needs_copy" || s === "pending") return "pending";
-  if (s === "ready" || s === "due" || s === "sent") return s;
-  return "pending";
-}
-
-function listingMapForPromos_() {
-  const map = {};
-  ["programs", "volunteering"].forEach(function (resource) {
-    const sheetName = resource === "programs" ? PROGRAMS_SHEET : VOLUNTEER_SHEET;
-    const payload = getAllItems(sheetName, true);
-    (payload.items || []).forEach(function (item) {
-      map[resource + ":" + String(item.id)] = item;
-    });
-  });
-  return map;
-}
-
-function listingImage_(listing) {
-  if (!listing) return "";
-  return String(listing.image || "").trim();
-}
-
-function promoFlyerSource_(item, listingMap) {
-  const own = String(item.flyer_url || "").trim();
-  if (own) return own;
-  if (String(item.event_image || "").trim()) return String(item.event_image).trim();
-  if (!listingMap) return "";
-  const key = String(item.event_type || "") + ":" + String(item.event_id || "");
-  return listingImage_(listingMap[key]);
-}
-
-function sendAtDayKey_(sendAt) {
-  const key = sendAtKey_(sendAt);
-  return key ? key.slice(0, 10) : "";
-}
-
 /** Max scheduled (non-sent) promotions per Kolkata calendar day. */
 var MAX_PROMOS_PER_DAY_ = 4;
-
-function countPromosOnDay_(items, ymd, excludeId) {
-  const day = String(ymd || "").trim();
-  if (!day) return 0;
-  let n = 0;
-  (items || []).forEach(function (item) {
-    if (excludeId && String(item.id) === String(excludeId)) return;
-    if (normalizePromoStatus_(item.status) === "sent") return;
-    if (sendAtDayKey_(item.send_at) === day) n++;
-  });
-  return n;
-}
-
-function enrichPromo_(item, listingMap) {
-  const key = String(item.event_type || "") + ":" + String(item.event_id || "");
-  const listing = listingMap ? listingMap[key] : null;
-  if (listing) {
-    item.event_title = listing.title || item.event_title;
-    item.event_date =
-      listing.date ||
-      listing.startdate ||
-      listing["start date"] ||
-      "";
-    item.event_location = listing.location || "";
-    item.event_status = listing.status || "";
-    item.event_open = isOpenListingStatus_(listing.status);
-    item.event_image = listingImage_(listing);
-  } else {
-    item.event_date = item.event_date || "";
-    item.event_location = item.event_location || "";
-    item.event_status = item.event_status || "";
-    item.event_open = false;
-    item.event_image = item.event_image || "";
-  }
-  item.send_at = sendAtKey_(item.send_at);
-  if (normalizePromoStatus_(item.status) === "sent") {
-    item.status = "sent";
-  } else {
-    const forStatus = {
-      message: item.message,
-      flyer_url: promoFlyerSource_(item, listingMap),
-      send_at: item.send_at,
-      status: item.status,
-    };
-    item.status = promoReadyStatus_(forStatus);
-  }
-  return item;
-}
 
 function loadPromos_() {
   const sheet = promoSheet_();
@@ -3875,309 +2803,6 @@ function loadPromos_() {
   return { sheet: sheet, headers: headers, items: items };
 }
 
-function writePromoRow_(sheet, headers, rowIndex, item) {
-  const values = headers.map(function (h) {
-    if (h === "_row") return "";
-    if (item[h] === undefined || item[h] === null) return "";
-    return String(item[h]);
-  });
-  sheet.getRange(rowIndex, 1, 1, headers.length).setValues([values]);
-}
-
-function applyDuePromotions_() {
-  const loaded = loadPromos_();
-  const listingMap = listingMapForPromos_();
-  let changed = 0;
-  loaded.items.forEach(function (item) {
-    if (normalizePromoStatus_(item.status) === "sent") return;
-    const forStatus = {
-      message: item.message,
-      flyer_url: promoFlyerSource_(item, listingMap),
-      send_at: item.send_at,
-      status: item.status,
-    };
-    const next = promoReadyStatus_(forStatus);
-    if (next === normalizePromoStatus_(item.status)) return;
-    item.status = next;
-    item.updated_at = nowIsoKolkata_();
-    writePromoRow_(loaded.sheet, loaded.headers, item._row, item);
-    changed++;
-  });
-  return changed;
-}
-
-function markDuePromotions() {
-  if (promosOnPi_()) return;
-  applyDuePromotions_();
-}
-
-function ensureDuePromoTrigger_() {
-  try {
-    const triggers = ScriptApp.getProjectTriggers();
-    for (let i = 0; i < triggers.length; i++) {
-      if (triggers[i].getHandlerFunction() === "markDuePromotions") return;
-    }
-    ScriptApp.newTrigger("markDuePromotions").timeBased().everyMinutes(10).create();
-  } catch (err) {
-    Logger.log("Could not create due-promotions trigger: " + err.message);
-  }
-}
-
-function promoCounts_(items) {
-  const counts = { pending: 0, ready: 0, due: 0, sent: 0, needs_copy: 0 };
-  (items || []).forEach(function (item) {
-    const status = normalizePromoStatus_(item.status);
-    if (counts[status] !== undefined) counts[status]++;
-  });
-  counts.needs_copy = counts.pending;
-  return counts;
-}
-
-function listPromotions_(opts) {
-  applyDuePromotions_();
-  const loaded = loadPromos_();
-  const listingMap = listingMapForPromos_();
-  const items = loaded.items.map(function (item) {
-    return enrichPromo_(item, listingMap);
-  });
-  items.sort(function (a, b) {
-    const order = { due: 0, pending: 1, ready: 2, sent: 3 };
-    const da = order[a.status] != null ? order[a.status] : 9;
-    const db = order[b.status] != null ? order[b.status] : 9;
-    if (da !== db) return da - db;
-    return String(b.send_at || "").localeCompare(String(a.send_at || ""));
-  });
-  const dueItems = items.filter(function (item) {
-    return item.status === "due";
-  });
-  const stamp = dueItems
-    .map(function (item) {
-      return item.id;
-    })
-    .sort()
-    .join("|");
-  if (opts && opts.dueOnly) {
-    return { items: dueItems, due: dueItems, counts: promoCounts_(items), stamp: stamp };
-  }
-  return { items: items, due: dueItems, counts: promoCounts_(items), stamp: stamp };
-}
-
-/** programId -> message the Promotions team wrote for that program. Text only
- * (no flyer / schedule), so Nurturing can invite a Program-interest lead. */
-function programInviteMessages_() {
-  const out = {};
-  loadPromos_().items.forEach(function (item) {
-    if (String(item.event_type) !== "programs") return;
-    const msg = String(item.message || "").trim();
-    if (msg) out[String(item.event_id)] = msg;
-  });
-  return out;
-}
-
-function findPromoByEvent_(eventType, eventId) {
-  const wantedType = String(eventType || "").trim();
-  const wantedId = String(eventId || "").trim();
-  const loaded = loadPromos_();
-  for (let i = 0; i < loaded.items.length; i++) {
-    const item = loaded.items[i];
-    if (String(item.event_type) === wantedType && String(item.event_id) === wantedId) return item;
-  }
-  return null;
-}
-
-function appendPromo_(fields) {
-  const loaded = loadPromos_();
-  const item = {
-    id: Utilities.getUuid(),
-    event_type: fields.event_type || "programs",
-    event_id: String(fields.event_id || ""),
-    event_title: fields.event_title || "",
-    message: fields.message || "",
-    flyer_url: fields.flyer_url || "",
-    send_at: sendAtKey_(fields.send_at),
-    status: fields.status || "pending",
-    created_by: fields.created_by || "",
-    updated_at: nowIsoKolkata_(),
-    sent_at: "",
-    sent_by: "",
-    target: fields.target || "",
-    wa_schedule_ids: fields.wa_schedule_ids || "",
-  };
-  item.status = promoReadyStatus_(item);
-  const values = loaded.headers.map(function (h) {
-    return item[h] || "";
-  });
-  loaded.sheet.appendRow(values);
-  return item;
-}
-
-function maybeCreatePromoForListing_(resource, eventId, item, session) {
-  if (promosOnPi_()) return; // the Pi makes a post for each open listing itself
-  const eventType = resource === "volunteering" ? "volunteering" : "programs";
-  const status = item && item.status;
-  if (!isOpenListingStatus_(status)) return;
-  if (findPromoByEvent_(eventType, eventId)) return;
-  appendPromo_({
-    event_type: eventType,
-    event_id: eventId,
-    event_title: (item && item.title) || "",
-    flyer_url: listingImage_(item),
-    created_by: session && session.username ? session.username : "",
-    status: "pending",
-  });
-}
-
-function findPromoById_(id) {
-  const wanted = String(id || "").trim();
-  if (!wanted) return null;
-  const loaded = loadPromos_();
-  for (let i = 0; i < loaded.items.length; i++) {
-    if (String(loaded.items[i].id) === wanted) return loaded.items[i];
-  }
-  return null;
-}
-
-/**
- * Status rules:
- * - sent stays sent
- * - message + flyer + send_at due → due
- * - message + flyer → ready (send_at optional / future)
- * - else → pending
- */
-function promoReadyStatus_(item) {
-  if (normalizePromoStatus_(item.status) === "sent") return "sent";
-  const hasCopy = String(item.message || "").trim();
-  const hasFlyer = String(item.flyer_url || "").trim();
-  if (hasCopy && hasFlyer) {
-    if (sendAtKey_(item.send_at) && isSendDue_(item.send_at)) return "due";
-    return "ready";
-  }
-  return "pending";
-}
-
-function adminSavePromotion(data) {
-  const session = requireRole_(data.token, ["admin", "promotions"]);
-  if (promosOnPi_()) promosMovedError_();
-  const loaded = loadPromos_();
-  const item = findPromoById_(data.id);
-  if (!item) throw new Error("Promotion not found.");
-  const listingMap = listingMapForPromos_();
-  if (data.message !== undefined) item.message = String(data.message || "");
-  if (data.flyer_url !== undefined) item.flyer_url = String(data.flyer_url || "");
-  if (!String(item.flyer_url || "").trim()) {
-    item.flyer_url = promoFlyerSource_(item, listingMap);
-  }
-  if (data.target !== undefined) item.target = String(data.target || "");
-  if (data.send_at !== undefined) {
-    const nextSend = sendAtKey_(data.send_at);
-    const nextDay = sendAtDayKey_(nextSend);
-    if (nextDay) {
-      const used = countPromosOnDay_(loaded.items, nextDay, item.id);
-      if (used >= MAX_PROMOS_PER_DAY_) {
-        throw new Error("Only " + MAX_PROMOS_PER_DAY_ + " posts can be scheduled on one day.");
-      }
-    }
-    item.send_at = nextSend;
-    // Off the day board means Sandesha is no longer holding a row for it.
-    if (!nextSend && data.wa_schedule_ids === undefined) item.wa_schedule_ids = "";
-  }
-  if (data.wa_schedule_ids !== undefined) {
-    item.wa_schedule_ids = normalizeScheduleIds_(data.wa_schedule_ids);
-  }
-
-  if (data.clear_sent) {
-    item.sent_at = "";
-    item.sent_by = "";
-    item.status = promoReadyStatus_({
-      message: item.message,
-      flyer_url: item.flyer_url,
-      send_at: item.send_at,
-      status: "ready",
-    });
-  } else {
-    item.status = promoReadyStatus_({
-      message: item.message,
-      flyer_url: item.flyer_url,
-      send_at: item.send_at,
-      status: item.status,
-    });
-  }
-  item.updated_at = nowIsoKolkata_();
-  writePromoRow_(loaded.sheet, loaded.headers, item._row, item);
-  return { success: true, item: enrichPromo_(item, listingMap) };
-}
-
-function adminAddPromotion(data) {
-  const session = requireRole_(data.token, ["admin", "promotions"]);
-  if (promosOnPi_()) promosMovedError_();
-  const eventType = data.event_type === "volunteering" ? "volunteering" : "programs";
-  const eventId = String(data.event_id || "").trim();
-  if (!eventId) throw new Error("Choose an event.");
-  const sheetName = eventType === "volunteering" ? VOLUNTEER_SHEET : PROGRAMS_SHEET;
-  const listing = getSingleItem(sheetName, eventId, true);
-  const listingItem = listing && listing.item ? listing.item : null;
-  const title = (listingItem && listingItem.title) || data.event_title || "";
-  const item = appendPromo_({
-    event_type: eventType,
-    event_id: eventId,
-    event_title: title,
-    flyer_url: listingImage_(listingItem),
-    created_by: session.username,
-    status: "pending",
-  });
-  return { success: true, item: enrichPromo_(item, listingMapForPromos_()) };
-}
-
-/** Sandesha schedule ids, stored as a comma list so one promo can fan out. */
-function normalizeScheduleIds_(raw) {
-  const list = Array.isArray(raw) ? raw : String(raw || "").split(",");
-  return list
-    .map(function (v) {
-      return String(v).trim();
-    })
-    .filter(function (v) {
-      return v !== "";
-    })
-    .join(",");
-}
-
-function adminMarkPromotionSent(data) {
-  const session = requireRole_(data.token, ["admin", "promotions"]);
-  if (promosOnPi_()) promosMovedError_();
-  const loaded = loadPromos_();
-  const item = findPromoById_(data.id);
-  if (!item) throw new Error("Promotion not found.");
-  item.status = "sent";
-  item.sent_at = nowIsoKolkata_();
-  // Sandesha delivered it on the schedule; the admin who happened to open the
-  // board did not, so record the bot rather than them.
-  item.sent_by = data.source === "sandesha" ? "sandesha" : session.username;
-  item.wa_schedule_ids = "";
-  item.updated_at = item.sent_at;
-  writePromoRow_(loaded.sheet, loaded.headers, item._row, item);
-  const listingMap = listingMapForPromos_();
-  return { success: true, item: enrichPromo_(item, listingMap) };
-}
-
-function adminUnmarkPromotionSent(data) {
-  requireRole_(data.token, ["admin", "promotions"]);
-  if (promosOnPi_()) promosMovedError_();
-  const loaded = loadPromos_();
-  const item = findPromoById_(data.id);
-  if (!item) throw new Error("Promotion not found.");
-  item.sent_at = "";
-  item.sent_by = "";
-  item.status = promoReadyStatus_({
-    message: item.message,
-    flyer_url: item.flyer_url,
-    send_at: item.send_at,
-    status: "ready",
-  });
-  item.updated_at = nowIsoKolkata_();
-  writePromoRow_(loaded.sheet, loaded.headers, item._row, item);
-  return { success: true, item: enrichPromo_(item, listingMapForPromos_()) };
-}
-
 /* ================================================================
    Event volunteers — Nurturing recruits, tracks attendance, and
    pushes attendees into a general WhatsApp group after the event.
@@ -4186,11 +2811,6 @@ function adminUnmarkPromotionSent(data) {
 
 function evSheet_() {
   return ensureSheet_(EVENT_VOLUNTEERS_SHEET, EV_HEADERS);
-}
-
-function evYes_(raw) {
-  const s = String(raw || "").trim().toLowerCase();
-  return s === "yes" || s === "true" || s === "1" || s === "y";
 }
 
 /** Digits only when it looks like a dialable number (10–13, not a LID shape). */
@@ -4282,22 +2902,6 @@ function evProgramSnapshot_(eventId) {
   };
 }
 
-function evVolunteerView_(r) {
-  return {
-    rowId: r.row_id,
-    name: r.volunteer_name || "",
-    phone: r.phone || "",
-    remarks: r.volunteer_remarks || "",
-    area: r.area_of_stay || "",
-    ieCompletion: r.ie_completion || "",
-    attended: String(r.attended || "").toLowerCase(),
-    inGroup: evYes_(r.in_wa_group),
-    inviteSent: evYes_(r.invite_sent),
-    attendanceAt: r.attendance_at || "",
-    addedBy: r.added_by || "",
-  };
-}
-
 function evFindNeed_(loaded, eventId) {
   const id = String(eventId || "");
   for (let i = 0; i < loaded.rows.length; i++) {
@@ -4306,320 +2910,11 @@ function evFindNeed_(loaded, eventId) {
   return null;
 }
 
-function evFindVolunteer_(loaded, rowId) {
-  const id = String(rowId || "");
-  for (let i = 0; i < loaded.rows.length; i++) {
-    if (loaded.rows[i].kind === "volunteer" && String(loaded.rows[i].row_id) === id) return loaded.rows[i];
-  }
-  return null;
-}
-
-/** Nurturing view: every program that asked for volunteers, joined with tracking. */
-function getVolunteerNeeds_() {
-  const programs = getAllItems(PROGRAMS_SHEET, true).items || [];
-  const loaded = loadEventVolunteers_();
-  const needByEvent = {};
-  const volsByEvent = {};
-  loaded.rows.forEach(function (r) {
-    const id = String(r.event_id || "");
-    if (!id) return;
-    if (r.kind === "need") needByEvent[id] = r;
-    else if (r.kind === "volunteer") {
-      if (!volsByEvent[id]) volsByEvent[id] = [];
-      volsByEvent[id].push(r);
-    }
-  });
-
-  const items = [];
-  let unmet = 0;
-  let awaitingAttendance = 0;
-
-  programs.forEach(function (p) {
-    if (!programWantsVolunteers_(p.volunteering_available || p.volunteeringavailable)) return;
-    const id = String(p.id);
-    const needed = parseVolunteersNeeded_(p.volunteers_needed || p.volunteersneeded);
-    const need = needByEvent[id] || null;
-    const vols = (volsByEvent[id] || []).map(evVolunteerView_);
-    vols.sort(function (a, b) { return a.name.localeCompare(b.name); });
-    const open = isOpenListingStatus_(p.status);
-    const handled = !!(need && evYes_(need.handled));
-    const addedCount = vols.length;
-    const allAttendanceDone =
-      vols.length > 0 && vols.every(function (v) { return v.attended === "yes" || v.attended === "no"; });
-
-    if (open && addedCount < needed) unmet += 1;
-    if (!open && handled && vols.some(function (v) { return v.attended === ""; })) awaitingAttendance += 1;
-
-    items.push({
-      id: id,
-      title: p.title || "",
-      date: p.date || p.startdate || "",
-      startdate: p.startdate || "",
-      enddate: p.enddate || "",
-      slots: p.slots || [],
-      timings: p.timings || "",
-      status: p.status || "",
-      open: open,
-      needed: needed,
-      requirements: p.volunteer_requirements || "",
-      handled: handled,
-      handledRemarks: need ? need.handled_remarks || "" : "",
-      handledBy: need ? need.handled_by || "" : "",
-      handledAt: need ? need.handled_at || "" : "",
-      formId: need ? need.volunteer_form_id || "" : "",
-      formShortUrl: need ? need.volunteer_form_short_url || "" : "",
-      formFields: need ? (need.volunteer_form_fields || "").split(",").filter(Boolean) : [],
-      formTemplateId: need ? need.volunteer_form_template || "" : "",
-      volunteers: vols,
-      addedCount: addedCount,
-      allAttendanceDone: allAttendanceDone,
-    });
-  });
-
-  items.sort(function (a, b) {
-    const ra = a.open ? (a.addedCount < a.needed ? 0 : 1) : 2;
-    const rb = b.open ? (b.addedCount < b.needed ? 0 : 1) : 2;
-    if (ra !== rb) return ra - rb;
-    return String(a.startdate || "").localeCompare(String(b.startdate || ""));
-  });
-
-  return { items: items, counts: { unmet: unmet, awaitingAttendance: awaitingAttendance } };
-}
-
-function adminSaveVolunteerNeed(data) {
-  const session = requireRole_(data.token, ["admin", "nurturing"]);
-  if (dataOnPi_()) dataMovedError_();
-  const eventId = String((data && data.eventId) || "").trim();
-  if (!eventId) throw new Error("eventId required.");
-  const snap = evProgramSnapshot_(eventId);
-  if (!snap) throw new Error("Program not found.");
-
-  const loaded = loadEventVolunteers_();
-  let need = evFindNeed_(loaded, eventId);
-  const now = nowIsoKolkata_();
-  const handled = evYes_(data.handled);
-  const remarks = data.remarks === undefined || data.remarks === null ? "" : String(data.remarks);
-
-  if (!need) {
-    need = { row_id: Utilities.getUuid(), kind: "need", event_id: eventId, _row: null };
-  }
-  need.event_title = snap.title;
-  need.event_date = snap.date;
-  need.needed = String(snap.needed);
-  need.handled = handled ? "yes" : "no";
-  need.handled_remarks = remarks;
-  if (handled) {
-    if (!need.handled_at) need.handled_at = now;
-    need.handled_by = session.username || need.handled_by || "";
-  } else {
-    need.handled_at = "";
-    need.handled_by = "";
-    need.reminded_at = "";
-  }
-  need.updated_at = now;
-
-  if (need._row) evWriteRow_(loaded, need);
-  else evAppendRow_(loaded, need);
-  return { success: true };
-}
-
-function adminAddEventVolunteer(data) {
-  const session = requireRole_(data.token, ["admin", "nurturing", "programs"]);
-  if (dataOnPi_()) dataMovedError_();
-  const eventId = String((data && data.eventId) || "").trim();
-  const name = String((data && data.name) || "").trim();
-  const phone = evDigits_(data && data.phone);
-  const area = String((data && data.area) || "").trim();
-  const ieCompletion = String((data && data.ieCompletion) || "").trim();
-  const fromForm = String((data && data.addedBy) || "").toLowerCase() === "google-form";
-  if (!eventId) throw new Error("eventId required.");
-  if (!name) throw new Error("Volunteer name required.");
-  if (!phone) throw new Error("A valid phone number is required.");
-  if (!area && !fromForm) throw new Error("Area of stay is required.");
-
-  const loaded = loadEventVolunteers_();
-  let need = evFindNeed_(loaded, eventId);
-  const now = nowIsoKolkata_();
-
-  // Historically Nurturing had to click "Mark handled" before anyone could
-  // add a volunteer. Programs (and anyone else) can now add directly —
-  // silently create/confirm the need row instead of blocking on that step.
-  if (!need || !evYes_(need.handled)) {
-    const snap = evProgramSnapshot_(eventId);
-    if (!snap) throw new Error("Program not found.");
-    if (!need) {
-      need = { row_id: Utilities.getUuid(), kind: "need", event_id: eventId, _row: null };
-    }
-    need.event_title = snap.title;
-    need.event_date = snap.date;
-    need.needed = String(snap.needed);
-    need.handled = "yes";
-    need.handled_remarks = need.handled_remarks || "";
-    if (!need.handled_at) need.handled_at = now;
-    need.handled_by = session.username || need.handled_by || "";
-    need.updated_at = now;
-    if (need._row) evWriteRow_(loaded, need);
-    else evAppendRow_(loaded, need);
-  }
-
-  const dup = loaded.rows.some(function (r) {
-    return r.kind === "volunteer" && String(r.event_id) === eventId && evDigits_(r.phone) === phone;
-  });
-  if (dup) throw new Error("That number is already on this event's list.");
-
-  evAppendRow_(loaded, {
-    row_id: Utilities.getUuid(),
-    kind: "volunteer",
-    event_id: eventId,
-    event_title: need.event_title || "",
-    volunteer_name: name,
-    phone: phone,
-    volunteer_remarks: String((data && data.remarks) || ""),
-    area_of_stay: area,
-    ie_completion: ieCompletion,
-    added_by: fromForm ? "google-form" : (session.username || ""),
-    attended: "",
-    in_wa_group: "no",
-    invite_sent: "no",
-    updated_at: now,
-  });
-  return { success: true };
-}
-
-function adminUpdateEventVolunteer(data) {
-  requireRole_(data.token, ["admin", "nurturing", "programs"]);
-  if (dataOnPi_()) dataMovedError_();
-  const loaded = loadEventVolunteers_();
-  const row = evFindVolunteer_(loaded, data && data.rowId);
-  if (!row) throw new Error("Volunteer row not found.");
-  const now = nowIsoKolkata_();
-
-  if (data.name !== undefined) {
-    const nm = String(data.name || "").trim();
-    if (nm) row.volunteer_name = nm;
-  }
-  if (data.phone !== undefined) {
-    const p = evDigits_(data.phone);
-    if (!p) throw new Error("A valid phone number is required.");
-    row.phone = p;
-  }
-  if (data.remarks !== undefined) row.volunteer_remarks = String(data.remarks || "");
-  if (data.area !== undefined) row.area_of_stay = String(data.area || "").trim();
-  if (data.attended !== undefined) {
-    const a = String(data.attended || "").toLowerCase();
-    row.attended = a === "yes" || a === "no" ? a : "";
-    row.attendance_at = row.attended ? now : "";
-  }
-  if (data.inGroup !== undefined) row.in_wa_group = evYes_(data.inGroup) ? "yes" : "no";
-  if (data.inviteSent !== undefined) row.invite_sent = evYes_(data.inviteSent) ? "yes" : "no";
-  row.updated_at = now;
-  evWriteRow_(loaded, row);
-  return { success: true, volunteer: evVolunteerView_(row) };
-}
-
-function adminDeleteEventVolunteer(data) {
-  requireRole_(data.token, ["admin", "nurturing", "programs"]);
-  if (dataOnPi_()) dataMovedError_();
-  const loaded = loadEventVolunteers_();
-  const row = evFindVolunteer_(loaded, data && data.rowId);
-  if (!row) throw new Error("Volunteer row not found.");
-  loaded.sheet.deleteRow(row._row);
-  return { success: true };
-}
-
-function adminMarkVolunteersInGroup(data) {
-  requireRole_(data.token, ["admin", "nurturing"]);
-  if (dataOnPi_()) dataMovedError_();
-  const ids = (data && data.rowIds) || [];
-  const field = data && data.field === "inviteSent" ? "invite_sent" : "in_wa_group";
-  if (!ids.length) return { success: true, updated: 0 };
-  const loaded = loadEventVolunteers_();
-  const wanted = {};
-  ids.forEach(function (id) { wanted[String(id)] = true; });
-  const now = nowIsoKolkata_();
-  let updated = 0;
-  loaded.rows.forEach(function (r) {
-    if (r.kind !== "volunteer" || !wanted[String(r.row_id)]) return;
-    r[field] = "yes";
-    r.updated_at = now;
-    evWriteRow_(loaded, r);
-    updated += 1;
-  });
-  return { success: true, updated: updated };
-}
-
 /* ── Attendance reminder (Web Push via the Sandesha server) ──────
    Needs Script Properties:
      SANDESHA_API_URL        e.g. https://sandesha.example.ts.net
      SANDESHA_INTERNAL_TOKEN  the value Sandesha prints/stores in its .env
 */
-function ensureAttendanceTrigger_() {
-  try {
-    const triggers = ScriptApp.getProjectTriggers();
-    for (let i = 0; i < triggers.length; i++) {
-      if (triggers[i].getHandlerFunction() === "remindAttendance") return;
-    }
-    ScriptApp.newTrigger("remindAttendance").timeBased().everyMinutes(30).create();
-  } catch (err) {
-    Logger.log("Could not create attendance-reminder trigger: " + err.message);
-  }
-}
-
-function remindAttendance() {
-  if (dataOnPi_()) return; // Sandesha sends these now (sandesha-server/reminders.js)
-  const props = PropertiesService.getScriptProperties();
-  const base = String(props.getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
-  const secret = String(props.getProperty("SANDESHA_INTERNAL_TOKEN") || "");
-  if (!base || !secret) {
-    Logger.log("remindAttendance: set SANDESHA_API_URL and SANDESHA_INTERNAL_TOKEN script properties");
-    return;
-  }
-  const loaded = loadEventVolunteers_();
-  const needs = loaded.rows.filter(function (r) { return r.kind === "need" && evYes_(r.handled); });
-  if (!needs.length) return;
-
-  const volsByEvent = {};
-  loaded.rows.forEach(function (r) {
-    if (r.kind !== "volunteer") return;
-    const id = String(r.event_id);
-    if (!volsByEvent[id]) volsByEvent[id] = [];
-    volsByEvent[id].push(r);
-  });
-
-  const now = Date.now();
-  needs.forEach(function (need) {
-    const id = String(need.event_id);
-    const vols = volsByEvent[id] || [];
-    if (!vols.some(function (v) { return String(v.attended || "") === ""; })) return;
-
-    const snap = evProgramSnapshot_(id);
-    if (!snap || snap.open) return;
-
-    const last = Date.parse(need.reminded_at || "");
-    if (!isNaN(last) && now - last < 20 * 3600 * 1000) return;
-
-    try {
-      UrlFetchApp.fetch(base + "/push/notify-internal", {
-        method: "post",
-        contentType: "application/json",
-        muteHttpExceptions: true,
-        payload: JSON.stringify({
-          token: secret,
-          audience: "nurturing",
-          title: "Mark volunteer attendance",
-          body: '"' + (need.event_title || snap.title || "An event") + '" has finished — mark who came',
-          url: "admin.html#volunteering",
-          tag: "vjn-attendance-" + id,
-        }),
-      });
-      need.reminded_at = nowIsoKolkata_();
-      need.updated_at = need.reminded_at;
-      evWriteRow_(loaded, need);
-    } catch (err) {
-      Logger.log("remindAttendance push failed: " + err.message);
-    }
-  });
-}
 
 /* ── Upcoming-program reminder (Web Push via the Sandesha server) ────
    Same Script Properties as remindAttendance:
@@ -4630,88 +2925,6 @@ function remindAttendance() {
    column, since Programs has no per-program tracking row the way
    EventVolunteers does for attendance.
 */
-function ensureProgramReminderTrigger_() {
-  try {
-    const triggers = ScriptApp.getProjectTriggers();
-    for (let i = 0; i < triggers.length; i++) {
-      if (triggers[i].getHandlerFunction() === "remindUpcomingPrograms") return;
-    }
-    ScriptApp.newTrigger("remindUpcomingPrograms").timeBased().everyHours(6).create();
-  } catch (err) {
-    Logger.log("Could not create program-reminder trigger: " + err.message);
-  }
-}
-
-function remindUpcomingPrograms() {
-  if (dataOnPi_()) return; // Sandesha sends these now (sandesha-server/reminders.js)
-  const props = PropertiesService.getScriptProperties();
-  const base = String(props.getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
-  const secret = String(props.getProperty("SANDESHA_INTERNAL_TOKEN") || "");
-  if (!base || !secret) {
-    Logger.log("remindUpcomingPrograms: set SANDESHA_API_URL and SANDESHA_INTERNAL_TOKEN script properties");
-    return;
-  }
-
-  const target = new Date();
-  target.setDate(target.getDate() + 2);
-  const targetStr = Utilities.formatDate(target, PROGRAM_TZ_, "yyyy-MM-dd");
-
-  const items = (getAllItems(PROGRAMS_SHEET, true).items || []).filter(function (p) {
-    if (!isOpenListingStatus_(p.status)) return false;
-    return String(p.startdate || "") === targetStr;
-  });
-  if (!items.length) return;
-
-  const sentKey = "remind2d_sent";
-  let sent = {};
-  try {
-    sent = JSON.parse(props.getProperty(sentKey) || "{}");
-  } catch (err) {
-    sent = {};
-  }
-
-  let changed = false;
-  items.forEach(function (p) {
-    const id = String(p.id);
-    if (sent[id] === targetStr) return; // already reminded for this program's 2-day mark
-
-    const timings = String(p.timings || "").split("\n")[0] || "";
-    const body = timings
-      ? '"' + p.title + '" is happening in 2 days — ' + timings
-      : '"' + (p.title || "A program") + '" is happening in 2 days';
-
-    try {
-      UrlFetchApp.fetch(base + "/push/notify-internal", {
-        method: "post",
-        contentType: "application/json",
-        muteHttpExceptions: true,
-        payload: JSON.stringify({
-          token: secret,
-          audience: "programs",
-          title: "Program in 2 days",
-          body: body,
-          url: "admin.html#events",
-          tag: "vjn-program-2d-" + id,
-        }),
-      });
-      sent[id] = targetStr;
-      changed = true;
-    } catch (err) {
-      Logger.log("remindUpcomingPrograms push failed for " + id + ": " + err.message);
-    }
-  });
-
-  if (changed) {
-    // Trim entries older than ~14 days so this property never grows unbounded.
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 14);
-    const cutoffStr = Utilities.formatDate(cutoff, PROGRAM_TZ_, "yyyy-MM-dd");
-    Object.keys(sent).forEach(function (id) {
-      if (sent[id] < cutoffStr) delete sent[id];
-    });
-    props.setProperty(sentKey, JSON.stringify(sent));
-  }
-}
 
 /* ── Google Form generation ──────────────────────────────────────────────── */
 
@@ -5621,3 +3834,18 @@ function authorizeFormApp() {
   try { DriveApp.getFileById(form.getId()).setTrashed(true); } catch (e) {}
   Logger.log("Test form trashed. Authorization complete — you can delete this function now.");
 }
+
+/**
+ * Run once from the editor (function dropdown -> setupDrive -> Run). Google then asks to allow
+ * Drive; that prompt does not appear on Deploy. Creates the image folder used by flyers.
+ */
+function setupDrive() {
+  const folder = getCentreImagesFolder_();
+  Logger.log("Drive folder: " + folder.getName() + " (" + folder.getUrl() + ")");
+}
+
+/* Old timer triggers. Sandesha does this work now. These do nothing; delete the triggers in
+   Apps Script (clock icon) and then delete these three functions. */
+function markDuePromotions() {}
+function remindAttendance() {}
+function remindUpcomingPrograms() {}

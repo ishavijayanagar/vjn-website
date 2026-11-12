@@ -191,12 +191,17 @@ async function run() {
     assert.strictEqual(ctx.remindUpcomingPrograms(), undefined);
   });
 
-  await test('admin edits are refused in the Sheet once the Pi owns the data', () => {
-    const { ctx } = load({ VJN_AUTH_SECRET: SECRET, VJN_DATA_ON_PI: '1' });
-    assert.throws(() => ctx.dataMovedError_(), /Sandesha is offline/);
-    for (const fn of ['adminSaveItem', 'adminDeleteItem', 'adminClearClosed', 'adminSaveSite', 'adminUpdateInquiry', 'adminAddProgramTitle', 'adminSaveVolunteerNeed', 'adminAddEventVolunteer', 'adminUpdateEventVolunteer', 'adminDeleteEventVolunteer', 'adminMarkVolunteersInGroup', 'adminInquiriesAddedToGroup']) {
-      assert.ok(new RegExp(`function ${fn}\\(data\\) \\{[\\s\\S]*?if \\(dataOnPi_\\(\\)\\) dataMovedError_\\(\\);`).test(fs.readFileSync(path.join(__dirname, '..', '..', 'apps-script.js'), 'utf8')), fn);
+  await test('the Sheet no longer has the old admin actions; the Google-only ones are still there', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'apps-script.js'), 'utf8');
+    for (const t of ['adminLogin', 'adminLogout', 'adminSaveItem', 'adminSaveUser', 'adminSavePromotion', 'adminAddEventVolunteer', 'adminUpdateInquiry', 'adminSaveSite']) {
+      assert.ok(!src.includes(`formType === "${t}"`), `${t} should be gone`);
     }
+    for (const t of ['adminGenerateFlyer', 'adminCreateProgramVolunteerForm', 'adminConnectProgramVolunteerForm', 'adminListVolunteerForms', 'adminGetImage', 'vjnMirror', 'vjnInboxList']) {
+      assert.ok(src.includes(`formType === "${t}"`), `${t} should stay`);
+    }
+    const { ctx } = load({ VJN_AUTH_SECRET: SECRET });
+    for (const fn of ['adminLogin', 'adminSaveItem', 'listPromotions_', 'getVolunteerNeeds_']) assert.strictEqual(typeof ctx[fn], 'undefined', fn);
+    for (const fn of ['adminGenerateFlyer', 'adminCreateProgramVolunteerForm', 'requireRole_', 'getVolunteerRoster_']) assert.strictEqual(typeof ctx[fn], 'function', fn);
   });
 
   if (failed) { console.log(`\n${failed} failed`); process.exit(1); }

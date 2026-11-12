@@ -237,20 +237,6 @@ async function run() {
     assert.strictEqual(again.wa_schedule_ids, '99');
   });
 
-  await test('Apps Script stops taking promotion writes once the Pi owns them', () => {
-    const props = { VJN_PROMOS_ON_PI: '1' };
-    const ctx = {
-      PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; } }) },
-      Date,
-    };
-    vm.createContext(ctx);
-    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', '..', 'apps-script.js'), 'utf8'), ctx);
-    assert.strictEqual(ctx.promosOnPi_(), true);
-    assert.strictEqual(ctx.maybeCreatePromoForListing_('programs', '1', { status: 'Open' }, {}), undefined);
-    assert.strictEqual(ctx.markDuePromotions(), undefined);
-    assert.throws(() => ctx.promosMovedError_(), /Promotions are on Sandesha/);
-  });
-
   if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
   console.log('\nAll promos tests passed');
 }
