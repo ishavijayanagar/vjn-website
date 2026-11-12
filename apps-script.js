@@ -95,6 +95,9 @@ const EV_HEADERS = [
   "volunteer_form_fields",
   "volunteer_form_template",
   "updated_at",
+  // where a volunteer row came from (admin | google-form | walk-in) and when they checked in
+  "source",
+  "checked_in_at",
 ];
 
 // Volunteer check-ins: one tab per month ("Oct 2026"), written by the Pi's mirror.

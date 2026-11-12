@@ -122,6 +122,25 @@ async function run() {
     assert.throws(() => t.inquiries.update({ sheet: 'nope', id: '1' }), /Unknown/);
   });
 
+  await test('check-ins: marked on the volunteer row, walk-ins added, repeat does not duplicate', () => {
+    const t = setup();
+    t.listings.save('programs', '', { title: 'IE', volunteering_available: 'yes', volunteers_needed: '2', status: 'Open', startdate: '2026-11-10' });
+    t.ev.addVolunteer(admin, { eventId: '1', name: 'Asha', phone: '91 99999 99999', area: 'JP Nagar' });
+    assert.strictEqual(t.ev.checkIn({ programId: '1', name: 'Asha', phone: '+919999999999' }).matched, true);
+    let vols = t.ev.needs().items[0].volunteers;
+    assert.strictEqual(vols[0].source, 'admin');
+    assert.ok(vols[0].checkedInAt);
+    const walk = t.ev.checkIn({ programId: '1', name: 'Ravi', phone: '88888 88888', area: 'BTM' });
+    assert.strictEqual(walk.added, true);
+    t.ev.checkIn({ programId: '1', name: 'Ravi', phone: '8888888888', area: 'BTM' });
+    vols = t.ev.needs().items[0].volunteers;
+    assert.strictEqual(vols.length, 2);
+    const ravi = vols.find((v) => v.name === 'Ravi');
+    assert.strictEqual(ravi.source, 'walk-in');
+    assert.ok(ravi.checkedInAt);
+    assert.strictEqual(t.ev.checkIn({ programId: '', phone: '' }).matched, false);
+  });
+
   await test('volunteers: add, duplicates, attendance, counts on the program', () => {
     const t = setup();
     t.listings.save('programs', '', { title: 'IE', volunteering_available: 'yes', volunteers_needed: '2', status: 'Open', startdate: '2026-11-10' });

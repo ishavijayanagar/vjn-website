@@ -87,6 +87,8 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
       inviteSent: yes(r.invite_sent),
       attendanceAt: r.attendance_at || '',
       addedBy: r.added_by || '',
+      source: r.source || '',
+      checkedInAt: r.checked_in_at || '',
     };
   }
 
@@ -175,11 +177,15 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
     const name = String((data && data.name) || '').trim();
     const phone = digits(data && data.phone);
     const area = String((data && data.area) || '').trim();
-    const fromForm = String((data && data.addedBy) || '').toLowerCase() === 'google-form';
+    const origin = String((data && data.addedBy) || '').toLowerCase();
+    const fromForm = origin === 'google-form';
+    const walkIn = origin === 'walk-in';
+    // Where the row came from: a team member, the sign-up form, or someone who turned up and checked in.
+    const source = fromForm ? 'google-form' : walkIn ? 'walk-in' : 'admin';
     if (!eventId) throw new Error('eventId required.');
     if (!name) throw new Error('Volunteer name required.');
     if (!phone) throw new Error('A valid phone number is required.');
-    if (!area && !fromForm) throw new Error('Area of stay is required.');
+    if (!area && !fromForm && !walkIn) throw new Error('Area of stay is required.');
 
     const t = stamp();
     let need = needFor(eventId);
@@ -204,10 +210,32 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
       row_id: crypto.randomUUID(), kind: 'volunteer', event_id: eventId, event_title: need.event_title || '',
       volunteer_name: name, phone, volunteer_remarks: String((data && data.remarks) || ''), area_of_stay: area,
       ie_completion: String((data && data.ieCompletion) || '').trim(),
-      added_by: fromForm ? 'google-form' : (actor && actor.username) || '', attended: '', in_wa_group: 'no',
-      invite_sent: 'no', updated_at: t,
+      added_by: fromForm ? 'google-form' : walkIn ? 'walk-in' : (actor && actor.username) || '', attended: '', in_wa_group: 'no',
+      invite_sent: 'no', source, checked_in_at: walkIn ? t : '', updated_at: t,
     });
     return { success: true };
+  }
+
+  /**
+   * Someone checked in on the public page. If they are on that event's list, mark the check-in
+   * on their row; if not, they are added as a walk-in. Never throws into the caller.
+   */
+  function checkIn(data) {
+    try {
+      const eventId = String((data && data.programId) || '').trim();
+      const phone = digits(data && data.phone);
+      if (!eventId || !phone) return { matched: false };
+      const t = stamp();
+      const row = q.vols.all(eventId).map(parse).find((v) => digits(v.phone) === phone);
+      if (row) {
+        if (!row.checked_in_at) { row.checked_in_at = t; row.updated_at = t; write(row); }
+        return { matched: true };
+      }
+      addVolunteer(null, { eventId, name: data.name, phone, area: data.area, ieCompletion: data.ieCompletion, addedBy: 'walk-in' });
+      return { matched: false, added: true };
+    } catch (err) {
+      return { matched: false, error: err.message };
+    }
   }
 
   function volunteerRow(rowId) {
@@ -344,7 +372,7 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
   }
 
   return {
-    counts, snapshot, needs, needFor, saveNeed, addVolunteer, updateVolunteer, deleteVolunteer, markInGroup,
+    counts, snapshot, needs, needFor, saveNeed, addVolunteer, checkIn, updateVolunteer, deleteVolunteer, markInGroup,
     dueAttendanceReminders, markReminded, importRows, setForm, adopt, write, digits,
   };
 }

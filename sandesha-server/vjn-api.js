@@ -158,6 +158,8 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
     if (type === 'volunteerAttendance' && checkins) {
       // The check-in sheet is extra; it must never fail the existing attendance entry.
       try { checkins.record(data); } catch (err) { console.error('check-in not recorded:', err.message); }
+      // Also mark it on the volunteer's row (or add a walk-in), so Nurturing sees it on the event list.
+      try { ev.checkIn(data); } catch (err) { console.error('check-in not marked on the event list:', err.message); }
     }
     return { success: true };
   }
