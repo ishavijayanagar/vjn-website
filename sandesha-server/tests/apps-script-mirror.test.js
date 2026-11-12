@@ -186,9 +186,6 @@ async function run() {
     const relay = ctx.needRelay_({ event_id: 4, event_title: 'IE', needed: '3', volunteer_form_id: 'F1', volunteer_form_fields: 'multi-program' });
     assert.strictEqual(relay.event_id, '4');
     assert.strictEqual(relay.volunteer_form_id, 'F1');
-    // The reminders now live on the Pi: the Apps Script triggers do nothing.
-    assert.strictEqual(ctx.remindAttendance(), undefined);
-    assert.strictEqual(ctx.remindUpcomingPrograms(), undefined);
   });
 
   await test('the Sheet no longer has the old admin actions; the Google-only ones are still there', () => {

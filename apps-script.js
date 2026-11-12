@@ -13,14 +13,10 @@
 //    Go to Centre Website (unsafe) -> Allow.
 //    That screen is where Drive access is granted. Deploying
 //    a web app does NOT show it.
-// 6. Deploy → Manage deployments → pencil → New version → Deploy.
+// 5. Deploy -> Manage deployments -> pencil -> New version -> Deploy.
 //
-// Sign in at /admin.html: choose Admin, then the existing admin password.
-// After that, add Programs / Promotions / Nurturing people from Team.
+// Admin sign-in is handled by Sandesha (the Pi), not here.
 // =============================================
-
-// First admin account password (change this, then Run setupAdmin).
-const ADMIN_PASSWORD = "REPLACE_ME";
 
 const PROGRAMS_SHEET = "Programs";
 const VOLUNTEER_SHEET = "Volunteering";
@@ -245,14 +241,7 @@ const SITE_DEFAULTS = {
 };
 
 const TOKEN_TTL_SECONDS = 21600;
-// CacheService is volatile and caps at 6h, so sessions are also mirrored into
-// Script Properties, which is durable. That's what lets an installed PWA stay
-// signed in across restarts.
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-const SESSION_PROP_PREFIX = "sess_";
-const TOKEN_CACHE_PREFIX = "admin_token_";
 const USER_DISABLED_PREFIX = "user_disabled_";
-const USER_TOKENS_PREFIX = "user_toks_";
 const DISABLED_USER_IDS_PROP = "DISABLED_USER_IDS";
 // Logins live on the Sandesha Pi (sandesha-server/vjn-users.js) once this
 // Script Property is set to the same value as the Pi's VJN_AUTH_SECRET.
@@ -320,12 +309,6 @@ function authorizeFlyerFeature() {
   DriveApp.getFileById(test.getId()).setTrashed(true);
 }
 
-/**
- * Debug helper: runs the same steps generateFlyerThumbnail_ does for one
- * FlyerTemplates row, but WITHOUT swallowing errors, so the real failure
- * shows up in the Execution log. Edit the template_id below if needed. Safe
- * to delete once the flyer feature is working.
- */
 /**
  * Clears cached flyer thumbnails so the next gallery load re-renders each
  * slide_index correctly. Run once from the Apps Script editor after fixing
@@ -500,74 +483,8 @@ function nowIsoKolkata_() {
   return Utilities.formatDate(new Date(), PROGRAM_TZ_, "yyyy-MM-dd'T'HH:mm:ss");
 }
 
-function tokenCacheKey_(token) {
-  return TOKEN_CACHE_PREFIX + String(token);
-}
-
 function userDisabledKey_(userId) {
   return USER_DISABLED_PREFIX + String(userId);
-}
-
-function userTokensKey_(userId) {
-  return USER_TOKENS_PREFIX + String(userId);
-}
-
-function sessionPropKey_(token) {
-  return SESSION_PROP_PREFIX + String(token);
-}
-
-function persistSession_(token, session) {
-  if (!token || !session) return;
-  try {
-    PropertiesService.getScriptProperties().setProperty(
-      sessionPropKey_(token),
-      JSON.stringify({ session: session, expiresAt: Date.now() + SESSION_TTL_MS })
-    );
-  } catch (err) {}
-}
-
-function readPersistedSession_(token) {
-  if (!token) return null;
-  try {
-    const raw = PropertiesService.getScriptProperties().getProperty(sessionPropKey_(token));
-    if (!raw) return null;
-    const rec = JSON.parse(raw);
-    if (!rec || !rec.session) return null;
-    if (rec.expiresAt && Date.now() > rec.expiresAt) {
-      dropPersistedSession_(token);
-      return null;
-    }
-    return rec.session;
-  } catch (err) {
-    return null;
-  }
-}
-
-function dropPersistedSession_(token) {
-  if (!token) return;
-  try {
-    PropertiesService.getScriptProperties().deleteProperty(sessionPropKey_(token));
-  } catch (err) {}
-}
-
-function dropToken_(token) {
-  if (!token) return;
-  CacheService.getScriptCache().remove(tokenCacheKey_(token));
-  dropPersistedSession_(token);
-}
-
-function dropUserTokens_(userId) {
-  if (!userId) return;
-  const cache = CacheService.getScriptCache();
-  const key = userTokensKey_(userId);
-  let list = [];
-  try {
-    list = JSON.parse(cache.get(key) || "[]");
-  } catch (err) {
-    list = [];
-  }
-  for (let i = 0; i < list.length; i++) dropToken_(list[i]);
-  cache.remove(key);
 }
 
 function disabledUserIdSet_() {
@@ -598,7 +515,6 @@ function markUserDisabled_(userId) {
   if (!userId) return;
   persistUserDisabled_(userId, true);
   CacheService.getScriptCache().put(userDisabledKey_(userId), "1", TOKEN_TTL_SECONDS);
-  dropUserTokens_(userId);
 }
 
 function clearUserDisabled_(userId) {
@@ -608,39 +524,9 @@ function clearUserDisabled_(userId) {
 }
 
 function readSession_(token) {
-  if (!token) return { reason: "expired" };
-  if (String(token).indexOf("v1.") === 0) return readSignedSession_(token);
-  const cache = CacheService.getScriptCache();
-  let session = null;
-
-  const cached = cache.get(tokenCacheKey_(token));
-  if (cached && cached !== "1") {
-    try {
-      session = JSON.parse(cached);
-    } catch (err) {
-      session = null;
-    }
-  }
-
-  if (!session || !session.role || !session.id) {
-    // Cache expired or was evicted; fall back to the durable copy and re-warm.
-    // Re-persisting here slides the 30-day window forward on continued use,
-    // without a Properties write on every single request.
-    session = readPersistedSession_(token);
-    if (session && session.role && session.id) {
-      cache.put(tokenCacheKey_(token), JSON.stringify(session), TOKEN_TTL_SECONDS);
-      persistSession_(token, session);
-    }
-  }
-
-  if (!session || !session.role || !session.id) return { reason: "expired" };
-
-  if (cache.get(userDisabledKey_(session.id)) === "1" || isPersistentlyDisabled_(session.id)) {
-    cache.remove(tokenCacheKey_(token));
-    dropPersistedSession_(token);
-    return { reason: "disabled" };
-  }
-  return { session: session };
+  // Only logins signed by the Sandesha Pi ("v1.…") exist now.
+  if (!token || String(token).indexOf("v1.") !== 0) return { reason: "expired" };
+  return readSignedSession_(token);
 }
 
 function authEndedError_(reason) {
@@ -656,22 +542,9 @@ function requireSession_(token) {
   authEndedError_(result.reason);
 }
 
-function userIsActive_(user) {
-  return !!user && String(user.status || "").toLowerCase() === "active";
-}
-
 function requireLiveSession_(token) {
-  const session = requireSession_(token);
-  // A Pi login was checked against the revocation list already; the person
-  // is not in the Users tab any more.
-  if (session.signed) return session;
-  const user = findUserById_(session.id);
-  if (!userIsActive_(user)) {
-    markUserDisabled_(session.id);
-    dropToken_(token);
-    authEndedError_("disabled");
-  }
-  return session;
+  // A Pi login was checked against the revocation list already.
+  return requireSession_(token);
 }
 
 function requireRole_(token, allowedRoles) {
@@ -2747,16 +2620,6 @@ function loadUsers_() {
   return { sheet: sheet, headers: headers, users: users };
 }
 
-function findUserById_(id) {
-  const wanted = String(id || "").trim();
-  if (!wanted) return null;
-  const loaded = loadUsers_();
-  for (let i = 0; i < loaded.users.length; i++) {
-    if (String(loaded.users[i].id) === wanted) return loaded.users[i];
-  }
-  return null;
-}
-
 function promoSheet_() {
   return ensureSheet_(PROMOTIONS_SHEET, PROMO_HEADERS);
 }
@@ -2780,9 +2643,6 @@ function isOpenListingStatus_(raw) {
   if (!s) return true;
   return s === "open" || s === "active";
 }
-
-/** Max scheduled (non-sent) promotions per Kolkata calendar day. */
-var MAX_PROMOS_PER_DAY_ = 4;
 
 function loadPromos_() {
   const sheet = promoSheet_();
@@ -2909,22 +2769,6 @@ function evFindNeed_(loaded, eventId) {
   }
   return null;
 }
-
-/* ── Attendance reminder (Web Push via the Sandesha server) ──────
-   Needs Script Properties:
-     SANDESHA_API_URL        e.g. https://sandesha.example.ts.net
-     SANDESHA_INTERNAL_TOKEN  the value Sandesha prints/stores in its .env
-*/
-
-/* ── Upcoming-program reminder (Web Push via the Sandesha server) ────
-   Same Script Properties as remindAttendance:
-     SANDESHA_API_URL, SANDESHA_INTERNAL_TOKEN
-   Fires once per program, ~2 days before it starts, to everyone
-   subscribed as "programs". Dedup lives in a Script Property (a small
-   JSON map of programId -> the date it was sent) rather than a sheet
-   column, since Programs has no per-program tracking row the way
-   EventVolunteers does for attendance.
-*/
 
 /* ── Google Form generation ──────────────────────────────────────────────── */
 
@@ -3844,8 +3688,3 @@ function setupDrive() {
   Logger.log("Drive folder: " + folder.getName() + " (" + folder.getUrl() + ")");
 }
 
-/* Old timer triggers. Sandesha does this work now. These do nothing; delete the triggers in
-   Apps Script (clock icon) and then delete these three functions. */
-function markDuePromotions() {}
-function remindAttendance() {}
-function remindUpcomingPrograms() {}
