@@ -1468,7 +1468,7 @@
     resetLoginForm();
     if (location.hash) history.replaceState(null, "", location.pathname + location.search);
     closeLogoutConfirm();
-    if (current) {
+    if (current && !isPiToken(current)) {
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
         body: JSON.stringify({ formType: "adminLogout", token: current }),

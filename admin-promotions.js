@@ -2699,7 +2699,7 @@
       const t = token();
       clearAuth();
       // Leave at once; telling the server is best effort and must not hold the page.
-      if (t) {
+      if (t && !/^v1\./.test(String(t))) {
         try {
           fetch(APPS_SCRIPT_URL, {
             method: "POST",
