@@ -27,7 +27,8 @@ const MIME_EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.we
 
 function createPromoJobs(deps) {
   const {
-    file,
+    // The database holding promo_send_jobs. Without one (some tests) jobs are kept in memory only.
+    db = null,
     MEDIA_DIR,
     createSchedule,
     cancelSchedule,
@@ -48,14 +49,16 @@ function createPromoJobs(deps) {
   let jobs = load();
 
   function load() {
+    if (!db) return [];
     try {
-      const list = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (!Array.isArray(list)) return [];
       // A job that was running when the server stopped never finished, and
       // nothing will pick it back up — say so rather than spin forever.
-      return list.map((j) => (j.status === 'running'
-        ? { ...j, status: 'failed', error: 'Sandesha restarted before this finished — schedule it again.' }
-        : j));
+      return db.prepare('SELECT data FROM promo_send_jobs').all().map((r) => {
+        const j = JSON.parse(r.data);
+        return j.status === 'running'
+          ? { ...j, status: 'failed', error: 'Sandesha restarted before this finished — schedule it again.' }
+          : j;
+      });
     } catch {
       return [];
     }
@@ -64,8 +67,13 @@ function createPromoJobs(deps) {
   function save() {
     const cutoff = now() - KEEP_MS;
     jobs = jobs.filter((j) => Date.parse(j.updatedAt) >= cutoff);
+    if (!db) return;
     try {
-      fs.writeFileSync(file, JSON.stringify(jobs, null, 2));
+      const put = db.prepare('INSERT INTO promo_send_jobs (id, status, updated_at, data) VALUES (?, ?, ?, ?)');
+      db.transaction(() => {
+        db.prepare('DELETE FROM promo_send_jobs').run();
+        for (const j of jobs) put.run(String(j.id), String(j.status || ''), Date.parse(j.updatedAt) || 0, JSON.stringify(j));
+      })();
     } catch (err) {
       log(`[promo-jobs] could not save: ${err.message}`);
     }

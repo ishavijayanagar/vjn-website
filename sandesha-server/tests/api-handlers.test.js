@@ -171,7 +171,7 @@ async function run() {
     const sheetCalls = [];
     const deps = makeDeps({
       MEDIA_DIR: testDir,
-      PROMO_JOBS_FILE: path.join(testDir, 'promo-jobs.json'),
+      promoJobsDb: require('../db').openDb(':memory:'),
       promoFetch: async (_url, opts) => {
         const payload = JSON.parse(opts.body);
         sheetCalls.push(payload);
@@ -213,7 +213,7 @@ async function run() {
     fs.writeFileSync(path.join(dir, 'upload_9.jpg'), 'jpegbytes');
     const h = createApiHandlers(makeDeps({
       MEDIA_DIR: dir,
-      PROMO_JOBS_FILE: path.join(dir, 'promo-jobs.json'),
+      promoJobsDb: require('../db').openDb(':memory:'),
       promoFetch: async () => { throw new Error('a queue job must not call the sheet'); },
     }));
     const post = async (payload) => {

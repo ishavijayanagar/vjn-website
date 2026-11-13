@@ -89,7 +89,7 @@ function createApiHandlers(deps) {
     // Where to remember the last group list so a restart does not start from nothing.
     GROUPS_CACHE_FILE = null,
     pushSvc = push,
-    PROMO_JOBS_FILE = path.join(__dirname, 'promo-jobs.json'),
+    promoJobsDb = null,
     promoFetch,
     savePromoLocal = null,
   } = deps;
@@ -853,7 +853,7 @@ function createApiHandlers(deps) {
   }
 
   const promoJobs = createPromoJobs({
-    file: PROMO_JOBS_FILE,
+    db: promoJobsDb,
     MEDIA_DIR,
     log,
     fetchImpl: promoFetch,

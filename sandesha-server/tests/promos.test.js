@@ -189,7 +189,7 @@ async function run() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pj-'));
     const sheetCalls = [];
     const jobs = createPromoJobs({
-      file: path.join(dir, 'j.json'), MEDIA_DIR: dir,
+      db: require('../db').openDb(':memory:'), MEDIA_DIR: dir,
       createSchedule: async (b) => ({ id: 41, ...b }),
       cancelSchedule: async () => {},
       savePromoLocal: (token, fields) => { assert.strictEqual(token, 'v1.x.y'); return t.promos.save(fields); },

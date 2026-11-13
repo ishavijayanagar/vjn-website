@@ -18,7 +18,7 @@ function setup({ sheetError = '', failRow = -1, failTargets = [] } = {}) {
   const delivered = [];
   let gaps = 0;
   const jobs = createPromoJobs({
-    file: path.join(dir, 'promo-jobs.json'),
+    db: require('../db').openDb(':memory:'),
     MEDIA_DIR: dir,
     createSchedule: async (body) => {
       if (rows.length === failRow) throw new Error('target not found');
@@ -133,9 +133,10 @@ async function run() {
 
   await test('a job still running at restart is reported as failed', async () => {
     const t = setup();
-    const file = path.join(t.dir, 'promo-jobs.json');
-    fs.writeFileSync(file, JSON.stringify([{ id: 'pj-1', promoId: 'p1', status: 'running', updatedAt: new Date().toISOString() }]));
-    const again = createPromoJobs({ file, MEDIA_DIR: t.dir, createSchedule: async () => ({}), cancelSchedule: async () => {} });
+    const db = require('../db').openDb(':memory:');
+    const job = { id: 'pj-1', promoId: 'p1', status: 'running', updatedAt: new Date().toISOString() };
+    db.prepare('INSERT INTO promo_send_jobs (id, status, updated_at, data) VALUES (?, ?, ?, ?)').run(job.id, job.status, Date.now(), JSON.stringify(job));
+    const again = createPromoJobs({ db, MEDIA_DIR: t.dir, createSchedule: async () => ({}), cancelSchedule: async () => {} });
     assert.strictEqual(again.list()[0].status, 'failed');
   });
 
@@ -231,7 +232,7 @@ async function run() {
     const t = setup();
     assert.throws(() => t.jobs.start({ kind: 'send', message: 'Hi', recipients: [] }, null), /audience/);
     assert.throws(() => t.jobs.start({ kind: 'send', message: ' ', recipients: [{ target: 'A' }] }, null), /message or attach/);
-    const bare = createPromoJobs({ file: path.join(t.dir, 'x.json'), MEDIA_DIR: t.dir, createSchedule: async () => ({}), cancelSchedule: async () => {} });
+    const bare = createPromoJobs({ MEDIA_DIR: t.dir, createSchedule: async () => ({}), cancelSchedule: async () => {} });
     assert.throws(() => bare.start({ kind: 'send', message: 'Hi', recipients: [{ target: 'A' }] }, null), /cannot send from a job/);
   });
 

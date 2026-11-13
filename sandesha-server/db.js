@@ -116,6 +116,40 @@ const MIGRATIONS = [
    CREATE INDEX promotional_msgs_event ON promotional_msgs (event_type, event_id);
    ALTER TABLE site_text RENAME TO site_content;
    ALTER TABLE app_settings RENAME TO app_setting`,
+  // 12 — state that lived in loose JSON files: logins, delivered sends, push subscriptions, promo send jobs
+  `CREATE TABLE login_sessions (
+     token_hash TEXT PRIMARY KEY,
+     role TEXT NOT NULL,
+     source TEXT NOT NULL DEFAULT 'password',
+     user_json TEXT NOT NULL DEFAULT 'null',
+     expires_at INTEGER NOT NULL
+   ) STRICT;
+   CREATE INDEX login_sessions_expiry ON login_sessions (expires_at);
+   CREATE TABLE delivered_sends (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     schedule_id TEXT NOT NULL DEFAULT '',
+     source_id TEXT NOT NULL DEFAULT '',
+     target TEXT NOT NULL DEFAULT '',
+     sent_at INTEGER NOT NULL
+   ) STRICT;
+   CREATE UNIQUE INDEX delivered_sends_once ON delivered_sends (schedule_id, target);
+   CREATE INDEX delivered_sends_time ON delivered_sends (sent_at);
+   CREATE TABLE push_subscriptions (
+     endpoint TEXT PRIMARY KEY,
+     keys_json TEXT NOT NULL DEFAULT '{}',
+     role TEXT NOT NULL DEFAULT 'unknown',
+     user_id TEXT NOT NULL DEFAULT '',
+     ua TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL,
+     last_ok_at TEXT NOT NULL
+   ) STRICT;
+   CREATE INDEX push_subscriptions_user ON push_subscriptions (user_id);
+   CREATE TABLE promo_send_jobs (
+     id TEXT PRIMARY KEY,
+     status TEXT NOT NULL DEFAULT '',
+     updated_at INTEGER NOT NULL DEFAULT 0,
+     data TEXT NOT NULL DEFAULT '{}'
+   ) STRICT`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {
@@ -132,4 +166,11 @@ function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'san
   return db;
 }
 
-module.exports = { openDb };
+let sharedDb = null;
+/** The one connection the whole server uses (tests that pass their own file still call openDb). */
+function shared() {
+  if (!sharedDb) sharedDb = openDb();
+  return sharedDb;
+}
+
+module.exports = { openDb, shared };

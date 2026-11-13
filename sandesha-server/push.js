@@ -89,20 +89,50 @@ function getInternalToken() {
   return tok;
 }
 
-function loadSubs() {
+/** Subscriptions live in the database once useDb() is called (the server does); until then, in memory. */
+let db = null;
+let memory = [];
+
+function useDb(handle, legacyFile = SUBS_FILE) {
+  db = handle;
+  // One-time: pick up subscriptions the old push-subscriptions.json held.
   try {
-    const raw = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
-    return Array.isArray(raw) ? raw : [];
-  } catch {
-    return [];
-  }
+    if (db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions').get().n === 0 && fs.existsSync(legacyFile)) {
+      const old = JSON.parse(fs.readFileSync(legacyFile, 'utf8'));
+      if (Array.isArray(old) && old.length) saveSubs(old);
+      fs.renameSync(legacyFile, legacyFile + '.migrated');
+    }
+  } catch { /* nothing to carry over */ }
 }
 
+function loadSubs() {
+  if (!db) return memory.slice();
+  return db.prepare('SELECT * FROM push_subscriptions ORDER BY created_at').all().map((r) => ({
+    endpoint: r.endpoint,
+    keys: JSON.parse(r.keys_json || '{}'),
+    role: r.role,
+    userId: r.user_id,
+    ua: r.ua,
+    createdAt: r.created_at,
+    lastOkAt: r.last_ok_at,
+  }));
+}
+
+/** Replaces the whole list (small: one row per installed phone). */
 function saveSubs(list) {
+  if (!db) { memory = list.slice(); return; }
   try {
-    fs.writeFileSync(SUBS_FILE, JSON.stringify(list, null, 2));
-  } catch {
-    /* best effort */
+    const put = db.prepare(`INSERT INTO push_subscriptions (endpoint, keys_json, role, user_id, ua, created_at, last_ok_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    db.transaction(() => {
+      db.prepare('DELETE FROM push_subscriptions').run();
+      for (const x of list) {
+        const now = new Date().toISOString();
+        put.run(x.endpoint, JSON.stringify(x.keys || {}), x.role || 'unknown', x.userId || '', x.ua || '', x.createdAt || now, x.lastOkAt || now);
+      }
+    })();
+  } catch (err) {
+    console.log('[push] could not save subscriptions:', err.message);
   }
 }
 
@@ -212,5 +242,6 @@ module.exports = {
   removeSub,
   countForUser,
   loadSubs,
+  useDb,
   notify,
 };

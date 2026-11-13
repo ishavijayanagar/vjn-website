@@ -1,6 +1,6 @@
 const { Client, LocalAuth, MessageMedia, Message } = require('whatsapp-web.js');
 const auth = require('./auth');
-const { openDb } = require('./db');
+const { openDb, shared } = require('./db');
 const { createVjnUsers } = require('./vjn-users');
 const { createVjnRoutes } = require('./vjn-routes');
 const { createPromos } = require('./promos');
@@ -386,8 +386,8 @@ function cancelPlanningScheduleById(id) {
  */
 function loadDelivered() {
   try {
-    const rows = JSON.parse(fs.readFileSync(DELIVERED_FILE, 'utf8'));
-    return Array.isArray(rows) ? rows : [];
+    return vjnDb.prepare('SELECT schedule_id, source_id, target, sent_at FROM delivered_sends ORDER BY id').all()
+      .map((r) => ({ id: Number(r.schedule_id) || r.schedule_id, sourceId: r.source_id, target: r.target, sentAt: new Date(r.sent_at).toISOString() }));
   } catch {
     return [];
   }
@@ -395,21 +395,13 @@ function loadDelivered() {
 
 function recordDelivered(schedules) {
   if (!schedules || !schedules.length) return;
-  const cutoff = Date.now() - DELIVERED_TTL_MS;
-  const rows = loadDelivered().filter(
-    (r) => new Date(r.sentAt || 0).getTime() >= cutoff,
-  );
-  const sentAt = new Date().toISOString();
-  for (const s of schedules) {
-    rows.push({
-      id: s.id,
-      sourceId: s.sourceId ? String(s.sourceId) : '',
-      target: s.target || '',
-      sentAt,
-    });
-  }
   try {
-    fs.writeFileSync(DELIVERED_FILE, JSON.stringify(rows, null, 2));
+    const now = Date.now();
+    const insert = vjnDb.prepare('INSERT OR IGNORE INTO delivered_sends (schedule_id, source_id, target, sent_at) VALUES (?, ?, ?, ?)');
+    vjnDb.transaction(() => {
+      vjnDb.prepare('DELETE FROM delivered_sends WHERE sent_at < ?').run(now - DELIVERED_TTL_MS);
+      for (const s of schedules) insert.run(String(s.id), s.sourceId ? String(s.sourceId) : '', s.target || '', now);
+    })();
   } catch (err) {
     console.error('[DELIVERED] could not record:', err.message);
   }
@@ -766,6 +758,7 @@ function wireClientEvents(c) {
       // Recreate API handlers so they always point at the current client
       apiHandlers = createApiHandlers({
         client: c,
+        promoJobsDb: vjnDb,
         savePromoLocal: async (token, fields) => {
           const who = vjnUsers.verify(token);
           if (!who || !['admin', 'promotions'].includes(who.role)) throw new Error('Unauthorized. Please log in again.');
@@ -3786,7 +3779,9 @@ async function sheetCall(formType, payload) {
   return data;
 }
 
-const vjnDb = openDb();
+const vjnDb = shared();
+push.useDb(vjnDb);
+auth.useDb(vjnDb);
 const dataFlag = vjnDb.prepare("SELECT value FROM app_setting WHERE key = 'data_on_pi'");
 // Every change is copied to the Sheet in the background; the Sheet is the backup.
 const vjnMirror = createMirror({

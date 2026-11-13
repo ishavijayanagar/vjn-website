@@ -8,8 +8,6 @@ const http = require('http');
 const { URL } = require('url');
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-// Tests point this at a temp file: clearing sessions must never log out real users.
-const SESSIONS_FILE = process.env.SANDESHA_SESSIONS_FILE || path.join(__dirname, '.sandesha-sessions.json');
 // 'nurturing' has a deliberately tiny surface (list groups + one add-members
 // job + poll) enforced per-route in api-handlers.js; it can still exchange a
 // VJN login for a Sandesha session so those routes are reachable.
@@ -41,46 +39,41 @@ function loadEnvFile(envPath) {
 
 loadEnvFile(path.join(__dirname, '.env'));
 
-function loadSessionsFromDisk() {
-  try {
-    if (!fs.existsSync(SESSIONS_FILE)) return;
-    const raw = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
-    const now = Date.now();
-    if (!raw || typeof raw !== 'object') return;
-    for (const [token, meta] of Object.entries(raw)) {
-      const expiresAt = Number(meta?.expiresAt);
-      if (!token || !Number.isFinite(expiresAt) || expiresAt <= now) continue;
-      const role = normalizeRole(meta?.role) || 'admin';
-      sessions.set(token, {
-        expiresAt, role, source: meta?.source || 'password', user: cleanUser(meta?.user),
-      });
-    }
-  } catch {
-    // corrupt file — start fresh
+/** Sessions are kept by a hash of the token: a copy of the database cannot be used to sign in. */
+const tokenKey = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+let db = null;
+
+/** Once the server hands over its database, sessions survive restarts (until then: memory only, as in tests). */
+function useDb(handle) {
+  db = handle;
+  db.prepare('DELETE FROM login_sessions WHERE expires_at <= ?').run(Date.now());
+  for (const r of db.prepare('SELECT * FROM login_sessions').all()) {
+    sessions.set(r.token_hash, {
+      expiresAt: r.expires_at,
+      role: normalizeRole(r.role) || 'admin',
+      source: r.source || 'password',
+      user: cleanUser(JSON.parse(r.user_json || 'null')),
+    });
   }
+  // The old plaintext sessions file is not read any more; people sign in again once.
+  try { fs.unlinkSync(path.join(__dirname, '.sandesha-sessions.json')); } catch { /* none */ }
 }
 
-function saveSessionsToDisk() {
+function persistSession(key, meta) {
+  if (!db) return;
   try {
-    const out = {};
-    const now = Date.now();
-    for (const [token, meta] of sessions.entries()) {
-      if (meta.expiresAt > now) {
-        out[token] = {
-          expiresAt: meta.expiresAt,
-          role: meta.role || 'admin',
-          source: meta.source || 'password',
-          user: meta.user || null,
-        };
-      }
-    }
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(out), 'utf8');
-  } catch {
-    // ignore write errors
-  }
+    db.prepare(`INSERT INTO login_sessions (token_hash, role, source, user_json, expires_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT (token_hash) DO UPDATE SET expires_at = excluded.expires_at`)
+      .run(key, meta.role || 'admin', meta.source || 'password', JSON.stringify(meta.user || null), meta.expiresAt);
+  } catch { /* best effort */ }
 }
 
-loadSessionsFromDisk();
+function dropSession(key) {
+  sessions.delete(key);
+  if (!db) return;
+  try { db.prepare('DELETE FROM login_sessions WHERE token_hash = ?').run(key); } catch { /* best effort */ }
+}
+
 
 function isAuthDisabled() {
   return process.env.SANDESHA_AUTH_DISABLED === '1' || process.env.SANDESHA_AUTH_DISABLED === 'true';
@@ -121,13 +114,14 @@ function issueSession(role, source, user) {
   const token = createToken();
   const expiresAt = Date.now() + SESSION_TTL_MS;
   const normalized = normalizeRole(role) || 'admin';
-  sessions.set(token, {
+  const meta = {
     expiresAt,
     role: normalized,
     source: source || 'password',
     user: cleanUser(user),
-  });
-  saveSessionsToDisk();
+  };
+  sessions.set(tokenKey(token), meta);
+  persistSession(tokenKey(token), meta);
   return {
     ok: true,
     token,
@@ -136,14 +130,32 @@ function issueSession(role, source, user) {
   };
 }
 
+// Wrong-password limiter: this process-wide, so a spread-out guesser is stopped too.
+const LOGIN_MAX_FAILS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+let loginFails = [];
+
+function passwordMatches(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 function login(password) {
   const adminPassword = getAdminPassword();
   if (!adminPassword) {
     return { ok: false, error: 'Admin password not configured on server' };
   }
-  if (password !== adminPassword) {
+  const now = Date.now();
+  loginFails = loginFails.filter((t) => now - t < LOGIN_WINDOW_MS);
+  if (loginFails.length >= LOGIN_MAX_FAILS) {
+    return { ok: false, error: 'Too many wrong passwords. Try again in a few minutes.' };
+  }
+  if (!passwordMatches(password, adminPassword)) {
+    loginFails.push(now);
     return { ok: false, error: 'Invalid password' };
   }
+  loginFails = [];
   return issueSession('admin', 'password');
 }
 
@@ -155,11 +167,11 @@ function getBearerToken(req) {
 
 function getSession(token) {
   if (!token) return null;
-  const session = sessions.get(token);
+  const key = tokenKey(token);
+  const session = sessions.get(key);
   if (!session) return null;
   if (Date.now() > session.expiresAt) {
-    sessions.delete(token);
-    saveSessionsToDisk();
+    dropSession(key);
     return null;
   }
   return session;
@@ -196,10 +208,7 @@ function getActor(req) {
 }
 
 function logout(token) {
-  if (token) {
-    sessions.delete(token);
-    saveSessionsToDisk();
-  }
+  if (token) dropSession(tokenKey(token));
 }
 
 function httpJson(urlString, { method = 'GET', body = null, headers = {} } = {}) {
@@ -377,12 +386,11 @@ function checkStartupAuth(logFn) {
 /** For tests — clear all sessions */
 function clearAllSessions() {
   sessions.clear();
-  try {
-    if (fs.existsSync(SESSIONS_FILE)) fs.unlinkSync(SESSIONS_FILE);
-  } catch { /* ignore */ }
+  if (db) { try { db.prepare('DELETE FROM login_sessions').run(); } catch { /* ignore */ } }
 }
 
 module.exports = {
+  useDb,
   login,
   exchangeVjnToken,
   setLocalVjnVerifier,
