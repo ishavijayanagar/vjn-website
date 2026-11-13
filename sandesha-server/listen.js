@@ -3813,6 +3813,7 @@ const vjnInbox = createInbox({
 const vjnCheckins = createCheckins({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
 const vjnApi = createVjnApi({
   listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, checkins: vjnCheckins, roster: vjnRoster,
+  notify: (audience, payload) => push.notify(audience, payload),
   // Until scripts/import-data.js has run, the Sheet is still the record.
   ready: () => !!dataFlag.get(),
 });
@@ -3835,7 +3836,6 @@ const vjnPromos = createPromos({
 const vjnRoster = createRoster({ db: vjnDb, fetchRoster: () => sheetCall('vjnExportRoster', {}), log });
     const pick = (i) => ({
       id: String(i.id), title: i.title || '', date: i.date || '', startdate: i.startdate || '',
-  notify: (audience, payload) => push.notify(audience, payload),
       location: i.location || '', status: i.status || '', image: i.image || '',
     });
     return {
@@ -3872,7 +3872,7 @@ function startSendServer() {
 
     if (req.method === 'POST' && parsed.pathname === '/auth/login') {
       try {
-        const body = await readRequestBody(req);
+        const body = await readRequestBody(req, SMALL_MAX_BYTES);
         const { password } = JSON.parse(body || '{}');
         const result = auth.login(password || '');
         if (!result.ok) {
@@ -3892,7 +3892,7 @@ function startSendServer() {
 
     if (req.method === 'POST' && parsed.pathname === '/auth/vjn-exchange') {
       try {
-        const body = await readRequestBody(req, SMALL_MAX_BYTES);
+        const body = await readRequestBody(req);
         const { token } = JSON.parse(body || '{}');
         const result = await auth.exchangeVjnToken(token || '');
         if (!result.ok) {
@@ -3946,6 +3946,7 @@ function startSendServer() {
 
     if (req.method === 'POST' && parsed.pathname === '/planning-config') {
       if (!requireAuth(req, res, ['admin', 'promotions'])) return;
+      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
       let body = '';
       req.on('data', (c) => { body += c; });
       req.on('end', async () => {
@@ -3976,6 +3977,7 @@ function startSendServer() {
     if (req.method === 'POST' && parsed.pathname === '/sets') {
       // Promotions builds its own sets (Settings → Sets) to post to.
       if (!requireAuth(req, res, ['admin', 'promotions'])) return;
+      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
       let body = '';
       req.on('data', c => body += c);
       req.on('end', () => {
@@ -3997,7 +3999,6 @@ function startSendServer() {
           const added = after.filter((n) => !before.includes(n));
           const removed = before.filter((n) => !after.includes(n));
           if (added.length || removed.length) {
-      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
             activity.recordEvent({
               category: 'set',
               type: 'ok',
@@ -4019,6 +4020,7 @@ function startSendServer() {
 
     if (req.method === 'POST' && parsed.pathname === '/send') {
       if (!requireAuth(req, res)) return;
+      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
       let body = '';
       req.on('data', c => body += c);
       req.on('end', async () => {
@@ -4028,7 +4030,6 @@ function startSendServer() {
           if (!target || !message) { res.writeHead(400); res.end('{}'); return; }
           const actor = auth.getActor(req);
           const sets = loadSets();
-      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
           const setGroups = sets[target.toLowerCase()];
           if (setGroups) {
             // Answer before fanning out: paced sending takes minutes, far
@@ -4071,7 +4072,6 @@ function startSendServer() {
           } catch (err) {
             activity.recordEvent({
               category: 'send', type: 'err', ok: false,
-      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
               title: 'Message failed to send',
               detail: err.message, target, via: 'manual', actor,
               meta: { message, error: err.message },
@@ -4086,6 +4086,7 @@ function startSendServer() {
 
     if (req.method === 'POST' && parsed.pathname === '/send-media') {
       if (!requireAuth(req, res)) return;
+      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
       let body = '';
       req.on('data', c => body += c);
       req.on('end', async () => {
@@ -4137,7 +4138,6 @@ function startSendServer() {
           ? []
           : brief
             ? await apiHandlers.getGroupsBrief()
-      if (!guardBody(req, res, SMALL_MAX_BYTES)) return;
             : await apiHandlers.getGroupsEnriched(force);
         jsonResponse(res, 200, groups);
       } catch (err) {
