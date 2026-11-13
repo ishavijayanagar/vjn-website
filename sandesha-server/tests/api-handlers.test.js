@@ -693,6 +693,71 @@ async function run() {
     assert.ok(data.results);
   });
 
+  const postJson = (payload) => {
+    const body = JSON.stringify(payload);
+    return { method: 'POST', on(evt, fn) { if (evt === 'data') fn(body); if (evt === 'end') fn(); } };
+  };
+
+  await test('POST /groups/export-members returns every member across groups (no 100 cap, lid → phone, names)', async () => {
+    const many = Array.from({ length: 250 }, (_, i) => ({
+      id: { _serialized: `9198${String(10000000 + i)}@c.us` }, isAdmin: i === 0,
+    }));
+    const groupsById = {
+      'a@g.us': { isGroup: true, name: 'Alpha', id: { _serialized: 'a@g.us' }, groupMetadata: { participants: many } },
+      'b@g.us': {
+        isGroup: true, name: 'Beta', id: { _serialized: 'b@g.us' },
+        groupMetadata: { participants: [
+          { id: { _serialized: '123456789012345@lid' }, isSuperAdmin: true },
+          { id: { _serialized: '123456789099999@lid' } },
+        ] },
+      },
+    };
+    const h = createApiHandlers(makeDeps({
+      client: {
+        getChatById: async (jid) => { if (!groupsById[jid]) throw new Error('nope'); return groupsById[jid]; },
+        getContacts: async () => [
+          { id: { _serialized: '919810000000@c.us' }, name: 'Saved Name', pushname: 'Push' },
+          { id: { _serialized: '123456789012345@lid' }, pushname: 'Lid Person' },
+        ],
+        getContactLidAndPhone: async (ids) => ids
+          .filter((id) => id === '123456789012345@lid')
+          .map((id) => ({ lid: id, pn: '919810000000@c.us' })),
+      },
+    }));
+    const res = mockRes();
+    await h.handleRequest(postJson({ jids: ['a@g.us', 'b@g.us', 'missing@g.us', 'a@g.us'] }), res,
+      { pathname: '/groups/export-members' }, () => true);
+    const data = JSON.parse(res.body);
+    assert.strictEqual(data.ok, true);
+    assert.strictEqual(data.groups.length, 3);
+    assert.strictEqual(data.groups.find((g) => g.jid === 'a@g.us').total, 250);
+    assert.ok(data.groups.find((g) => g.jid === 'missing@g.us').error);
+    assert.strictEqual(data.members.filter((m) => m.groupJid === 'a@g.us').length, 250);
+    const resolved = data.members.find((m) => m.groupJid === 'b@g.us' && m.phone);
+    assert.strictEqual(resolved.phone, '919810000000');
+    assert.strictEqual(resolved.name, 'Saved Name');
+    assert.strictEqual(resolved.isAdmin, true);
+    const unresolved = data.members.find((m) => m.groupJid === 'b@g.us' && !m.phone);
+    assert.ok(unresolved);
+    assert.strictEqual(data.groups.find((g) => g.jid === 'b@g.us').unresolved, 1);
+  });
+
+  await test('POST /groups/export-members is open to admin and nurturing only', async () => {
+    const h = createApiHandlers(makeDeps());
+    let allowed = null;
+    const res = mockRes();
+    await h.handleRequest(postJson({ jids: ['999@c.us'] }), res, { pathname: '/groups/export-members' },
+      (_req, _res, roles) => { allowed = roles; return false; });
+    assert.deepStrictEqual([...allowed].sort(), ['admin', 'nurturing']);
+  });
+
+  await test('POST /groups/export-members rejects empty or non-group picks', async () => {
+    const h = createApiHandlers(makeDeps());
+    const res = mockRes();
+    await h.handleRequest(postJson({ jids: ['999@c.us'] }), res, { pathname: '/groups/export-members' }, () => true);
+    assert.strictEqual(res.statusCode, 400);
+  });
+
   await test('unknown route returns false', async () => {
     const h = createApiHandlers(makeDeps());
     const ok = await h.handleRequest({ method: 'GET' }, mockRes(), { pathname: '/nope' }, () => true);

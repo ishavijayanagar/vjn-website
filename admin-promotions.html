@@ -29,10 +29,11 @@
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=vjn2"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Instrument+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="admin-promotions.css?v=set-acc1"/>
   <link rel="stylesheet" href="sandesha/css/embedded.css?v=toast-1"/>
   <link rel="stylesheet" href="banner-form.css?v=2"/>
+  <link rel="stylesheet" href="admin-promotions-minimal.css?v=6"/>
   <script src="config.js"></script>
   <script src="pi-promos.js?v=2"></script>
 </head>
@@ -42,17 +43,17 @@
     <div class="phone" id="app">
       <div class="hdr">
         <div class="hdr-row">
-          <div>
-            <h1>Promotions</h1>
+          <button type="button" class="ic hdr-back" id="hdrBack" aria-label="Back to More" hidden>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="hdr-title">
+            <h1 id="pageTitle">Posts</h1>
             <div class="kicker" id="dayTitle">Today</div>
           </div>
           <div class="icons">
-            <button type="button" class="ic" id="serverUrlBtn" aria-label="Settings" title="Settings" aria-pressed="false">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            </button>
-            <button type="button" class="ic" id="notifyBtn" aria-label="Notifications" aria-pressed="false">
-              <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216Z"/></svg>
-              <span class="bdg" id="notifyDot" hidden></span>
+            <button type="button" class="fab" id="fab">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              New post
             </button>
           </div>
         </div>
@@ -82,40 +83,48 @@
       <div class="promo-panel" id="sandeshaSend" aria-label="Compose a WhatsApp message"></div>
       <div class="promo-panel" id="promoBanner" aria-label="Homepage banner"></div>
       <div class="promo-panel" id="sandeshaReach" aria-label="Message reach"></div>
-      <div class="promo-panel" id="sandeshaServer" aria-label="Settings">
-        <header class="set-page">
-          <h2 class="set-page-title">Settings</h2>
-        </header>
-        <div id="sandeshaApiHost"></div>
-        <div id="promoPlanningHost"></div>
-        <div id="promoSetsHost"></div>
-        <section class="ios-block" id="promoActivityEntry">
-          <details class="ios-block set-sec">
-          <summary class="ios-caption"><span>This phone</span></summary>
-          <div class="ios-group">
-            <button type="button" class="ios-row-btn" id="promoActivityOpen">
-              <span class="set-glyph" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
-              </span>
-              <span class="pa-copy">
-                <span class="pa-title">Sandesha activities</span>
-              </span>
-              <svg class="pa-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
-            </button>
-            <div class="set-appear">
-              <span id="themeLbl">Appearance</span>
-              <div class="toggle" role="group" aria-labelledby="themeLbl">
-                <button type="button" id="themeLight" aria-pressed="true">Light</button>
-                <button type="button" id="themeDark" aria-pressed="false">Dark</button>
+      <div class="promo-panel" id="sandeshaServer" aria-label="More">
+        <div id="moreMain">
+          <section class="more-group" aria-label="WhatsApp">
+            <div id="sandeshaApiHost"></div>
+          </section>
+          <section class="more-group" aria-labelledby="mgAud">
+            <h2 class="more-h" id="mgAud">Where posts go</h2>
+            <div id="promoPlanningHost"></div>
+            <div id="promoSetsHost"></div>
+          </section>
+          <section class="more-group" aria-labelledby="mgTools">
+            <h2 class="more-h" id="mgTools">Tools</h2>
+            <div class="ios-group">
+              <button type="button" class="ios-row-btn" id="moreBanner" data-promo-open="banner">
+                <span class="pa-copy"><span class="pa-title">Homepage banner</span></span><svg class="pa-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button type="button" class="ios-row-btn" id="promoActivityOpen">
+                <span class="pa-copy"><span class="pa-title">Sandesha activity</span></span><svg class="pa-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button type="button" class="ios-row-btn" id="notifyBtn" aria-label="Notifications" aria-pressed="false">
+                <span class="pa-copy"><span class="pa-title">Notifications</span></span>
+                <span class="bdg" id="notifyDot" hidden></span>
+              </button>
+            </div>
+          </section>
+          <section class="more-group" aria-labelledby="mgDev">
+            <h2 class="more-h" id="mgDev">This device</h2>
+            <div class="ios-group">
+              <div class="set-appear">
+                <span id="themeLbl">Appearance</span>
+                <div class="toggle" role="group" aria-labelledby="themeLbl">
+                  <button type="button" id="themeLight" aria-pressed="true">Light</button>
+                  <button type="button" id="themeDark" aria-pressed="false">Dark</button>
+                </div>
               </div>
             </div>
-          </div>
-          </details>
-          <button type="button" class="set-signout" id="logoutBtn">Sign out</button>
-        </section>
+            <button type="button" class="set-signout" id="logoutBtn">Sign out</button>
+          </section>
+        </div>
         <div id="promoActivity" hidden>
-          <button type="button" class="pa-back" id="promoActivityBack">Settings</button>
-          <h2 class="pa-heading">Sandesha activities</h2>
+          <button type="button" class="pa-back" id="promoActivityBack">More</button>
+          <h2 class="pa-heading">Sandesha activity</h2>
           <div class="pa-filters" role="tablist" aria-label="Result">
             <button type="button" class="on" data-pa-status="all">All</button>
             <button type="button" data-pa-status="ok">Success</button>
@@ -126,11 +135,6 @@
         </div>
       </div>
 
-      <button type="button" class="fab" id="fab">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
-        New post
-      </button>
-
       <div class="toast" id="toast"><span id="tmsg"></span><button type="button" id="undo">Undo</button></div>
 
       <div class="scrim" id="scrim"></div>
@@ -140,7 +144,7 @@
     <nav class="tabbar" aria-label="Promotions sections">
       <button type="button" class="on" data-promo-mode="board">
         <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M160,56v96a8,8,0,0,1-8,8H112a8,8,0,0,1-8-8V56a8,8,0,0,1,8-8h40A8,8,0,0,1,160,56Zm64-8H184a8,8,0,0,0-8,8v52a4,4,0,0,0,4,4h48a4,4,0,0,0,4-4V56A8,8,0,0,0,224,48Zm4,80H180a4,4,0,0,0-4,4v44a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V132A4,4,0,0,0,228,128ZM80,48H40a8,8,0,0,0-8,8v52a4,4,0,0,0,4,4H84a4,4,0,0,0,4-4V56A8,8,0,0,0,80,48Zm4,80H36a4,4,0,0,0-4,4v76a16,16,0,0,0,16,16H72a16,16,0,0,0,16-16V132A4,4,0,0,0,84,128Z"/></svg>
-        <span>Board</span>
+        <span>Posts</span>
       </button>
       <button type="button" data-promo-mode="schedule">
         <svg width="24" height="24" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,48H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"/></svg>
@@ -151,13 +155,13 @@
         <span>Compose</span>
         <span class="tab-bdg" id="sandeshaDot" hidden></span>
       </button>
-      <button type="button" data-promo-mode="banner">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/><path d="M8 14h8"/></svg>
-        <span>Banner</span>
-      </button>
       <button type="button" data-promo-mode="reach">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>
         <span>Reach</span>
+      </button>
+      <button type="button" data-promo-mode="server">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>
+        <span>More</span>
       </button>
     </nav>
     </div>
@@ -182,8 +186,8 @@
 
     <div class="compose-body">
       <div class="wa-link-note" data-wa-link hidden>
-        <p data-wa-link-text>Sandesha isn’t connected. Link WhatsApp in Settings before a send or a schedule can go out.</p>
-        <button type="button" data-wa-link-settings>Open Settings</button>
+        <p data-wa-link-text>WhatsApp isn’t connected</p>
+        <button type="button" data-wa-link-settings>Link</button>
       </div>
       <p class="compose-err" id="composeErr" role="alert" hidden></p>
 
@@ -195,13 +199,13 @@
           </div>
           <span class="compose-count" id="composeCount" aria-hidden="true"></span>
         </div>
-        <textarea id="composeMessage" rows="6" placeholder="Write the message to post."></textarea>
+        <textarea id="composeMessage" rows="6"></textarea>
       </section>
 
       <section class="compose-card">
         <div class="compose-card-head">
           <h3 class="compose-card-title">Flyer</h3>
-          <span class="compose-flag" id="composeFlyerReq" hidden>Needed to schedule</span>
+          <span class="compose-flag" id="composeFlyerReq" hidden>Required</span>
         </div>
         <input type="file" id="composeFlyerFile" accept="image/*" class="compose-file"/>
         <label for="composeFlyerFile" class="compose-drop" id="composeDrop">
@@ -213,7 +217,7 @@
           <span class="compose-drop-cta" aria-hidden="true">Replace</span>
         </label>
         <div class="compose-drop-foot">
-          <span class="compose-flyer-name" id="composeFlyerName">No flyer yet</span>
+          <span class="compose-flyer-name" id="composeFlyerName"></span>
           <button type="button" class="compose-reset" id="composeFlyerReset" hidden>Use Programs photo</button>
         </div>
       </section>
@@ -252,7 +256,7 @@
             <button type="button" class="compose-aud" id="composeAud">
               <span class="compose-aud-body">
                 <span class="compose-aud-name" id="composeAudName">Loading lists…</span>
-                <span class="compose-aud-sub" id="composeAudSub">Sandesha sends this on the day</span>
+                <span class="compose-aud-sub" id="composeAudSub"></span>
               </span>
               <span class="compose-aud-n"><b id="composeAudCount">0</b><small>Reach</small></span>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -272,7 +276,7 @@
 
   <script src="ptr.js?v=1"></script>
   <script src="drafts.js?v=1"></script>
-  <script src="admin-promotions.js?v=no-past"></script>
-  <script type="module" src="sandesha/js/promo-shell.js?v=47"></script>
+  <script src="admin-promotions.js?v=no-past-8"></script>
+  <script type="module" src="sandesha/js/promo-shell.js?v=57"></script>
 </body>
 </html>

@@ -80,25 +80,26 @@ function clearLocalAuthSession() {
 
 const QR_PATH = path.join(__dirname, 'qr-code.png');
 const DOCS_DIR = path.join(__dirname, 'docs');
-const DELIVERED_FILE = path.join(__dirname, 'delivered.json');
 const DELIVERED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const NOTIFY_FILE = path.join(__dirname, 'notifications.log');
 const MEDIA_DIR = path.join(__dirname, 'media');
 const LOG_FILE = path.join(__dirname, 'sandesha.log');
-const ZC_WEBHOOK = 'http://127.0.0.1:42617/webhook';
-const LISTEN_PORT = 42620;
-
 // Everything Sandesha remembers lives in the database; files the old versions wrote are carried over once.
 const stateStore = createStateStore(shared());
 stateStore.importLegacy(__dirname, (m) => console.log(m));
 require('./planning-config').useStore(stateStore);
 activity.useDb(shared());
 safety.useDb(shared());
+
+const LOG_MAX_BYTES = 5 * 1024 * 1024; // rotates to sandesha.log.1
+let logWrites = 0;
+const ZC_WEBHOOK = 'http://127.0.0.1:42617/webhook';
+const LISTEN_PORT = 42620;
 const COMMANDS_GROUP_NAME = 'Me Commands';
 const COMMANDS_GROUP_JID = '120363426133559474@g.us';
 
 // Pairing-code login (remote-friendly) when SANDESHA_PAIRING_PHONE is set.
-const pairingPhone = (process.env.SANDESHA_PAIRING_PHONE || '').replace(/\D/g, '');
+let pairingPhone = (process.env.SANDESHA_PAIRING_PHONE || '').replace(/\D/g, '');
 /** qr = scan QR only; phone = pairing code only; auto = try phone, fall back to QR */
 const authMode = (process.env.SANDESHA_AUTH_MODE || 'auto').toLowerCase();
 let useQrAuth = authMode === 'qr' || !pairingPhone;
@@ -107,7 +108,7 @@ let pairingPhoneFailed = false;
 function isPairingCodeFailure(reason) {
   const msg = reason && reason.message ? reason.message : String(reason || '');
   const stack = reason && reason.stack ? reason.stack : '';
-  return /requestPairingCode|PairingCodeLinkUtils|ExecutionContext\.js:391/i.test(`${msg}\n${stack}`);
+  return /requestPairingCode|PairingCodeLinkUtils|ExecutionContext\.js:391|reading 'Socket'/i.test(`${msg}\n${stack}`);
 }
 
 function switchToQrAuth(reason) {
@@ -135,6 +136,12 @@ function log(...args) {
   const timestamp = new Date().toISOString();
   const logLine = `[${timestamp}] ${msg}`;
   console.error(logLine);
+  try {
+    // Only look at the file size every 200 lines.
+    if (++logWrites % 200 === 0 && fs.existsSync(LOG_FILE) && fs.statSync(LOG_FILE).size > LOG_MAX_BYTES) {
+      fs.renameSync(LOG_FILE, `${LOG_FILE}.1`);
+    }
+  } catch { /* rotation is best-effort */ }
   fs.appendFileSync(LOG_FILE, logLine + '\n');
 }
 
@@ -196,6 +203,8 @@ function getWhatsAppHealth(authed) {
   }
   return {
     ...base,
+    pairingPhone: pairingPhone || null,
+    codeUnavailable: pairingPhoneFailed,
     pairingCode: hasCode ? waLink.pairingCode : null,
     pairingAt: hasCode ? waLink.pairingAt : null,
     qrAvailable: hasCode ? false : hasQr,
@@ -713,7 +722,8 @@ function wireClientEvents(c) {
   });
 
   c.on('authenticated', () => {
-    log('Authenticated — waiting for WhatsApp ready…');
+    // whatsapp-web.js can fire this several times at once; log it once.
+    if (waLink.reason !== 'authenticated') log('Authenticated — waiting for WhatsApp ready…');
     clearStalePairingArtifacts();
     setWaLink({
       state: 'connecting',
@@ -897,6 +907,10 @@ function scheduleWhatsAppReconnect(reason) {
     reconnectWhatsApp(reason).catch((err) => {
       log('Reconnect error:', err.message);
       isInitializing = false;
+      if (isPairingCodeFailure(err) && switchToQrAuth(err.message)) {
+        scheduleWhatsAppReconnect('pairing_code_unavailable');
+        return;
+      }
       scheduleWhatsAppReconnect(err.message);
     });
   }, delayMs);
@@ -1058,6 +1072,12 @@ function createAndStartWhatsApp() {
   setWaLink({ state: 'starting', reason: null });
   client.initialize().catch((err) => {
     log('Initial WhatsApp initialize failed:', err.message);
+    // Code login crashes inside WhatsApp Web on some versions — fall back to QR
+    // instead of retrying the same failure forever.
+    if (isPairingCodeFailure(err) && switchToQrAuth(err.message)) {
+      scheduleWhatsAppReconnect('pairing_code_unavailable');
+      return;
+    }
     setWaLink({ state: 'disconnected', reason: err.message });
     scheduleWhatsAppReconnect(err.message);
   });
@@ -3808,6 +3828,7 @@ const vjnInbox = createInbox({
   inquiries: vjnInquiries, ev: vjnEv, sheetCall, log, enabled: () => !!dataFlag.get(),
 });
 const vjnCheckins = createCheckins({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
+const vjnRoster = createRoster({ db: vjnDb, fetchRoster: () => sheetCall('vjnExportRoster', {}), log });
 const adminAudit = createAuditTrail(vjnDb);
 const vjnApi = createVjnApi({
   listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, checkins: vjnCheckins, roster: vjnRoster,
@@ -3832,7 +3853,6 @@ const vjnPromos = createPromos({
   fetchListings: async () => {
     // Until the Sheet's data is copied in, the Sheet is still the record.
     if (!dataFlag.get()) return sheetCall('vjnListings', {});
-const vjnRoster = createRoster({ db: vjnDb, fetchRoster: () => sheetCall('vjnExportRoster', {}), log });
     const pick = (i) => ({
       id: String(i.id), title: i.title || '', date: i.date || '', startdate: i.startdate || '',
       location: i.location || '', status: i.status || '', image: i.image || '',
@@ -3930,6 +3950,36 @@ function startSendServer() {
       try {
         res.writeHead(200); res.end(JSON.stringify({ sets: loadSets() }));
       } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+      return;
+    }
+
+    // Quiet hours: anyone on the promotions side may read them (the board says
+    // "Held until 8:00" instead of "Due"); only the admin may change them.
+    if (parsed.pathname === '/quiet-hours' && req.method === 'GET') {
+      if (!requireAuth(req, res, ['admin', 'promotions'])) return;
+      jsonResponse(res, 200, safety.getQuietHours());
+      return;
+    }
+
+    if (parsed.pathname === '/quiet-hours' && req.method === 'POST') {
+      if (!requireAuth(req, res, ['admin'])) return;
+      let body = {};
+      try { body = JSON.parse(await readRequestBody(req) || '{}'); } catch { /* checked below */ }
+      const result = body.reset ? { ok: true, ...safety.resetQuietHours() } : safety.setQuietHours(body);
+      if (!result.ok) {
+        jsonResponse(res, 400, { error: result.error });
+        return;
+      }
+      const label = result.enabled
+        ? `${String(result.start).padStart(2, '0')}:00 to ${String(result.end).padStart(2, '0')}:00`
+        : 'off';
+      log(`[QUIET] Quiet hours set to ${label}`);
+      activity.recordEvent({
+        category: 'config', type: 'ok',
+        title: 'Quiet hours changed', detail: label,
+        via: 'api', actor: auth.getActor(req), push: false,
+      });
+      jsonResponse(res, 200, { start: result.start, end: result.end, enabled: result.enabled, active: result.active });
       return;
     }
 
@@ -4196,6 +4246,58 @@ function startSendServer() {
       }
       log('QR emailed on request');
       jsonResponse(res, 200, { sent: true });
+      return;
+    }
+
+    // Choose how to link WhatsApp from the admin UI: show a QR, or get a code
+    // for a phone number. Only while not linked, so nobody logs a live session out.
+    if (req.method === 'POST' && parsed.pathname === '/pairing/start') {
+      if (!auth.validateAuth(req)) {
+        jsonResponse(res, 401, { error: 'Unauthorized' });
+        return;
+      }
+      if (waLink.state === 'connected') {
+        jsonResponse(res, 409, { error: 'WhatsApp is already linked' });
+        return;
+      }
+      if (isInitializing) {
+        jsonResponse(res, 409, { error: 'Still starting — try again in a few seconds' });
+        return;
+      }
+      let body = {};
+      try { body = JSON.parse(await readRequestBody(req) || '{}'); } catch { /* handled below */ }
+      // Starting a new link deletes the saved login. If one exists and the page is
+      // only slow to come up, that would sign out a working phone — ask first.
+      if (!body.force && waLink.state !== 'pairing' && hasSavedWhatsAppSession()) {
+        jsonResponse(res, 409, {
+          needsConfirm: true,
+          error: 'WhatsApp is still reconnecting with its saved login. Starting a new link signs that login out and you must link the phone again.',
+        });
+        return;
+      }
+      if (body.method === 'code') {
+        const phone = String(body.phone || '').replace(/\D/g, '');
+        if (phone.length < 8 || phone.length > 15) {
+          jsonResponse(res, 400, { error: 'Enter the phone number with country code, digits only (e.g. 919876543210)' });
+          return;
+        }
+        pairingPhone = phone;
+        useQrAuth = false;
+        pairingPhoneFailed = false;
+      } else if (body.method === 'qr') {
+        useQrAuth = true;
+      } else {
+        jsonResponse(res, 400, { error: 'method must be "qr" or "code"' });
+        return;
+      }
+      log(`[PAIRING] switching to ${body.method === 'code' ? 'code' : 'QR'} from the admin UI`);
+      reconnectAttempts = 0;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectWhatsApp('unpaired (link method chosen in UI)').catch((err) => {
+        log('Pairing restart error:', err.message);
+        isInitializing = false;
+      });
+      jsonResponse(res, 202, { ok: true });
       return;
     }
 
@@ -4583,6 +4685,10 @@ function scheduleActivityMeta(schedule, extra = {}) {
 }
 
 let sentScheduleIds = new Set();
+// A failing schedule is retried with growing gaps, then parked as failed so it
+// stops flooding the log and the phone. Retry from the Schedule page.
+const SCHEDULE_MAX_ATTEMPTS = 3;
+const SCHEDULE_RETRY_DELAYS_MS = [60e3, 5 * 60e3, 15 * 60e3];
 let schedulerRunning = false;
 
 function writeNotification(text) {
@@ -4722,6 +4828,16 @@ function startScheduler() {
   vjnMirror.start();
   vjnInbox.start();
   vjnReminders.start();
+  vjnRoster.start();
+  // Hourly housekeeping: fold the write-ahead log back into the database file and drop expired logins.
+  const maintain = () => {
+    try {
+      vjnDb.prepare('DELETE FROM login_sessions WHERE expires_at <= ?').run(Date.now());
+      vjnDb.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (err) { log(`[db] maintenance failed: ${err.message}`); }
+  };
+  maintain();
+  setInterval(maintain, 3600e3).unref();
 
   schedulerInterval = setInterval(() => {
     runSchedulerCheck();
@@ -4798,16 +4914,6 @@ async function runScheduleHeadsUp() {
     log('[HEADSUP]', err.message);
   } finally {
     headsUpRunning = false;
-  vjnRoster.start();
-  // Hourly housekeeping: fold the write-ahead log back into the database file and drop expired logins.
-  const maintain = () => {
-    try {
-      vjnDb.prepare('DELETE FROM login_sessions WHERE expires_at <= ?').run(Date.now());
-      vjnDb.pragma('wal_checkpoint(TRUNCATE)');
-    } catch (err) { log(`[db] maintenance failed: ${err.message}`); }
-  };
-  maintain();
-  setInterval(maintain, 3600e3).unref();
   }
 }
 
@@ -4829,6 +4935,7 @@ async function runSchedulerCheck() {
       console.error(`[SCHEDULER] Checking ${schedules.length} schedules at ${now.toISOString()}`);
       const delivered = [];
       const progress = new Map();
+      const failures = new Map();
       let quietNoted = false;
       let budgetNoted = false;
       
@@ -4836,6 +4943,9 @@ async function runSchedulerCheck() {
         // Skip already sent / in-flight schedules
         if (sentScheduleIds.has(schedule.id)) continue;
         
+        if (schedule.failed) continue;
+        if (schedule.nextRetryAt && new Date(schedule.nextRetryAt) > now) continue;
+
         const runAt = new Date(schedule.runAt);
         if (runAt <= now) {
           // A schedule due in the small hours waits for morning. It is held,
@@ -4893,21 +5003,40 @@ async function runSchedulerCheck() {
               });
             }
           } catch (err) {
-            console.error(`[SCHEDULE ERROR] ${err.message}`);
-            // Allow retry on next tick
+            const attempts = (schedule.attempts || 0) + 1;
+            const gaveUp = attempts >= SCHEDULE_MAX_ATTEMPTS;
+            const sentSoFar = Array.isArray(err.sentTo) ? err.sentTo : (schedule.sentTo || []);
+            const nextRetryAt = gaveUp ? null
+              : new Date(Date.now() + SCHEDULE_RETRY_DELAYS_MS[Math.min(attempts - 1, SCHEDULE_RETRY_DELAYS_MS.length - 1)]).toISOString();
+            // Full detail goes to sandesha.log (the console alone is lost on restart).
+            log(`[SCHEDULE ERROR] id=${schedule.id} target=${schedule.target}${err.failedTarget ? ` failedGroup=${err.failedTarget}` : ''} attempt ${attempts}/${SCHEDULE_MAX_ATTEMPTS}: ${err.stack || err.message}`);
+            writeNotification(`❌ Failed${gaveUp ? ' (gave up)' : ` (attempt ${attempts}/${SCHEDULE_MAX_ATTEMPTS})`}: "${preview}" → ${schedule.target} — ${err.message.split('\n')[0]}`);
+            // Keep who already got it so a retry never re-sends them.
+            progress.set(schedule.id, sentSoFar);
+            failures.set(schedule.id, {
+              attempts, failed: gaveUp, nextRetryAt,
+              lastError: err.message.split('\n')[0].slice(0, 300),
+              lastFailedAt: new Date().toISOString(),
+              failedTarget: err.failedTarget || '',
+            });
             sentScheduleIds.delete(schedule.id);
+            // Notify on the first failure and on giving up — not every retry.
+            const notify = attempts === 1 || gaveUp;
             activity.recordEvent({
               category: 'schedule', type: 'err', ok: false,
-              title: `Scheduled send to ${label} failed`,
-              detail: `${err.message.split('\n')[0]} — post it by hand if needed`,
-              target: schedule.target, corrId, via: 'scheduled', push: true,
+              title: gaveUp ? `Scheduled send to ${label} failed — gave up` : `Scheduled send to ${label} failed`,
+              detail: `${err.message.split('\n')[0]} — ${gaveUp ? 'post it by hand or press Retry' : `retrying (attempt ${attempts}/${SCHEDULE_MAX_ATTEMPTS})`}`,
+              target: schedule.target, corrId, via: 'scheduled', push: notify,
               actor: schedule.createdBy || null,
-              meta: scheduleActivityMeta(schedule, { error: err.message }),
+              meta: scheduleActivityMeta(schedule, {
+                error: err.message, attempts, gaveUp,
+                failedGroup: err.failedTarget || '', sentTo: sentSoFar,
+              }),
             });
           }
         }
       }
-      
+
       // A send can take minutes, and rows are added or cancelled through the
       // API meanwhile. Apply this tick's outcome to the file as it is now —
       // writing back the list read at the start brought cancelled rows back
@@ -4915,7 +5044,11 @@ async function runSchedulerCheck() {
       const deliveredIds = new Set(delivered.map((s) => s.id));
       const latest = loadSchedules()
         .filter((s) => !deliveredIds.has(s.id))
-        .map((s) => (progress.has(s.id) ? { ...s, sentTo: progress.get(s.id) } : s));
+        .map((s) => {
+          let row = progress.has(s.id) ? { ...s, sentTo: progress.get(s.id) } : s;
+          if (failures.has(s.id)) row = { ...row, ...failures.get(s.id) };
+          return row;
+        });
       saveSchedules(latest);
       // Positive record of the send, so the board never has to infer one from
       // a missing row.

@@ -134,6 +134,11 @@ function iosMarkup(defaultUrl, current, overridden, health, showServer = true) {
           <div class="wa-qr-actions">
             <button type="button" class="ios-btn" data-wa-qr-show>Show QR</button>
             <button type="button" class="ios-btn primary" data-wa-qr-send>Send QR</button>
+            <button type="button" class="ios-btn" data-wa-code-toggle style="grid-column:1/-1">Use a code instead</button>
+          </div>
+          <div class="wa-code-row" data-wa-code-row hidden style="margin-top:10px;gap:8px">
+            <input type="tel" inputmode="numeric" class="ios-input" data-wa-code-phone placeholder="Phone number" aria-label="Phone number" style="flex:1;min-height:44px">
+            <button type="button" class="ios-btn primary" data-wa-code-go>Get code</button>
           </div>
           <div class="wa-qr-panel" data-wa-qr-panel hidden>
             <img data-wa-qr-img alt="WhatsApp QR code" width="220" height="220" hidden/>
@@ -271,6 +276,40 @@ export function renderApiSettings(container, opts = {}) {
   });
 }
 
+async function pairingFetch(path, init = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch(`${getApiBase().replace(/\/$/, '')}${path}`, { ...init, headers });
+}
+
+/** Ask the server to start a fresh link attempt (QR or code). */
+async function startPairing(payload) {
+  let res = await pairingFetch('/pairing/start', { method: 'POST', body: JSON.stringify(payload) });
+  let data = await res.json().catch(() => ({}));
+  if (res.status === 409 && data.needsConfirm) {
+    if (!confirm(`${data.error}\n\nSign it out and link again?`)) throw new Error('Cancelled — the saved login was kept.');
+    res = await pairingFetch('/pairing/start', { method: 'POST', body: JSON.stringify({ ...payload, force: true }) });
+    data = await res.json().catch(() => ({}));
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not start');
+}
+
+/** Poll health until a code or QR is ready (or time runs out). */
+async function waitForPairing(want, { tries = 45, everyMs = 2000 } = {}) {
+  for (let i = 0; i < tries; i++) {
+    await new Promise((r) => setTimeout(r, everyMs));
+    try {
+      const res = await pairingFetch('/health');
+      const w = (await res.json()).whatsapp || {};
+      if (w.connected) return { connected: true };
+      if (want === 'code' && w.pairingCode) return { code: w.pairingCode };
+      if (w.qrAvailable) return { qr: true, fellBack: want === 'code' };
+    } catch { /* keep waiting */ }
+  }
+  return {};
+}
+
 async function loadQrImage(img) {
   const base = getApiBase().replace(/\/$/, '');
   const headers = {};
@@ -322,8 +361,17 @@ function wireQrActions(container) {
     if (note) note.textContent = 'Loading the QR…';
     showBtn.disabled = true;
     try {
-      await loadQrImage(img);
-      if (note) note.textContent = 'WhatsApp → Linked devices → Link a device';
+      try {
+        await loadQrImage(img);
+      } catch {
+        if (note) note.textContent = 'Starting…';
+        await startPairing({ method: 'qr' });
+        const got = await waitForPairing('qr');
+        if (got.connected) { if (note) note.textContent = 'WhatsApp is already linked.'; return; }
+        if (!got.qr) throw new Error('No QR yet. Check sandesha.log.');
+        await loadQrImage(img);
+      }
+      if (note) note.textContent = '';
       scrollQrIntoView(panel);
     } catch (err) {
       img.hidden = true;
@@ -333,6 +381,48 @@ function wireQrActions(container) {
       scrollQrIntoView(panel);
     } finally {
       showBtn.disabled = false;
+    }
+  });
+
+  const codeToggle = block.querySelector('[data-wa-code-toggle]');
+  const codeRow = block.querySelector('[data-wa-code-row]');
+  const codeGo = block.querySelector('[data-wa-code-go]');
+  const phoneInput = block.querySelector('[data-wa-code-phone]');
+  codeToggle?.addEventListener('click', () => {
+    // The page has a global [hidden]{display:none!important}, so toggle the attribute.
+    codeRow.hidden = !codeRow.hidden;
+    codeRow.style.display = codeRow.hidden ? '' : 'flex';
+    if (!codeRow.hidden) phoneInput?.focus();
+  });
+  codeGo?.addEventListener('click', async () => {
+    if (codeGo.disabled || !panel) return;
+    codeGo.disabled = true;
+    panel.hidden = false;
+    img.hidden = true;
+    if (note) { note.style.cssText = ''; note.textContent = 'Requesting a code…'; }
+    try {
+      await startPairing({ method: 'code', phone: phoneInput?.value || '' });
+      const got = await waitForPairing('code');
+      if (got.connected) {
+        if (note) note.textContent = 'WhatsApp is linked.';
+      } else if (got.code) {
+        if (note) {
+          note.style.cssText = 'font-family:var(--mono,monospace);font-size:24px;letter-spacing:.14em';
+          note.textContent = got.code;
+        }
+        
+      } else if (got.qr) {
+        await loadQrImage(img);
+        if (note) note.textContent = 'Codes are unavailable — scan this QR instead';
+      } else {
+        throw new Error('No code yet. Check sandesha.log.');
+      }
+      scrollQrIntoView(panel);
+    } catch (err) {
+      if (note) note.textContent = err.message || 'Could not get a code';
+      toast(err.message || 'Could not get a code', 'err');
+    } finally {
+      codeGo.disabled = false;
     }
   });
 

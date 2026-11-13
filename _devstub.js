@@ -85,7 +85,7 @@
       event_open: true, flyer_url: "assets/logo.png"
     },
     {
-      id: "p2", status: "due", send_at: ymd(0) + " 13:00",
+      id: "p2", status: "due", send_at: ymd(0) + " 13:00", wa_schedule_ids: "s5",
       event_title: "Isha Kriya session", event_location: "Vijayanagar",
       message: "Free Isha Kriya guided session at 5pm today. Nothing to bring, just come.",
       event_open: true, flyer_url: "assets/logo.png"
@@ -102,7 +102,11 @@
       event_open: true, flyer_url: "assets/logo.png"
     },
     {
-      id: "p4", status: "ready", send_at: ymd(0) + " 20:00",
+      id: "p4", status: scene === "sending" ? "due" : "ready",
+      send_at: scene === "sending"
+        ? ymd(0) + " " + new Date(Date.now() - 60000).toTimeString().slice(0, 5)
+        : ymd(0) + " 20:00",
+      wa_schedule_ids: scene === "sending" ? "s5" : undefined,
       event_title: "Angamardana batch", event_location: "Yoga batch",
       message: "Last day to register for the Angamardana batch starting Monday.",
       event_open: true, flyer_url: "assets/logo.png"
@@ -150,6 +154,38 @@
           return c.name.toLowerCase().indexOf(needle) !== -1 || c.phone.indexOf(needle.replace(/\D/g, "")) !== -1;
         })
       };
+    },
+    "/quiet-hours": { start: 22, end: 8, enabled: true, active: true },
+    "/reach/summary": function () {
+      var daily = [];
+      for (var i = 29; i >= 0; i--) {
+        var d = new Date(Date.now() - i * 864e5);
+        var n = i % 5 === 0 ? 2 : i % 3 === 0 ? 1 : 0;
+        daily.push({ day: d.toISOString().slice(0, 10), posts: n, delivered: n * 180, read: n * 96 });
+      }
+      return {
+        measuring: 1, trackingSince: Date.now() - 40 * 864e5,
+        totals: { posts: 12, sends: 21, delivered: 2140, read: 1180, replies: 34, reactions: 71, audience: 2600 },
+        previous: { posts: 9, sends: 15, delivered: 1650, read: 840, replies: 20, reactions: 40 },
+        daily: daily,
+        groups: [
+          { name: "Isha Sadhguru Satsang", posts: 8, audience: 214, delivered: 200, read: 150, replies: 6 },
+          { name: "Vijayanagar Volunteers", posts: 6, audience: 128, delivered: 120, read: 70, replies: 3 }
+        ]
+      };
+    },
+    "/reach/posts": function () {
+      return { more: false, posts: [
+        { post: "r1", sentAt: Date.now() - 36e5, kind: "text", text: "Sunday Hatha Yoga is on from 7am.", groups: 2, via: "scheduled", status: "measuring", audience: 342, delivered: 310, read: 120, replies: 4, reactions: 9, reactionTop: [["🙏", 7]] },
+        { post: "r2", sentAt: Date.now() - 30 * 36e5, kind: "media", text: "Angamardana batch starts Monday", groups: 1, via: "manual", status: "final", audience: 64, delivered: 60, read: 41, replies: 1, reactions: 3, reactionTop: [] }
+      ] };
+    },
+    "/activity": function () {
+      return { activity: [
+        { id: "a1", at: new Date(Date.now() - 6e5).toISOString(), type: "ok", category: "send", title: "Sent to Isha Sadhguru Satsang", detail: "5 chars", target: "g1@g.us", count: 1, ok: true, meta: {} },
+        { id: "a2", at: new Date(Date.now() - 36e5).toISOString(), type: "err", category: "schedule", title: "Couldn't schedule Janani", detail: "fetch failed", ok: false, meta: { error: "fetch failed" } },
+        { id: "a3", at: new Date(Date.now() - 5 * 36e5).toISOString(), type: "ok", category: "schedule", title: "Scheduled message delivered", detail: "hello", ok: true, meta: {} }
+      ] };
     },
     "/chats": { chats: [{ jid: "919876543210@s.whatsapp.net", name: "Anitha R.", isGroup: false }] },
     "/schedules": {

@@ -42,6 +42,8 @@ function createPromoJobs(deps) {
     // (flyer) → public URL of a photo stored on this Pi, or '' to keep using Drive.
     saveSiteImage = null,
     fetchImpl = (...args) => fetch(...args),
+    // (job, error, actor) → told when a job fails, so it can reach the Activity log.
+    onFailed = () => {},
     log = () => {},
     now = () => Date.now(),
   } = deps;
@@ -247,6 +249,7 @@ function createPromoJobs(deps) {
       for (const id of newIds.filter((n) => !previousIds.includes(n))) await cancelQuietly(id, actor);
       log(`[promo-jobs] ${job.id} failed: ${err.message}`);
       update(job, { status: 'failed', error: err.message || 'Something went wrong' });
+      try { onFailed(job, err, actor); } catch { /* reporting must not break the job */ }
     }
   }
 
@@ -318,6 +321,7 @@ function createPromoJobs(deps) {
       }
       log(`[promo-jobs] ${job.id} failed: ${err.message}`);
       update(job, { status: 'failed', error: err.message || 'Something went wrong' });
+      try { onFailed(job, err, actor); } catch { /* reporting must not break the job */ }
     }
   }
 
@@ -341,7 +345,16 @@ function createPromoJobs(deps) {
       const data = await appsScript(sheet.url, { formType: 'adminGetImage', token: sheet.token, url });
       if (data.base64) return writeMedia(Buffer.from(data.base64, 'base64'), data.mimeType);
     } catch { /* not a Drive file — try it directly */ }
-    const res = await fetchImpl(url);
+    let res;
+    try {
+      res = await fetchImpl(url);
+    } catch (err) {
+      const why = err?.cause?.code || err?.cause?.message || err?.message || 'network error';
+      const onOtherServer = /\/public\/media\//.test(String(url));
+      throw new Error(onOtherServer
+        ? `This flyer is stored on another Sandesha server (${new URL(url).host}) that this one cannot reach (${why}). Choose the flyer again so it is saved here.`
+        : `Could not download the flyer (${why}).`);
+    }
     if (!res.ok) throw new Error(`Could not download flyer (HTTP ${res.status})`);
     const type = String(res.headers.get('content-type') || '').split(';')[0];
     if (!/^image\//.test(type)) throw new Error('Could not download flyer.');
@@ -349,7 +362,15 @@ function createPromoJobs(deps) {
   }
 
   async function appsScript(url, payload) {
-    const res = await fetchImpl(url, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
+    let res;
+    try {
+      res = await fetchImpl(url, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
+    } catch (err) {
+      // Node's bare "fetch failed" hides the reason — it is in err.cause.
+      const why = err?.cause?.code || err?.cause?.message || err?.message || 'network error';
+      log(`[promo-jobs] could not reach the sheet (${why}) ${url.slice(0, 60)}`);
+      throw new Error(`Could not reach the sheet (${why}). Check the internet connection and try again.`);
+    }
     const text = await res.text();
     let data;
     try {

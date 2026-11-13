@@ -108,9 +108,8 @@ export function openAudienceSheet(options, preselected, onDone) {
     <div class="grab"></div>
     <div class="sh-head">
       <h3>Who gets this</h3>
-      <p>Pick one or more lists. A contact in two lists is only messaged once.</p>
     </div>
-    <input type="search" class="pick-search" placeholder="Search sets, groups, contacts…" aria-label="Search audiences" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"/>
+    <input type="search" class="pick-search" placeholder="Search" aria-label="Search audiences" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"/>
     <div class="aud-list" id="promoAudList"></div>
     <div class="sh-foot">
       <button type="button" class="b pri" id="promoAudDone">Done</button>
@@ -154,7 +153,7 @@ export function openAudienceSheet(options, preselected, onDone) {
     const matches = q ? options.filter((o) => matchesQuery(o, q)) : options;
 
     if (!matches.length) {
-      list.innerHTML = '<div class="empty"><h3>No matches</h3>Try a shorter search.</div>';
+      list.innerHTML = '<div class="empty"><h3>No matches</h3></div>';
       return;
     }
 

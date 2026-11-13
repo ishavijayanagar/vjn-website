@@ -571,6 +571,8 @@ body::before {
 .tool-tile-icon[data-item="compose"]  { background: rgba(111,132,88,0.14); color: var(--isha-sage-dark); }
 .tool-tile-icon[data-item="audience"] { background: rgba(100,130,200,0.12); color: #4a6ab5; }
 .tool-tile-icon[data-item="schedule"] { background: rgba(148,100,200,0.12); color: #7a50c8; }
+.tool-tile-icon[data-item="export-members"] { background: rgba(76,175,110,0.12); color: #3a9a5e; }
+
 
 .tool-tile-label {
   font-size: var(--text-sm);

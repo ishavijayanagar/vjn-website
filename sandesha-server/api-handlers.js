@@ -19,6 +19,7 @@ const { saveImage, publicBase } = require('./site-media');
 const GROUPS_CACHE_TTL_MS = 5 * 60 * 1000;
 const GROUPS_STALE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // a remembered list older than this is not trusted
 const JOB_TTL_MS = 24 * 60 * 60 * 1000;
+const EXPORT_MAX_GROUPS = 200;
 const MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
 // The hourly send cap is 30, so a bigger list would just stop part-way.
 const BULK_MESSAGE_MAX = 30;
@@ -371,6 +372,90 @@ function createApiHandlers(deps) {
       }))
       .filter((g) => g.jid)
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
+
+  // Name lookup for the export: WhatsApp contact id → display name. One
+  // getContacts() trip, remembered for a few minutes, instead of one lookup per member.
+  let exportNames = { at: 0, map: null, loading: null };
+
+  async function loadExportNames() {
+    if (exportNames.map && Date.now() - exportNames.at < WA_CONTACTS_CACHE_MS) return exportNames.map;
+    if (!exportNames.loading) {
+      exportNames.loading = client.getContacts()
+        .then((contacts) => {
+          const map = new Map();
+          for (const c of contacts || []) {
+            const id = c?.id?._serialized;
+            const name = String(c?.name || c?.pushname || c?.shortName || '').trim();
+            if (id && name) map.set(id, name);
+          }
+          exportNames = { at: Date.now(), map, loading: null };
+          return map;
+        })
+        .catch((err) => {
+          exportNames.loading = null;
+          log(`[export] contact names unavailable: ${err.message}`);
+          return new Map(); // the export still works, just without names
+        });
+    }
+    return exportNames.loading;
+  }
+
+  /** Turn "@lid" participant ids into phone ids where WhatsApp knows the mapping. */
+  async function lidToPhoneIds(lidIds) {
+    const out = new Map();
+    if (!lidIds.length || typeof client.getContactLidAndPhone !== 'function') return out;
+    try {
+      const rows = await Promise.race([
+        client.getContactLidAndPhone(lidIds),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000)),
+      ]);
+      for (const r of rows || []) {
+        if (r?.lid && r?.pn) out.set(r.lid, r.pn);
+      }
+    } catch (err) {
+      log(`[export] lid → phone lookup failed: ${err.message}`);
+    }
+    return out;
+  }
+
+  async function exportGroupMembers(jids) {
+    const names = await loadExportNames();
+    const groups = [];
+    const members = [];
+
+    for (const jid of jids) {
+      try {
+        const chat = await Promise.race([
+          client.getChatById(jid),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timed out loading group')), 30000)),
+        ]);
+        if (!chat || !chat.isGroup) throw new Error('Not a group');
+        const parts = chat.groupMetadata?.participants || chat.participants || [];
+        const ids = parts.map((p) => p?.id?._serialized || (typeof p?.id === 'string' ? p.id : '')).filter(Boolean);
+        const lidMap = await lidToPhoneIds(ids.filter((id) => id.endsWith('@lid')));
+
+        let unresolved = 0;
+        for (const p of parts) {
+          const rawId = p?.id?._serialized || (typeof p?.id === 'string' ? p.id : '');
+          if (!rawId) continue;
+          const phoneId = rawId.endsWith('@lid') ? (lidMap.get(rawId) || '') : rawId;
+          const digits = /@(c\.us|s\.whatsapp\.net)$/.test(phoneId) ? phoneId.split('@')[0].replace(/\D/g, '') : '';
+          if (!digits) unresolved += 1;
+          members.push({
+            group: chat.name || jid,
+            groupJid: jid,
+            name: names.get(phoneId) || names.get(rawId) || '',
+            phone: digits,
+            isAdmin: !!(p.isAdmin || p.isSuperAdmin),
+          });
+        }
+        groups.push({ jid, name: chat.name || jid, total: parts.length, unresolved });
+      } catch (err) {
+        groups.push({ jid, name: jid, total: 0, unresolved: 0, error: String(err.message || err).split('\n')[0] });
+      }
+    }
+    return { groups, members };
   }
 
   async function getGroupsEnriched(force = false) {
@@ -869,6 +954,13 @@ function createApiHandlers(deps) {
     cancelSchedule: async (id, actor) => cancelScheduleRow(id, actor),
     sendTo: sendToTarget,
     sendGap,
+    onFailed: (job, err, actor) => activity.recordEvent({
+      category: 'schedule', type: 'err', ok: false,
+      title: `Couldn't ${job.kind === 'queue' ? 'queue' : 'schedule'} “${job.title || 'post'}”`,
+      detail: String(err?.message || 'Something went wrong').split('\n')[0],
+      via: 'api', corrId: String(job.promoId || ''), actor,
+      meta: { jobId: job.id, step: job.step, sendAt: job.sendAt, error: String(err?.message || '') },
+    }),
   });
 
   /** What the board needs to know about a job — no token, no flyer bytes. */
@@ -1170,6 +1262,20 @@ function createApiHandlers(deps) {
       return true;
     }
 
+    // Put a schedule that gave up after repeated failures back in the queue.
+    const scheduleRetry = pathname.match(/^\/schedules\/(\d+)\/retry$/);
+    if (scheduleRetry && req.method === 'POST') {
+      if (!requireAuthFn(req, res)) return true;
+      const all = loadSchedules();
+      const row = all.find((x) => String(x.id) === scheduleRetry[1]);
+      if (!row) { jsonResponse(res, 404, { error: 'Schedule not found' }); return true; }
+      delete row.failed; delete row.attempts; delete row.nextRetryAt;
+      delete row.lastError; delete row.lastFailedAt; delete row.failedTarget;
+      saveSchedules(all);
+      jsonResponse(res, 200, { ok: true });
+      return true;
+    }
+
     // Board scheduling handed over whole, so it finishes even if the phone
     // that started it goes to sleep. See promo-jobs.js.
     if (pathname === '/promo-jobs' && req.method === 'POST') {
@@ -1344,6 +1450,43 @@ function createApiHandlers(deps) {
         jsonResponse(res, 200, { group: chat.name, jid, members, total: chat.participants?.length || members.length });
       } catch (err) {
         jsonResponse(res, 404, { error: err.message });
+      }
+      return true;
+    }
+
+    // Every member of several groups at once, for the CSV export page.
+    // Unlike GET /groups/:jid/members there is no 100-member cap and no
+    // per-member WhatsApp lookup: names come from one shared contact list.
+    if (pathname === '/groups/export-members' && req.method === 'POST') {
+      if (!requireAuthFn(req, res, ['admin', 'nurturing'])) return true;
+      try {
+        const body = JSON.parse(await readBody(req) || '{}');
+        const jids = [...new Set((Array.isArray(body.jids) ? body.jids : [])
+          .map((j) => String(j || '').trim())
+          .filter((j) => /^[\w.-]+@g\.us$/.test(j)))];
+        if (!jids.length) {
+          jsonResponse(res, 400, { error: 'Pick at least one group' });
+          return true;
+        }
+        if (jids.length > EXPORT_MAX_GROUPS) {
+          jsonResponse(res, 400, { error: `Pick at most ${EXPORT_MAX_GROUPS} groups at a time` });
+          return true;
+        }
+        const result = await exportGroupMembers(jids);
+        activity.recordEvent({
+          category: 'group',
+          type: 'ok',
+          title: `Exported members of ${result.groups.length} group${result.groups.length === 1 ? '' : 's'} (${result.members.length} rows)`,
+          via: 'api',
+          actor: callerActor(req),
+        });
+        jsonResponse(res, 200, { ok: true, ...result });
+      } catch (err) {
+        if (onSessionError && onSessionError(err, 'POST /groups/export-members')) {
+          jsonResponse(res, 503, { error: 'WhatsApp is not connected' });
+        } else {
+          jsonResponse(res, 500, { error: err.message });
+        }
       }
       return true;
     }

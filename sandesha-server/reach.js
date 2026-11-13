@@ -231,13 +231,17 @@ function track(sent, { jid, content, caption, context } = {}) {
       deps.log(`[REACH] not tracked: the send gave back no message id (chat ${chat || 'unknown'}) — nothing to measure`);
       return;
     }
-    if (deps.ignoreChat(chat)) return;
+    // Read the framing now — it changes as soon as the caller moves on.
+    const ctx = { ...(deps.getContext() || {}), ...(context || {}) };
+    // The planning / commands chats carry the bot's own chatter (prompts,
+    // confirmations), which is not a post. A deliberate send — a scheduled or
+    // manual post, which always carries a send context — still counts, even
+    // when it lands in one of those chats (e.g. the Testing group).
+    if (deps.ignoreChat(chat) && !ctx.via) return;
     load();
     if (store.messages[id]) return;
     deps.log(`[REACH] tracking ${id} in ${chat}`);
 
-    // Read the framing now — it changes as soon as the caller moves on.
-    const ctx = { ...(deps.getContext() || {}), ...(context || {}) };
     const isMedia = !!(content && typeof content === 'object' && content.mimetype);
     const text = isMedia ? (caption || '') : (typeof content === 'string' ? content : caption || '');
     const sentAt = (Number(sent?.timestamp) * 1000) || Date.now();

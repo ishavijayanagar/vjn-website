@@ -55,7 +55,7 @@ function render() {
         </div>
         <label class="set-field">
           <span>Operators</span>
-          <textarea id="planOperators" rows="3" placeholder="One phone per line&#10;919876543210" autocomplete="off">${escapeHtml(opLines)}</textarea>
+          <textarea id="planOperators" rows="3" autocomplete="off">${escapeHtml(opLines)}</textarea>
         </label>
       </div>
       <div class="ios-group">

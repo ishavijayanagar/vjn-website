@@ -167,6 +167,7 @@ export function renderSchedule() {
               <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16z"/></svg>
               ${escapeHtml(targetLabel)}
             </div>
+            ${s.lastError ? `<div class="sched-msg-preview" style="color:var(--err,#c0392b)">${s.failed ? 'Failed — gave up' : `Failed, retrying (${s.attempts || 1}/3)`}: ${escapeHtml(s.lastError)}${s.failed ? ` <button type="button" data-retry="${s.id}" style="margin-left:6px">Retry</button>` : ''}</div>` : ''}
             ${msgPreview ? `<div class="sched-msg-preview">${escapeHtml(msgPreview)}${(s.message || '').length > 100 ? '…' : ''}</div>` : ''}
           </div>
           <button type="button" class="sched-cancel-btn" data-del="${s.id}" aria-label="Cancel schedule">
@@ -188,6 +189,17 @@ export function renderSchedule() {
     showForm = true;
     formTargets = [];
     renderSchedule();
+  });
+  container.querySelectorAll('[data-retry]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await api(`/schedules/${btn.dataset.retry}/retry`, { method: 'POST' });
+        toast('Queued to retry', 'ok');
+        window.dispatchEvent(new CustomEvent('sandesha:refresh'));
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    });
   });
   container.querySelectorAll('[data-del]').forEach((btn) => {
     btn.addEventListener('click', async () => {

@@ -599,6 +599,42 @@
     }
   }
 
+  /* Sandesha sends nothing inside the quiet hours the admin sets (loaded by
+     quiet-hours.js as window.SandeshaQuietUtil). A slot that passes in that
+     window is held for the morning, not late — say so instead of "Due". */
+  function quietUtil() {
+    return window.SandeshaQuietUtil || null;
+  }
+
+  function inQuietHours() {
+    const q = quietUtil();
+    if (q) return q.inQuiet();
+    const h = new Date().getHours(); // before the setting has loaded: the default 22:00–08:00
+    return h >= 22 || h < 8;
+  }
+
+  function quietEndLabel() {
+    const q = quietUtil();
+    return q ? q.hourLabel(q.currentQuiet().end) : "8:00 AM";
+  }
+
+  /* Sandesha checks its queue every 30 seconds, so a queued post can sit a
+     little past its minute before it goes. That is "sending", not "late". */
+  const SENDING_GRACE_MS = 3 * 60 * 1000;
+
+  function isSending(item) {
+    if (normalizeStatus(item.status) !== "due" || !scheduleIdsOf(item).length || inQuietHours()) return false;
+    const parts = splitSendAt(item.send_at);
+    const target = new Date(String(parts.date || "").replace(/-/g, "/") + " " + parts.hm);
+    const late = Date.now() - target.getTime();
+    return !isNaN(late) && late >= 0 && late < SENDING_GRACE_MS;
+  }
+
+  /** Overdue, but already queued with Sandesha and waiting out quiet hours. */
+  function isHeld(item) {
+    return normalizeStatus(item.status) === "due" && scheduleIdsOf(item).length > 0 && inQuietHours();
+  }
+
   function normalizeStatus(status) {
     const s = String(status || "").trim().toLowerCase();
     if (s === "needs_copy") return "pending";
@@ -619,7 +655,8 @@
     if (!parts.date || !parts.hm) return "Overdue";
     const target = new Date(parts.date.replace(/-/g, "/") + " " + parts.hm);
     if (isNaN(target.getTime())) return "Overdue";
-    const mins = Math.max(1, Math.round((Date.now() - target.getTime()) / 60000));
+    const mins = Math.floor((Date.now() - target.getTime()) / 60000);
+    if (mins < 1) return "Due now";
     if (mins < 60) return mins + " min late";
     const hrs = Math.round(mins / 60);
     return hrs + (hrs === 1 ? " hr late" : " hrs late");
@@ -665,9 +702,10 @@
       );
     }
     if (when) {
-      const mod = s === "due" ? "due" : "scheduled";
-      const kind = s === "due" ? "Overdue" : "Scheduled";
-      const sub = s === "due" ? formatLateBy(item.send_at) : when;
+      const held = isHeld(item);
+      const mod = s === "due" && !held ? "due" : "scheduled";
+      const kind = held ? "Held" : s === "due" ? "Overdue" : "Scheduled";
+      const sub = held ? "Until " + quietEndLabel() : s === "due" ? formatLateBy(item.send_at) : when;
       return (
         '<span class="pick-status pick-status--' +
         mod +
@@ -704,6 +742,13 @@
       if (status === "sent") {
         state = "sent";
         note = formatSentAt(item);
+      } else if (status === "due" && isSending(item)) {
+        state = "next";
+        note = "Sending now";
+        nextMarked = true;
+      } else if (status === "due" && isHeld(item)) {
+        state = "held";
+        note = "Until " + quietEndLabel();
       } else if (status === "due") {
         state = "late";
         note = formatLateBy(item.send_at);
@@ -1166,6 +1211,7 @@
   function chipHtml(entry) {
     if (entry.state === "sent") return '<span class="chip sent">' + CHK + " Sent</span>";
     if (entry.state === "late") return '<span class="chip late">' + CLK + " Due</span>";
+    if (entry.state === "held") return '<span class="chip">Held</span>';
     if (entry.state === "next") return '<span class="chip queued">' + CLK + " Next</span>";
     return '<span class="chip">Queued</span>';
   }
@@ -1263,7 +1309,7 @@
       return shownAsSent(p);
     }).length;
     const late = list.filter(function (p) {
-      return normalizeStatus(p.status) === "due";
+      return normalizeStatus(p.status) === "due" && !isHeld(p) && !isSending(p);
     }).length;
     fillEl.style.transform = "scaleX(" + sent / list.length + ")";
     btLEl.innerHTML = "<b>" + sent + " of " + list.length + " sent</b>";
@@ -1290,7 +1336,7 @@
         listEl.innerHTML = emptyHtml(
           CAL_ART,
           "No events yet",
-          "Open programs land here as soon as Programs publishes one.",
+          "",
         );
         return;
       }
@@ -1334,7 +1380,7 @@
       listEl.innerHTML = emptyHtml(
         CLK_ART,
         view === 1 ? "Tomorrow is clear" : "Nothing goes out today",
-        "All " + MAX_SLOTS + " slots are free.",
+        "",
         '<button type="button" class="link" data-new>Write a post</button>',
       );
       const start = listEl.querySelector("[data-new]");
@@ -1346,10 +1392,7 @@
     listEl.innerHTML =
       '<ul class="rail">' +
       annotated.map(rowHTML).join("") +
-      "</ul>" +
-      '<div class="hint">' +
-      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>' +
-      "Swipe a post right to mark it sent</div>";
+      "</ul>";
     bindRows();
   }
 
@@ -1694,8 +1737,8 @@
     sheetEl.classList.add("is-picker");
     sheetEl.innerHTML =
       '<div class="grab"></div>' +
-      "<div class=\"sh-top\"><div><b>Choose a program</b><span>Open events ready to promote</span></div></div>" +
-      '<input type="search" class="pick-search" id="pickSearch" placeholder="Search programs, dates, places…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"/>' +
+      "<div class=\"sh-top\"><div><b>Choose a program</b></div></div>" +
+      '<input type="search" class="pick-search" id="pickSearch" placeholder="Search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"/>' +
       '<div id="pickList"></div>';
     const renderPick = function (q) {
       const words = String(q || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -1991,9 +2034,7 @@
       : chosen
         ? chosen + (chosen === 1 ? " list" : " lists")
         : "Choose who gets this";
-    sub.textContent = chosen
-      ? "Sandesha posts to " + (chosen === 1 ? "this list" : "these lists") + " at the slot time"
-      : "Tap to pick WhatsApp groups";
+    sub.textContent = "";
     count.textContent = bridge ? bridge.reach(composeTargets) : chosen;
   }
 
@@ -2034,9 +2075,8 @@
       return;
     }
     if (hint) {
-      hint.textContent = left
-        ? left + (left === 1 ? " slot free on this day" : " slots free on this day")
-        : "Day is full — pick another date";
+      // Only a problem is worth saying; a day with room needs no comment.
+      hint.textContent = left ? "" : "Day is full — pick another date";
       hint.classList.toggle("is-full", left === 0);
     }
   }
@@ -2188,7 +2228,7 @@
     $("composeTitle").textContent = item.event_title || "Compose post";
     $("composeMeta").textContent = [item.event_date, item.event_location].filter(Boolean).join(" · ");
     $("composeMessage").value = item.message || "";
-    $("composeFlyerName").textContent = flyerOf(item) ? "Current flyer" : "No flyer yet";
+    $("composeFlyerName").textContent = "";
     $("composeFlyerFile").value = "";
     $("composeErr").hidden = true;
     setFlyerPreview(flyerOf(item));
@@ -2542,6 +2582,12 @@
     if (!document.hidden) pollJobs();
   });
 
+  /* The admin's quiet hours arrive after the board first paints. */
+  window.addEventListener("promo:quiet-hours", function () {
+    paintedStamp = "";
+    render();
+  });
+
   /** Plain save, and the fallback when Sandesha cannot take a job. */
   async function runComposeJobHere(job) {
     const item = find(job.id);
@@ -2633,6 +2679,9 @@
         item.send_at || "",
         flyerOf(item),
         item.target || "",
+        // A row that stops being busy must repaint even if its data is unchanged,
+        // or the spinner stays until a refresh.
+        busyIds[String(item.id)] ? "busy" : "",
       ].join("\t");
     }).join("\n");
   }
@@ -2644,7 +2693,7 @@
     });
     overlayPendingJobs();
     const due = items.some(function (item) {
-      return normalizeStatus(item.status) === "due";
+      return normalizeStatus(item.status) === "due" && !isHeld(item);
     });
     const dot = $("notifyDot");
     if (dot) dot.hidden = !due;
@@ -2770,7 +2819,14 @@
     });
     const composeDate = $("composeDate");
     if (composeDate) {
+      // Typing "14" passes through "01" on the way; snapping that back to today
+      // mid-keystroke made 14 impossible to enter. Settle when the field is left.
       composeDate.addEventListener("change", function () {
+        const v = composeDate.value;
+        if (document.activeElement === composeDate && v && v < todayYmd()) return;
+        setComposeDate(v);
+      });
+      composeDate.addEventListener("blur", function () {
         setComposeDate(composeDate.value);
       });
     }
@@ -2786,7 +2842,7 @@
         syncComposeWhen();
       } catch (e) {
         pendingFlyer = null;
-        $("composeFlyerName").textContent = "No flyer yet";
+        $("composeFlyerName").textContent = "";
         const err = $("composeErr");
         err.textContent = e.message || "Could not read that image.";
         err.hidden = false;
@@ -2799,7 +2855,7 @@
       pendingFlyer = null;
       flyerOverride = String(item.event_image || "").trim();
       $("composeFlyerFile").value = "";
-      $("composeFlyerName").textContent = flyerOverride ? "Programs photo" : "No flyer yet";
+      $("composeFlyerName").textContent = flyerOverride ? "Programs photo" : "";
       setFlyerPreview(flyerOverride);
       syncFlyerReset(item);
       syncComposeWhen();

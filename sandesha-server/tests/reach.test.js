@@ -82,6 +82,17 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
     assert.strictEqual(Object.keys(reach._store().messages).length, 2);
   });
 
+  await test('a deliberate post into an ignored chat still counts; bot chatter does not', async () => {
+    const before = Object.keys(reach._store().messages).length;
+    ctx = { via: 'scheduled', corrId: 'sched-9' };
+    reach.track(sent('commands@g.us', 'DDD', t0), { jid: 'commands@g.us', content: 'Real post' });
+    ctx = null;
+    assert.strictEqual(Object.keys(reach._store().messages).length, before + 1);
+    reach.track(sent('commands@g.us', 'EEE', t0), { jid: 'commands@g.us', content: 'bot reply' });
+    assert.strictEqual(Object.keys(reach._store().messages).length, before + 1);
+    delete reach._store().messages['true_commands@g.us_DDD'];
+  });
+
   await test('message info sets delivered/read without double counting readers', async () => {
     const id = `true_${GROUP}_AAA`;
     infoFor[id] = {

@@ -7,7 +7,7 @@ import {
   installUnauthorizedRedirect,
 } from './auth-bridge.js';
 import { refreshSchedules, refreshHealth, getState, ensureGroups, ensureSets } from './store.js?v=34';
-import { updatePairingBanner } from './pairing-banner.js';
+import { updatePairingBanner } from './pairing-banner.js?v=5';
 import { toast } from './toast.js';
 
 let booted = false;
@@ -46,7 +46,7 @@ export async function bootPromotionsMessaging() {
 
 export async function showSchedulePanel() {
   await ensureSandeshaAuth();
-  const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=36');
+  const { renderPromoSchedule } = await import('./pages/promo-schedule.js?v=39');
   if (getState().schedules.length) renderPromoSchedule();
   await refreshSchedules();
   updatePairingBanner(getState().health);
@@ -59,7 +59,7 @@ export async function showSchedulePanel() {
 
 export async function showSendPanel() {
   await ensureSandeshaAuth();
-  const { renderPromoCompose } = await import('./pages/promo-compose.js?v=36');
+  const { renderPromoCompose } = await import('./pages/promo-compose.js?v=39');
   renderPromoCompose();
   refreshHealth().then((health) => updatePairingBanner(health)).catch(() => {});
 }

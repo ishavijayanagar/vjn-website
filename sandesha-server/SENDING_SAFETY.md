@@ -92,7 +92,7 @@ point of this section.
 | Path | Location | Pacing today | Was |
 |------|----------|--------------|-----|
 | Scheduled fan-out to a set | `listen.js` | `sendGap()` 45–90 s, shuffled | fixed 2000 ms |
-| `!send` to a set (text or media) | `listen.js` | `sendGap()`, shuffled, varied caption | fixed 2000 ms |
+| `!send` to a set (text or media) | `listen.js` | `sendGap()`, shuffled | fixed 2000 ms |
 | `!send` to *all* groups | `listen.js` | `broadcastGap()` 60–120 s, shuffled | fixed 2000 ms |
 | `sendToTarget` set expansion | `listen.js` | `sendGap()`, shuffled | **no delay at all** |
 | `POST /send` with a set target | `listen.js` | `sendGap()`, shuffled, answers before fanning out | **no delay at all** |
@@ -249,29 +249,14 @@ Also worth doing, in rough order of value:
 
 Identical text plus identical media across many chats is trivially clusterable.
 
-**Caption variation.** Keep one message body, vary the framing:
-
-```js
-const OPENERS = ['', '🙏 ', 'Namaskaram 🙏\n\n', 'Sharing below —\n\n'];
-const CLOSERS = [
-  '',
-  '\n\nAll are welcome.',
-  '\n\nDo join us.',
-  '\n\nShare with anyone who may be interested.',
-];
-
-function vary(message) {
-  const pick = (a) => a[Math.floor(Math.random() * a.length)];
-  return pick(OPENERS) + message + pick(CLOSERS);
-}
-```
-
-Keep the meaning identical — this is presentation variety, not deception. The
-group name can also be interpolated where it reads naturally.
+**Caption variation: removed.** Sandesha used to wrap a fan-out in a random
+greeting and closing line. It no longer does: **a message is always sent exactly
+as written, to every chat, with nothing added.** Pacing, jitter and quiet hours
+already break up the timing signal; wording is the sender's own.
 
 **Media variation.** Re-encoding the flyer per group changes its hash. A single
 byte of EXIF or a 1-pixel dimension change is enough. Weigh this against upload
-cost; caption variation alone captures most of the benefit.
+cost.
 
 **Links.** Avoid URL shorteners — they correlate with spam. Link to the
 GitHub Pages site directly.
@@ -359,7 +344,7 @@ All implemented in [`send-safety.js`](send-safety.js), covered by
 - [x] Add quiet hours; defer rather than drop
 - [x] Add daily and hourly send counters, persisted in `state.json`
 - [x] Add `sendStateTyping()` + think-time before each send
-- [x] Add caption variation
+- [x] ~~Add caption variation~~ — removed: messages are sent exactly as written
 - [x] Log every send with a timestamp so the actual interval distribution can be audited
 - [x] Document the group opt-out line for admins — [README.md](README.md#give-members-a-way-out)
 
@@ -382,7 +367,6 @@ SANDESHA_QUIET_END_HOUR=8
 SANDESHA_MAX_SENDS_PER_HOUR=30
 SANDESHA_MAX_SENDS_PER_DAY=120
 SANDESHA_TYPING_SIMULATION=1
-SANDESHA_CAPTION_VARIATION=1
 SANDESHA_SEND_AUDIT=1
 ```
 

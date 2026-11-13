@@ -6,7 +6,8 @@
  * `window.VjnVol`: list WhatsApp groups, fire ONE add-members job, poll it, and
  * manage the push subscription. Nothing else in Sandesha is reachable from here.
  * Programs never calls listGroups/addToGroup (no UI path to them) — it only
- * uses the push methods. Admin also reads the activity log (Settings →
+ * uses the push methods. Nurturing also exports group members to CSV (Settings).
+ * Admin also reads the activity log (Settings →
  * Sandesha activities); the server refuses /activity for every other role.
  */
 import { ensureSandeshaAuth, getVjnToken } from './auth-bridge.js';
@@ -27,6 +28,7 @@ async function api(path, options) {
     return rawApi(path, options);
   }
 }
+import { mountExportMembers } from './export-members-core.js';
 import {
   syncOnLoad as syncPush,
   enable as pushEnable,
@@ -106,6 +108,24 @@ window.VjnVol = {
 
   cancelMessageJob(jobId) {
     return api(`/messages/job/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+  },
+
+  /** Every member of the given groups (one POST, up to 200 groups). */
+  exportMembers(jids) {
+    return api('/groups/export-members', { method: 'POST', body: JSON.stringify({ jids }) });
+  },
+
+  /** Mount the "Export group members" page into `el`; call .render() when it opens. */
+  mountExportMembers(el) {
+    return mountExportMembers(el, {
+      getGroups: async () => {
+        await ready;
+        if (!authed) throw new Error('Could not connect to the messaging server.');
+        const rows = await window.VjnVol.listGroups();
+        return rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      },
+      exportMembers: (jids) => window.VjnVol.exportMembers(jids),
+    });
   },
 
   /** Admin only: every team's Sandesha activity, newest first. */

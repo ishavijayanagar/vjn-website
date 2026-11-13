@@ -115,9 +115,9 @@ function postTitle(p) {
 function delta(cur, prev) {
   if (!prev) return '';
   const change = Math.round(((cur - prev) / prev) * 100);
-  if (change === 0) return `<span class="rc-delta flat">Same as previous ${range} days</span>`;
+  if (change === 0) return `<span class="rc-delta flat">No change</span>`;
   const up = change > 0;
-  return `<span class="rc-delta ${up ? 'up' : 'down'}"><span aria-hidden="true">${up ? '▲' : '▼'}</span> ${Math.abs(change)}% <span class="rc-delta-k">vs previous ${range} days</span></span>`;
+  return `<span class="rc-delta ${up ? 'up' : 'down'}"><span aria-hidden="true">${up ? '▲' : '▼'}</span> ${Math.abs(change)}%</span>`;
 }
 
 /* ---------- thumbnails (bearer-protected, so fetched as blobs) ---------- */
@@ -198,7 +198,7 @@ function tiles(s) {
   return `<div class="rc-tiles">
     ${tile('Posts sent', num(t.posts), t.sends ? `${num(t.sends)} group sends` : '', delta(t.posts, p.posts))}
     ${tile('People reached', num(t.delivered), t.audience ? `of ${num(t.audience)} members · ${pctText(t.delivered, t.audience)}` : '', delta(t.delivered, p.delivered))}
-    ${tile('Read by', `${num(t.read)}<small>+</small>`, t.audience ? `${pctText(t.read, t.audience)} of members, at least` : 'at least', delta(t.read, p.read))}
+    ${tile('Read by', `${num(t.read)}<small>+</small>`, t.audience ? `${pctText(t.read, t.audience)} of members` : '', delta(t.read, p.read))}
     ${tile('Responses', num(responses), `${num(t.replies)} replies · ${num(t.reactions)} reactions`, delta(responses, p.replies + p.reactions))}
   </div>`;
 }
@@ -275,7 +275,6 @@ function groupsCard(groups) {
   return `<div class="rc-card">
     <div class="rc-card-head">
       <h3 class="rc-h">Groups that read the most</h3>
-      <span class="rc-card-note">% of members who read each post</span>
     </div>
     <ol class="rc-groups">
       ${top.map((g) => `<li>
@@ -290,13 +289,8 @@ function groupsCard(groups) {
   </div>`;
 }
 
-function note(s) {
-  const since = Number.isFinite(s.trackingSince) ? dayLabel(s.trackingSince, true) : null;
-  return `<p class="rc-foot">
-    <strong>How to read this.</strong> <em>Reached</em> means WhatsApp delivered it to that person’s phone.
-    <em>Read</em> counts people who opened it, but anyone who turned off read receipts is never counted, so the real number is higher.
-    Numbers keep updating for 7 days after a post goes out.${since ? ` Counting started ${since}; earlier messages can’t be measured.` : ''}
-  </p>`;
+function note() {
+  return '';
 }
 
 /* ---------- views ---------- */
@@ -319,20 +313,13 @@ async function renderList() {
   }
   if (my !== loadToken) return;
 
-  const header = `<div class="rc-top">
-    <div>
-      <h2 class="rc-title">Message reach</h2>
-      <p class="rc-sub">${s.measuring ? `${s.measuring} post${s.measuring === 1 ? ' is' : 's are'} still being counted` : 'All numbers are final'}</p>
-    </div>
-    ${rangeControl()}
-  </div>`;
+  const header = `<div class="rc-top">${rangeControl()}</div>`;
 
   if (!s.totals.posts && !list.posts.length) {
     host.innerHTML = `<div class="rc">${header}
       <div class="rc-empty">
         <div class="rc-empty-ic" aria-hidden="true">📈</div>
         <h3>No posts measured yet</h3>
-        <p>Reach is recorded for every WhatsApp message Sandesha sends. Send or schedule a post and its numbers will appear here within about 10 minutes.</p>
       </div>
       ${note(s)}
     </div>`;
@@ -347,7 +334,6 @@ async function renderList() {
     <div class="rc-card rc-card-flush">
       <div class="rc-card-head pad">
         <h3 class="rc-h">Posts</h3>
-        ${legend()}
       </div>
       <div class="rc-posts">${list.posts.map(postCard).join('')}</div>
       ${list.more ? `<button type="button" class="rc-more" data-more="${list.posts[list.posts.length - 1].sentAt}">Show older posts</button>` : ''}
@@ -493,7 +479,7 @@ function postDetail(p) {
     return { label, n, future };
   });
   const speed = totalReaders ? `<div class="rc-card">
-      <div class="rc-card-head"><h3 class="rc-h">How fast people read it</h3><span class="rc-card-note">readers so far</span></div>
+      <div class="rc-card-head"><h3 class="rc-h">How fast people read it</h3></div>
       <ul class="rc-steps">
         ${steps.map((s) => `<li class="${s.future ? 'is-future' : ''}">
           <span class="rc-step-k">${s.label}</span>
@@ -550,7 +536,6 @@ function postDetail(p) {
       <ol class="rc-groups">${groups}</ol>
     </div>
     ${replies}
-    <p class="rc-foot">Read counts miss people who turned off read receipts, so the real number is higher.</p>
   </div>`;
 }
 

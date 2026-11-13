@@ -6,10 +6,12 @@
   const QUERY_NOTIFY_KEY = "vjn_query_notify";
   const QUERY_WATCH_MS = 45000;
   const ROLE_PAGES = {
-    admin: ["events", "volunteering", "promotions", "messaging", "queries", "team", "flyerTemplates", "newFlyerTemplate", "banner", "settings", "programTitles", "sandeshaActivity"],
+    // Admin keeps only the cross-team pages. Each team's own pages belong to that team;
+    // later the admin password will sign in as any team instead of listing them here.
+    admin: ["messaging", "team", "flyerTemplates", "newFlyerTemplate", "programTitles", "settings", "sandeshaActivity"],
     programs: ["events", "programVolunteers", "settings", "generateFlyer"],
     promotions: ["promotions", "banner"],
-    nurturing: ["queries", "volunteering", "volunteers", "settings", "sandeshaActivity"],
+    nurturing: ["queries", "volunteering", "volunteers", "settings", "sandeshaActivity", "exportMembers"],
   };
   const ROLE_LABELS = {
     admin: "Admin",
@@ -229,13 +231,11 @@
   }
 
   function canNotifyQueries() {
-    const r = role();
-    return r === "admin" || r === "nurturing";
+    return role() === "nurturing";
   }
 
   function canNotifyPromos() {
-    const r = role();
-    return r === "admin" || r === "promotions";
+    return role() === "promotions";
   }
 
   function canNotifyPrograms() {
@@ -894,7 +894,7 @@
     }
     applyRoleUi();
     const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
-    if (role() === "promotions" || hash === "promotions") {
+    if (role() === "promotions" || (hash === "promotions" && canAccess("promotions"))) {
       window.location.replace("admin-promotions.html");
       return;
     }
@@ -1328,6 +1328,7 @@
     if (page === "settings") return "Settings";
     if (page === "programTitles") return "Program names";
     if (page === "sandeshaActivity") return "Sandesha activities";
+    if (page === "exportMembers") return "Export members";
     if (page === "generateFlyer") return "Generate flyer";
     return "Programs";
   }
@@ -1381,6 +1382,7 @@
     show($("settingsPanel"), page === "settings");
     show($("programTitlesPanel"), page === "programTitles");
     show($("sandeshaActivityPanel"), page === "sandeshaActivity");
+    show($("exportMembersPanel"), page === "exportMembers");
     show($("generateFlyerPanel"), isFlyerGen);
     show($("gfToolbar"), page === "flyerTemplates");
     show($("bannerPanel"), page === "banner");
@@ -1440,6 +1442,9 @@
     } else if (page === "sandeshaActivity") {
       pending = loadSandeshaActivity();
       pendingPanel = $("sandeshaActivityPanel");
+    } else if (page === "exportMembers") {
+      pending = loadExportMembersPage();
+      pendingPanel = $("exportMembersPanel");
     } else if (page === "banner") {
       loadBannerPage();
     } else if (page === "settings") {
@@ -3113,7 +3118,7 @@
 
   function showOnlyPanel(panelId) {
     ["listingsPanel", "inquiriesPanel", "promotionsPanel", "teamPanel", "programVolunteersPanel",
-     "flyerTemplatesPanel", "settingsPanel", "programTitlesPanel", "sandeshaActivityPanel", "generateFlyerPanel", "bannerPanel", "volRosterPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
+     "flyerTemplatesPanel", "settingsPanel", "programTitlesPanel", "sandeshaActivityPanel", "exportMembersPanel", "generateFlyerPanel", "bannerPanel", "volRosterPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
       show($(id), id === panelId);
     });
     show($("backToHubBtn"), role() !== "promotions");
@@ -6405,6 +6410,20 @@ panels +
           '<span class="sa-status ' + st.cls + '">' + escapeHtml(st.label) + "</span>" +
         "</button>";
     }).join("");
+  }
+
+  /** Nurturing → Settings → Export WhatsApp group members. The page itself is
+   *  sandesha/js/export-members-core.js, mounted through the Sandesha bridge. */
+  let exportMembersView = null;
+  async function loadExportMembersPage() {
+    const mount = $("exportMembersMount");
+    if (!mount) return;
+    if (!window.VjnVol || !window.VjnVol.mountExportMembers) {
+      mount.innerHTML = '<div class="admin-empty">Messaging is unavailable right now.</div>';
+      return;
+    }
+    if (!exportMembersView) exportMembersView = window.VjnVol.mountExportMembers(mount);
+    await exportMembersView.render();
   }
 
   async function loadSandeshaActivity() {
@@ -11707,7 +11726,7 @@ panels +
       if (sub.startsWith("volunteering/attendance/")) return openVolAttendance();
       if (sub.startsWith("volunteering/")) return openAdminPage("volunteering");
       const here = (location.hash || "").replace(/^#/, "");
-      if (here === "generateFlyer" || here === "programTitles") return openAdminPage("settings");
+      if (here === "generateFlyer" || here === "programTitles" || here === "exportMembers") return openAdminPage("settings");
       if (here === "newFlyerTemplate") return openAdminPage("flyerTemplates");
       showAdminHub(false);
     });

@@ -5,6 +5,7 @@
 #   ./dev.sh            start both and print the local address
 #   ./dev.sh stop       stop the local site and the local Sandesha
 #   ./dev.sh status     say what is up
+#   ./dev.sh link-code 919876543210   link WhatsApp with a code instead of a QR
 #
 # config.js stays pointed at the Pi. This writes config.local.js, which the
 # pages load only from localhost, so the installed app on the phone is unchanged.
@@ -15,6 +16,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SITE_PORT=8765
 API_PORT=42620
 SITE_PID_FILE="${ROOT}/.dev-site.pid"
+SITE_PORT_FILE="${ROOT}/.dev-site.port"
+[[ -f "$SITE_PORT_FILE" ]] && SITE_PORT="$(cat "$SITE_PORT_FILE")"
 SANDESHA="${ROOT}/sandesha-server/sandesha.sh"
 API="http://127.0.0.1:${API_PORT}"
 
@@ -47,9 +50,16 @@ start_site() {
     say "Website already running (pid ${pid})."
     return 0
   fi
-  if ss -ltnH "sport = :${SITE_PORT}" 2>/dev/null | grep -q .; then
-    die "Port ${SITE_PORT} is already in use. Stop that server, or run ./dev.sh stop."
-  fi
+  SITE_PORT=8765   # no site of ours is running, so start the search from the default
+  # Something else may own the port (another project). Never kill it — use the next free one.
+  local tries=0
+  while ss -ltnH "sport = :${SITE_PORT}" 2>/dev/null | grep -q .; do
+    say "Port ${SITE_PORT} is in use by something else — trying $((SITE_PORT + 1))."
+    SITE_PORT=$((SITE_PORT + 1))
+    tries=$((tries + 1))
+    [[ $tries -lt 20 ]] || die "No free website port found near 8765."
+  done
+  echo "$SITE_PORT" >"$SITE_PORT_FILE"
   say "Starting the website on http://127.0.0.1:${SITE_PORT}/ ..."
   nohup python3 -m http.server "$SITE_PORT" --bind 127.0.0.1 --directory "$ROOT" >/tmp/vjn-dev-site.log 2>&1 &
   echo $! >"$SITE_PID_FILE"
@@ -72,7 +82,7 @@ stop_site() {
   else
     say "Website was not running."
   fi
-  rm -f "$SITE_PID_FILE"
+  rm -f "$SITE_PID_FILE" "$SITE_PORT_FILE"
   rm -f "${ROOT}/config.local.js"
 }
 
@@ -80,7 +90,8 @@ cmd_start() {
   [[ -x "$SANDESHA" ]] || die "Cannot find ${SANDESHA}"
   write_local_config
   say "Starting Sandesha on this laptop (the Pi is not touched)..."
-  "$SANDESHA" start || die "Sandesha did not start. Try: ${SANDESHA} logs"
+  # Photos saved while testing here get this laptop's address, not the Pi's.
+  SANDESHA_PUBLIC_URL="$API" "$SANDESHA" start || die "Sandesha did not start. Try: ${SANDESHA} logs"
   start_site
   say ""
   say "Open this in the laptop browser:"
@@ -119,6 +130,7 @@ cmd_stop() {
 case "${1:-start}" in
   start)  cmd_start ;;
   stop)   cmd_stop ;;
+  link-code) shift; "$SANDESHA" link-code "$@" ;;
   status) cmd_status ;;
-  *)      die "Use: ./dev.sh [start|stop|status]" ;;
+  *)      die "Use: ./dev.sh [start|stop|status|link-code [phone]]" ;;
 esac

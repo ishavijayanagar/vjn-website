@@ -86,7 +86,7 @@
       '<div class="bf-stage">' +
       '<label class="bf-drop" for="bfFile">' +
       '<img class="bf-img" alt="" hidden/>' +
-      '<span class="bf-empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L5 21"/></svg><strong>Add flyer</strong><small>Tap to choose an image</small></span>' +
+      '<span class="bf-empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L5 21"/></svg><strong>Add flyer</strong></span>' +
       '<span class="bf-replace" hidden>Replace</span>' +
       "</label>" +
       '<p class="bf-cap" hidden></p>' +
@@ -96,8 +96,8 @@
       '<label class="bf-row bf-switch"><span><strong>Show on homepage</strong><small class="bf-state"></small></span><input type="checkbox" class="bf-on"/><i aria-hidden="true"></i></label>' +
       "</div>" +
       '<div class="bf-card">' +
-      '<div class="bf-field"><label for="bfLink">Registration link</label><input id="bfLink" type="url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://…"/></div>' +
-      '<div class="bf-field"><label for="bfText">Line below flyer <em>optional</em></label><input id="bfText" type="text" maxlength="' + TEXT_MAX + '" placeholder="Last day to register: 20 Oct"/><small class="bf-count"></small></div>' +
+      '<div class="bf-field"><label for="bfLink">Registration link</label><input id="bfLink" type="url" inputmode="url" autocapitalize="off" autocomplete="off"/></div>' +
+      '<div class="bf-field"><label for="bfText">Line below flyer</label><input id="bfText" type="text" maxlength="' + TEXT_MAX + '"/><small class="bf-count"></small></div>' +
       '<div class="bf-field"><label for="bfUntil">Open till</label><input id="bfUntil" type="datetime-local"/>' +
       '<div class="bf-chips" role="group" aria-label="Quick pick"><button type="button" data-days="0">Tonight</button><button type="button" data-days="3">3 days</button><button type="button" data-days="7">1 week</button><button type="button" data-days="14">2 weeks</button></div></div>' +
       "</div>" +
@@ -203,7 +203,7 @@
         pending = null;
         fileEl.value = "";
         setImage(url);
-        msgEl.textContent = "Saved ✓ Visitors see it within a couple of minutes.";
+        msgEl.textContent = "Saved";
       } catch (ex) {
         msgEl.textContent = "";
         errEl.textContent = ex.message || "Could not save.";

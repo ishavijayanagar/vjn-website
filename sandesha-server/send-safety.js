@@ -52,7 +52,6 @@ const CONFIG = {
   maxSendsPerDay: envInt('SANDESHA_MAX_SENDS_PER_DAY', 120),
 
   typingSimulation: envFlag('SANDESHA_TYPING_SIMULATION', true),
-  captionVariation: envFlag('SANDESHA_CAPTION_VARIATION', true),
   auditLog: envFlag('SANDESHA_SEND_AUDIT', true),
 };
 
@@ -114,6 +113,57 @@ function istParts(date = new Date()) {
   // Intl renders midnight as hour 24 in some ICU versions.
   const hour = Number(get('hour')) % 24;
   return { ymd: `${get('year')}-${get('month')}-${get('day')}`, hour };
+}
+
+/* ── Quiet hours set from the admin page ─────────────────────────────
+ * The admin can change the window without touching .env. It is saved here and
+ * wins over the env defaults; start === end means "no quiet hours".
+ */
+const QUIET_FILE = process.env.SANDESHA_QUIET_HOURS_FILE || path.join(__dirname, 'quiet-hours.json');
+const ENV_QUIET = { start: CONFIG.quietStartHour, end: CONFIG.quietEndHour };
+
+function validHour(v) {
+  return Number.isInteger(v) && v >= 0 && v <= 23;
+}
+
+function loadQuietHours() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(QUIET_FILE, 'utf8'));
+    if (validHour(raw.start) && validHour(raw.end)) {
+      CONFIG.quietStartHour = raw.start;
+      CONFIG.quietEndHour = raw.end;
+    }
+  } catch { /* none saved — keep the .env / default window */ }
+}
+
+/** The window in force right now. */
+function getQuietHours() {
+  const start = CONFIG.quietStartHour;
+  const end = CONFIG.quietEndHour;
+  return { start, end, enabled: start !== end, active: inQuietHours() };
+}
+
+/** Save a new window. Returns { ok, error }. */
+function setQuietHours({ start, end }) {
+  const s = Number(start);
+  const e = Number(end);
+  if (!validHour(s) || !validHour(e)) return { ok: false, error: 'Hours must be whole numbers from 0 to 23.' };
+  try {
+    fs.writeFileSync(QUIET_FILE, JSON.stringify({ start: s, end: e }, null, 2));
+  } catch (err) {
+    return { ok: false, error: `Could not save: ${err.message}` };
+  }
+  CONFIG.quietStartHour = s;
+  CONFIG.quietEndHour = e;
+  return { ok: true, ...getQuietHours() };
+}
+
+/** Forget the saved window and go back to the .env / default one. */
+function resetQuietHours() {
+  try { fs.unlinkSync(QUIET_FILE); } catch { /* nothing saved */ }
+  CONFIG.quietStartHour = ENV_QUIET.start;
+  CONFIG.quietEndHour = ENV_QUIET.end;
+  return getQuietHours();
 }
 
 /** True inside the do-not-send window. A window of 0..0 disables quiet hours. */
@@ -249,34 +299,30 @@ async function runPacedFanOut({ members, alreadySent = [], deliver, guard, gap =
   for (let i = 0; i < remaining.length; i++) {
     const verdict = guard ? guard() : { ok: true };
     if (!verdict.ok) return { complete: false, sentTo, reason: verdict.reason };
-    await deliver(remaining[i]);
+    try {
+      await deliver(remaining[i]);
+    } catch (err) {
+      // Say who already got it and who failed, so a retry resumes instead of
+      // re-sending the groups that were delivered.
+      err.sentTo = [...sentTo];
+      err.failedTarget = remaining[i];
+      throw err;
+    }
     sentTo.push(remaining[i]);
     if (i < remaining.length - 1) await gap();
   }
   return { complete: true, sentTo };
 }
 
-const OPENERS = ['', '🙏 ', 'Namaskaram 🙏\n\n', 'Sharing below —\n\n'];
-const CLOSERS = [
-  '',
-  '\n\nAll are welcome.',
-  '\n\nDo join us.',
-  '\n\nShare with anyone who may be interested.',
-];
-
-function pick(list) {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
 /**
- * Presentation variety for a message going to many chats at once. The meaning
- * is untouched — this reframes, it does not rewrite. Single-chat sends are
- * returned verbatim, since there is nothing to cluster against.
+ * Messages go out exactly as written. This used to wrap a fan-out in a random
+ * greeting line and a random closing line that nobody had typed, which put
+ * words in people's mouths. Nothing is added, ever. The function stays so every
+ * send path that calls it keeps working, and it is the single place that
+ * guarantees it.
  */
-function varyCaption(message, { enabled = CONFIG.captionVariation } = {}) {
-  const text = String(message || '');
-  if (!enabled || !text.trim()) return text;
-  return pick(OPENERS) + text + pick(CLOSERS);
+function varyCaption(message) {
+  return String(message || '');
 }
 
 /**
@@ -316,6 +362,8 @@ function auditSend(entry) {
   }
 }
 
+loadQuietHours();
+
 module.exports = {
   CONFIG,
   TZ,
@@ -331,6 +379,9 @@ module.exports = {
   istParts,
   inQuietHours,
   quietHoursEndAt,
+  getQuietHours,
+  setQuietHours,
+  resetQuietHours,
   createSendBudget,
   varyCaption,
   withTypingPresence,

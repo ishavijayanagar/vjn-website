@@ -189,13 +189,9 @@ function render() {
   const meta = $('promoActivityMeta');
   if (!list) return;
   const shown = rows.filter(matches);
-  if (meta) {
-    meta.textContent = rows.length
-      ? `${shown.length} ${shown.length === 1 ? 'activity' : 'activities'}`
-      : '';
-  }
+  if (meta) meta.textContent = '';
   if (!shown.length) {
-    list.innerHTML = `<p class="pa-empty">${rows.length ? 'Nothing in this view.' : 'No Sandesha activity yet.'}</p>`;
+    list.innerHTML = `<p class="pa-empty">${rows.length ? 'Nothing here' : 'No activity yet'}</p>`;
     return;
   }
   let lastDay = '';
@@ -219,7 +215,6 @@ function render() {
           ${preview ? `<span class="pa-preview">${escapeHtml(preview)}</span>` : ''}
           ${outcome ? `<span class="pa-outcome">${escapeHtml(outcome)}</span>` : ''}
           <span class="pa-when">${escapeHtml(when)}</span>
-          <span class="pa-more-hint">${open ? 'Hide details' : 'Details'}</span>
         </span>
         <span class="pa-status ${st.cls}">${escapeHtml(st.label)}</span>
       </button>
@@ -247,6 +242,8 @@ function setOpen(on) {
   const view = $('promoActivity');
   if (!root || !view) return;
   root.classList.toggle('is-activity', on);
+  const title = $('pageTitle');
+  if (title && (on || root.classList.contains('is-active'))) title.textContent = on ? 'Activity' : 'More';
   view.hidden = !on;
   if (on) load();
 }

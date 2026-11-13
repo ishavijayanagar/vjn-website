@@ -35,6 +35,7 @@ Sandesha — WhatsApp backend
   ${NAME} status            Running? WhatsApp connected? public URL? starts on boot?
   ${NAME} logs              Follow the output (pairing code / QR appear here)
   ${NAME} reset-whatsapp    Forget the WhatsApp login and link a new phone  [-y to skip the prompt]
+  ${NAME} link-code [phone] Link WhatsApp with an 8-character code instead of a QR  [-y to skip the prompt]
   ${NAME} db                Database: size, rows per table, latest backup, changes waiting for the Sheet
   ${NAME} backup            Safe copy of the database into backups/ (keeps the newest 14)
   ${NAME} install-backup    Back up automatically every night at 3am (cron)
@@ -243,11 +244,11 @@ do_start() {
     rm -f .lock   # a power cut leaves a stale lock; nothing is running, so it is safe
     free_port || die "could not free port ${PORT}."
     say "Starting Sandesha..."
-    nohup node listen.js >>"$OUT_FILE" 2>&1 &
     # Keep the console log from growing forever: past 5 MB, the old one is set aside.
     if [[ -f "$OUT_FILE" && "$(stat -c %s "$OUT_FILE" 2>/dev/null || echo 0)" -gt 5242880 ]]; then
       mv -f "$OUT_FILE" "${OUT_FILE}.1"
     fi
+    nohup node listen.js >>"$OUT_FILE" 2>&1 &
     echo $! >"$PID_FILE"
     disown 2>/dev/null || true
     wait_for_api kill -0 "$(cat "$PID_FILE")"
@@ -326,6 +327,61 @@ do_logs() {
   else
     touch "$OUT_FILE"
     exec tail -n 60 -f "$OUT_FILE"
+  fi
+}
+
+# set_env_var KEY VALUE — replace the line in .env, or append it.
+set_env_var() {
+  touch .env
+  if grep -q "^$1=" .env; then
+    sed -i "s|^$1=.*|$1=$2|" .env
+  else
+    printf '%s=%s\n' "$1" "$2" >>.env
+  fi
+}
+
+# Link with a code: WhatsApp → Linked devices → Link a device → "Link with phone number instead".
+do_link_code() {
+  local yes=false phone=""
+  for a in "$@"; do
+    case "$a" in -y|--yes) yes=true ;; *) phone="$(printf '%s' "$a" | tr -cd '0-9')" ;; esac
+  done
+  if [[ -z "$phone" ]]; then
+    phone="$(grep -s '^SANDESHA_PAIRING_PHONE=' .env | head -1 | cut -d= -f2- | tr -cd '0-9')"
+  fi
+  [[ -n "$phone" ]] || die "No phone number. Run: ${NAME} link-code 919876543210  (country code first, digits only)"
+  say "This forgets the current WhatsApp login and links ${phone} using a code."
+  say "It also sets SANDESHA_AUTH_MODE=auto in .env (falls back to the QR if codes stop working)."
+  if ! $yes; then
+    read -r -p "Continue? [y/N] " ans
+    [[ "$ans" == "y" || "$ans" == "Y" ]] || { say "Cancelled."; return 0; }
+  fi
+  do_stop
+  set_env_var SANDESHA_PAIRING_PHONE "$phone"
+  set_env_var SANDESHA_AUTH_MODE auto
+  rm -rf .wwebjs_auth qr-code.png
+  local since; since="$(date -u +%s)"
+  do_start || return 1
+  say "Waiting for the code (up to 2 minutes)..."
+  local i code=""
+  for ((i = 0; i < 60; i++)); do
+    code="$(grep -s 'Pairing code:' sandesha.log | tail -1 | awk -v s="$since" '
+      { t = $1; gsub(/[\[\]]/, "", t); cmd = "date -u -d \"" t "\" +%s"; cmd | getline e; close(cmd); if (e >= s) print $NF }')"
+    [[ -n "$code" ]] && break
+    grep -qs 'Phone pairing code unavailable' sandesha.log && [[ -f qr-code.png ]] && break
+    sleep 2
+  done
+  if [[ -n "$code" ]]; then
+    cat <<EOT
+
+  Your code:  ${code}
+
+On the phone: WhatsApp → Settings → Linked devices → Link a device →
+"Link with phone number instead" → type the code above.
+The code expires in a few minutes; run this again for a new one.
+EOT
+  else
+    say "No code appeared. WhatsApp may have switched to QR: scan $(pwd)/qr-code.png, or check: ${NAME} logs"
   fi
 }
 
@@ -521,6 +577,7 @@ case "${1:-help}" in
   status)           do_status ;;
   logs)             do_logs ;;
   reset-whatsapp)   shift; do_reset_whatsapp "$@" ;;
+  link-code)        shift; do_link_code "$@" ;;
   free-port)        if port_in_use; then free_port; else say "Port ${PORT} is already free."; fi ;;
   update)           do_update ;;
   db)               do_db ;;

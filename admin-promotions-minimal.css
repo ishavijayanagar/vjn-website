@@ -1,0 +1,261 @@
+/* Promotions — minimal layer.
+ *
+ * Loaded after admin-promotions.css, embedded.css and banner-form.css.
+ * Rules: one typeface, one accent (the orange, used only for the primary
+ * action), status as plain text instead of tinted pills, hairlines instead of
+ * bordered cards, no shadows except the bottom sheet.
+ */
+
+:root,
+:root[data-theme="dark"] {
+  --display: var(--sans);
+  --mono: var(--sans);
+  --sh-1: none;
+  --sh-2: none;
+  --r-card: 12px;
+}
+
+/* ── type ─────────────────────────────────── */
+body, .hdr, h1 { font-family: var(--sans); }
+h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.025em; }
+.kicker { font-size: 13px; }
+.row > .t,
+.row > .t small,
+.chip,
+.eyebrow,
+.cline,
+.picker .n,
+.picker .n small,
+.sched-time, .sched-until,
+[class*="eyebrow"] {
+  font-family: var(--sans);
+}
+/* Numbers line up without needing a mono face. */
+.row > .t, .picker .n, .count, .bar-txt { font-variant-numeric: tabular-nums; }
+/* Sentence-case labels instead of spaced capitals. */
+.eyebrow,
+.ios-caption,
+#sandeshaServer .set-sec > summary,
+.more-h {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-3);
+}
+
+/* ── header: one compact row ──────────────── */
+.hdr { padding-bottom: 8px; }
+.hdr-row { align-items: center; }
+.hdr-title { flex: 1; min-width: 0; }
+.icons { padding-top: 0; }
+.hdr-back { margin-left: -8px; background: none; width: 36px; height: 36px; }
+.hdr-back:not([hidden]) + .hdr-title { margin-left: 2px; }
+.ic { background: none; box-shadow: none; }
+
+/* New post: the one orange button on the Posts screen. */
+.hdr .fab {
+  position: static;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  box-shadow: none;
+}
+.fab.hide { transform: none; opacity: 0.4; }
+
+/* ── Posts: day tabs as an underline ──────── */
+.tabs { background: none; border-radius: 0; padding: 0; margin-top: 10px; border-bottom: 1px solid var(--hairline); }
+.tabs-thumb {
+  top: auto; bottom: -1px; left: 0; height: 2px; width: calc(100% / 3);
+  border-radius: 0; background: var(--ink); box-shadow: none;
+}
+.tabrow button { border-radius: 0; font-weight: 500; }
+.tabrow button.on { font-weight: 600; }
+
+/* ── Posts: flat rows, no rail, no thumbnail ─ */
+.rail::before, .row::before { display: none; }
+.row { grid-template-columns: 52px 1fr; gap: 10px; margin-bottom: 0; }
+.row > .t { padding-top: 14px; font-size: 12.5px; }
+.row > .t small { font-size: 10.5px; letter-spacing: 0.02em; text-transform: none; }
+.rowcard, .rowbg { border-radius: 0; }
+.fg {
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 12px 0;
+  grid-template-columns: 1fr auto;
+}
+.row .fg .th { display: none; }
+.fg:hover { border-color: var(--hairline) !important; }
+
+/* Status is a word, not a pill. */
+.chip, .chip.sent, .chip.queued, .chip.late {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.chip { color: var(--ink-3); }
+.chip.sent { color: var(--green); }
+.chip.queued { color: var(--ink-3); }
+.chip.late { color: var(--red); }
+.chip svg { display: none; }
+
+/* ── bottom bar ───────────────────────────── */
+.tabbar { border-radius: 0; background: var(--paper); border-top: 1px solid var(--hairline); }
+.tabbar button span { font-size: 10.5px; font-weight: 500; }
+.tabbar button.on span { font-weight: 600; }
+.tabbar button svg { width: 22px; height: 22px; }
+
+/* ── Compose ──────────────────────────────── */
+.picker, .editor, .drop, .wa-preview {
+  box-shadow: none;
+}
+.drop { border-style: solid; border-color: var(--hairline); background: transparent; padding: 10px 12px; }
+.drop .thumb { width: 32px; height: 32px; border-radius: 8px; }
+.pc-prev > summary {
+  list-style: none;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+.pc-prev > summary::-webkit-details-marker { display: none; }
+.pc-prev > summary::after { content: " ›"; display: inline-block; transition: transform 160ms ease; }
+.pc-prev[open] > summary::after { transform: rotate(90deg); }
+.pc-prev[open] > summary { margin-bottom: 8px; }
+
+/* ── More ─────────────────────────────────── */
+.more-group { margin: 0 0 22px; }
+.more-h { margin: 0 4px 6px; }
+#sandeshaServer .ios-group {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  border-top: 1px solid var(--hairline);
+}
+#sandeshaServer .ios-row-btn { border-radius: 0; background: none; }
+#sandeshaServer #notifyBtn { width: 100%; }
+#sandeshaServer #notifyBtn::after {
+  content: "Off";
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+#sandeshaServer #notifyBtn.is-on::after { content: "On"; color: var(--green); font-weight: 600; }
+#sandeshaServer #notifyBtn .bdg { position: static; margin-left: 8px; }
+
+/* ── quiet motion ─────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+#sandeshaServer .ios-row-btn .pa-copy { flex: 1; text-align: left; }
+.picker .n { color: var(--ink-3); }
+.pc-prev > summary::after { margin-left: 4px; }
+
+/* ── Homepage banner: flat form, smaller upload area ── */
+.bf-drop { border-radius: 12px; box-shadow: none; }
+.bf-empty { padding: 18px 16px; flex-direction: row; justify-content: center; gap: 10px; }
+.bf-empty svg { width: 20px; height: 20px; }
+.bf-empty small { display: none; }
+.bf-card, .bf-switch { border: 0; border-radius: 0; box-shadow: none; background: none; padding-left: 0; padding-right: 0; }
+.bf-card { border-top: 1px solid var(--hairline); }
+.bf-chips button { border: 0; background: none; padding: 6px 4px; color: var(--ink-3); font-weight: 500; }
+.bf-chips { gap: 4px; }
+
+/* Day headings in Schedule */
+.groupline { font-family: var(--sans); letter-spacing: 0; text-transform: none; font-size: 13px; font-weight: 600; }
+.bf-drop { min-height: 0; }
+
+/* ════════ Readability + hierarchy ════════
+ * Four levels, used everywhere:
+ *   page title 26/600 · section 17/600 · body 16/400 · meta 13 (ink-2)
+ * Labels are 13/600 sentence case. Grey text is dark enough to read (≥4.5:1).
+ */
+:root { --ink-2: #4a443c; --ink-3: #6b645a; }
+:root[data-theme="dark"] { --ink-2: #d6cfc3; --ink-3: #a8a094; }
+
+body { font-size: 16px; line-height: 1.45; }
+.kicker { color: var(--ink-2); font-size: 14px; }
+.kicker:empty { display: none; }
+
+/* Empty helpers vanish instead of leaving gaps. */
+.compose-date-hint:empty, .compose-aud-sub:empty, .picker .sub:empty,
+.fine:empty, .pa-meta:empty, .compose-flyer-name:empty,
+.compose-drop-foot:has(.compose-flyer-name:empty):has(#composeFlyerReset[hidden]),
+.pc-editing + .pc-editing { display: none; }
+.empty { color: var(--ink-2); }
+.empty h3 { font-size: 17px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+
+/* Labels: one style for every section label. */
+.eyebrow,
+.compose-card-title,
+.compose-label,
+.aud-sec,
+.rc-tile-k,
+.pa-kicker, .pa-day,
+.picker .n small,
+.ios-caption,
+.more-h,
+.bf-field label {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+}
+.aud-sec { padding: 14px 4px 6px; }
+.more-h { font-size: 13px; }
+#sandeshaServer .set-sec > summary { font-size: 15px; font-weight: 600; color: var(--ink); }
+
+/* Titles and values */
+.tx b, .picker .headline, .aud-row .nm, .pick-copy b { font-size: 16px; font-weight: 600; color: var(--ink); }
+.aud-row .nm small, .pick-copy small, .aud { font-size: 13px; color: var(--ink-2); }
+.cline, .row > .t { color: var(--ink-2); }
+.rc-tile-v { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+.rc-tile-sub, .rc-post-meta, .rc-g-sub, .pa-when { font-size: 13px; color: var(--ink-2); }
+.rc-h { font-size: 17px; font-weight: 600; }
+.rc-top { margin-bottom: 8px; }
+.rc-title, .rc-sub { display: none; }
+.pa-row-title { font-size: 16px; font-weight: 600; }
+.pa-status { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.pa-card { box-shadow: none; }
+
+/* Picker rows in the choose-a-program sheet: status as text, no pill. */
+.pick-status, .pick-status--pending, .pick-status--ready, .pick-status--scheduled, .pick-status--due, .pick-status--sent {
+  background: none; padding: 0; border-radius: 0; gap: 1px;
+}
+.pick-status-kind { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.pick-status-when { font-size: 12px; color: var(--ink-2); }
+
+/* Inputs: 16px so phones don't zoom, with a visible border */
+input, textarea, select { font-size: 16px; }
+.pick-search, .compose textarea, .editor textarea, .picker.as-input {
+  border-color: var(--line);
+}
+
+/* Primary vs secondary actions */
+.b.pri, .compose-foot .b.pri { font-weight: 600; }
+.b:not(.pri) { border-color: var(--line); }
+
+/* Activity: the header names the page, so the in-page heading and a gold back link would repeat it. */
+.pa-heading { display: none; }
+.pa-back { color: var(--ink-2); font-weight: 500; }
+.pa-back::before { content: "‹ "; }
+
+/* A tall flyer must not push everything else off screen. */
+.compose-drop { max-height: 220px; overflow: hidden; }
+.compose-preview { max-height: 220px; width: 100%; object-fit: contain; }
+
+/* Reach deltas stay on one line. */
+.rc-delta { white-space: nowrap; }
+
+/* WhatsApp status line in More */
+#sandeshaServer .wa-status-row { font-size: 16px; }
+#sandeshaServer .wa-status-row b, #sandeshaServer .wa-status-row strong { font-size: 16px; font-weight: 600; }
+.pc-prev { margin-bottom: 32px; }
+.sendbar .fine { font-size: 12px; color: var(--ink-2); }

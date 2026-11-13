@@ -18,6 +18,8 @@ process.env.SANDESHA_QUIET_END_HOUR = '8';
 process.env.SANDESHA_MAX_SENDS_PER_HOUR = '3';
 process.env.SANDESHA_MAX_SENDS_PER_DAY = '5';
 process.env.SANDESHA_SEND_AUDIT = '0';
+// Never touch the real saved quiet hours from a test.
+process.env.SANDESHA_QUIET_HOURS_FILE = require('path').join(require('os').tmpdir(), `quiet-hours-test-${process.pid}.json`);
 
 const safety = require('../send-safety');
 
@@ -289,29 +291,30 @@ const fanOutChecks = (async () => {
   });
 })();
 
-// ── Caption variation ─────────────────────────────────────────────────────
-test('caption variation preserves the message body verbatim', () => {
-  const body = 'Sunday satsang at 6.30pm in the main hall.';
-  for (let i = 0; i < 40; i++) {
-    assert.ok(safety.varyCaption(body).includes(body), 'body must survive intact');
+// ── Messages go out exactly as written ───────────────────────────────────
+test('a message is never changed: no opener, no closer, every time', () => {
+  const bodies = [
+    'Sunday satsang at 6.30pm in the main hall.',
+    'Namaskaram 🙏\n\nVolunteers needed.\n\nShare with anyone who may be interested.',
+    '  keep my spaces  ',
+    'Line one\nLine two',
+  ];
+  for (const body of bodies) {
+    for (let i = 0; i < 80; i++) assert.strictEqual(safety.varyCaption(body), body);
   }
 });
 
-test('caption variation produces more than one framing', () => {
-  const body = 'Sunday satsang.';
-  const seen = new Set();
-  for (let i = 0; i < 60; i++) seen.add(safety.varyCaption(body));
-  assert.ok(seen.size > 1, 'identical payloads are the thing being avoided');
-});
-
-test('caption variation leaves an empty message alone', () => {
+test('an empty message stays empty', () => {
   assert.strictEqual(safety.varyCaption(''), '');
   assert.strictEqual(safety.varyCaption(null), '');
+  assert.strictEqual(safety.varyCaption(undefined), '');
 });
 
-test('caption variation can be switched off', () => {
-  const body = 'Plain.';
-  assert.strictEqual(safety.varyCaption(body, { enabled: false }), body);
+test('nothing in the sending code can add words of its own', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'send-safety.js'), 'utf8');
+  for (const phrase of ['Sharing below', 'All are welcome', 'Do join us', 'Share with anyone who may be interested']) {
+    assert.ok(!src.includes(phrase), `send-safety.js must not contain "${phrase}"`);
+  }
 });
 
 // ── Presence ──────────────────────────────────────────────────────────────
@@ -335,6 +338,30 @@ test('typing presence is skipped when disabled', async () => {
   return safety.withTypingPresence(chat, 'hi', { enabled: false }).then(() => {
     assert.strictEqual(called, false);
   });
+});
+
+test('quiet hours can be changed by the admin, validated, saved and reset', () => {
+  const at = (h) => new Date(`2026-11-12T${String(h).padStart(2, '0')}:10:00+05:30`);
+  assert.deepStrictEqual([safety.getQuietHours().start, safety.getQuietHours().end], [22, 8]);
+
+  const r = safety.setQuietHours({ start: 23, end: 6 });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(safety.inQuietHours(at(22)), false, '22:10 is outside 23-6');
+  assert.strictEqual(safety.inQuietHours(at(23)), true);
+  assert.strictEqual(safety.inQuietHours(at(5)), true);
+  assert.strictEqual(safety.inQuietHours(at(7)), false);
+
+  assert.strictEqual(safety.setQuietHours({ start: 25, end: 6 }).ok, false, 'hour out of range');
+  assert.strictEqual(safety.setQuietHours({ start: 'x', end: 6 }).ok, false, 'not a number');
+  assert.strictEqual(safety.getQuietHours().start, 23, 'a rejected change leaves the window alone');
+
+  const off = safety.setQuietHours({ start: 0, end: 0 });
+  assert.strictEqual(off.enabled, false);
+  assert.strictEqual(safety.inQuietHours(at(2)), false, '0..0 turns quiet hours off');
+
+  const back = safety.resetQuietHours();
+  assert.deepStrictEqual([back.start, back.end], [22, 8]);
+  assert.strictEqual(safety.inQuietHours(at(23)), true);
 });
 
 Promise.all([fanOutChecks]).then(() => {

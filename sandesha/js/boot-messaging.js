@@ -21,6 +21,7 @@ import { renderContacts } from './pages/contacts.js';
 import { renderBulk } from './pages/bulk.js';
 import { renderAddMembers } from './pages/add-members.js';
 import { renderAudience } from './pages/audience.js';
+import { renderExportMembers } from './pages/export-members.js';
 import { renderAi } from './pages/ai.js';
 import { renderHelp } from './pages/help.js';
 import { updatePairingBanner } from './pairing-banner.js';
@@ -82,6 +83,9 @@ function renderSub(id) {
       break;
     case 'add-members':
       renderAddMembers();
+      break;
+    case 'export-members':
+      renderExportMembers();
       break;
     case 'ai':
       renderAi();

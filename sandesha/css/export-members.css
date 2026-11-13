@@ -1,0 +1,135 @@
+/* Export members (sandesha/js/export-members-core.js).
+   Self-contained so the same markup works on the Messaging page and the
+   Nurturing Settings page, which load different base stylesheets. Colours
+   fall back through each host's tokens to a plain value. */
+.ex-root {
+  --ex-accent: var(--isha-sage-dark, #4a3527);
+  --ex-line: #e6e0d4;
+  --ex-text: var(--color-text, #2b211d);
+  --ex-muted: var(--color-text-muted, #7a6f62);
+  --ex-danger: var(--color-danger, #c45c4a);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: inherit;
+  color: var(--ex-text);
+}
+
+.ex-card {
+  background: #fff;
+  border: 1px solid var(--ex-line);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.ex-hint { margin: 0 0 8px; font-size: 0.85rem; line-height: 1.4; color: var(--ex-muted); }
+.ex-hint.ex-err { color: var(--ex-danger); }
+.ex-empty { margin: 0; padding: 18px 16px; text-align: center; color: var(--ex-muted); font-size: 0.9rem; }
+
+.ex-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 1px solid var(--ex-line);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 1rem; /* 16px: stops iOS zooming on focus */
+  color: var(--ex-text);
+}
+.ex-search:focus { outline: none; border-color: var(--ex-accent); }
+
+.ex-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.ex-count { font-size: 0.85rem; font-weight: 600; color: var(--ex-muted); }
+.ex-links { display: flex; gap: 14px; }
+.ex-link {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ex-accent);
+  cursor: pointer;
+}
+.ex-link-danger { color: var(--ex-danger); }
+
+.ex-list {
+  max-height: 52vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+  border: 1px solid var(--ex-line);
+  border-radius: 14px;
+}
+.ex-list .ex-empty { padding: 22px 16px; }
+
+.ex-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #efeae1;
+  cursor: pointer;
+}
+.ex-row:last-child { border-bottom: 0; }
+.ex-row:active { background: rgba(0, 0, 0, 0.04); }
+.ex-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ex-row-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ex-row-sub { font-size: 0.8rem; color: var(--ex-muted); }
+
+.ex-row input[type="checkbox"],
+.ex-option input[type="checkbox"] {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--ex-accent);
+}
+
+.ex-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.ex-option .ex-hint { margin: 2px 0 0; display: block; }
+
+.ex-btn {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ex-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ex-btn:disabled { opacity: 0.5; cursor: default; }
+.ex-btn-secondary {
+  width: auto;
+  margin-top: 6px;
+  padding: 9px 16px;
+  background: transparent;
+  color: var(--ex-accent);
+  border: 1px solid var(--ex-accent);
+}
+.ex-status { margin-top: 12px; }
+.ex-status:empty { margin-top: 0; }

@@ -9,7 +9,7 @@ import { api, uploadFile, escapeHtml, fetchMedia } from '../api.js';
 import { getState, getTargetOptions, loadChats, ensureGroups, ensureSets } from '../store.js?v=34';
 import { scheduleTargets } from '../schedule-targets.js?v=34';
 import { toast } from '../toast.js';
-import { openAudienceSheet, audienceSummary, audienceTotal } from '../promo-audience.js?v=34';
+import { openAudienceSheet, audienceSummary, audienceTotal } from '../promo-audience.js?v=35';
 
 /**
  * Gap between chats on an interactive "Send now", per SENDING_SAFETY.md §5.
@@ -256,17 +256,16 @@ function isPastWhen(value) {
 }
 
 function untilText(value) {
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
-  if (!value) return zone;
+  if (!value) return '';
   if (isPastWhen(value)) return 'That time has already passed';
   const diff = new Date(value) - Date.now();
-  if (Number.isNaN(diff)) return zone;
-  if (diff <= 0) return `${zone} · this minute`;
+  if (Number.isNaN(diff)) return '';
+  if (diff <= 0) return 'This minute';
   const mins = Math.round(diff / 60000);
-  if (mins < 60) return `${zone} · in ${plural(mins, 'minute')}`;
+  if (mins < 60) return `In ${plural(mins, 'minute')}`;
   const hours = Math.round(mins / 60);
-  if (hours < 48) return `${zone} · in ${plural(hours, 'hour')}`;
-  return `${zone} · in ${plural(Math.round(hours / 24), 'day')}`;
+  if (hours < 48) return `In ${plural(hours, 'hour')}`;
+  return `In ${plural(Math.round(hours / 24), 'day')}`;
 }
 
 /** WhatsApp's own markers, rendered the way the recipient will see them. */
@@ -319,16 +318,13 @@ export function renderPromoCompose() {
 
   host.innerHTML = `
     <div class="wa-link-note" data-wa-link hidden>
-      <p data-wa-link-text>Sandesha isn’t connected. Link WhatsApp in Settings before a send or a schedule can go out.</p>
-      <button type="button" data-wa-link-settings>Open Settings</button>
+      <p data-wa-link-text>WhatsApp isn’t connected</p>
+      <button type="button" data-wa-link-settings>Link</button>
     </div>
     ${isEditing() ? `
     <div class="pc-editing" role="status">
       <div>
-        <b>Editing a queued message</b>
-        <span>Saving replaces ${draft.replacingIds.length === 1
-          ? 'the queued send'
-          : `all ${draft.replacingIds.length} queued sends`}.</span>
+        <b>Editing queued ${draft.replacingIds.length === 1 ? 'message' : `messages (${draft.replacingIds.length})`}</b>
       </div>
       <button type="button" class="linkbtn" id="pcCancelEdit">Discard</button>
     </div>` : ''}
@@ -368,7 +364,7 @@ export function renderPromoCompose() {
     <div class="field">
       <span class="eyebrow">Message</span>
       <div class="editor">
-        <textarea id="pcMsg" rows="4" placeholder="Write what you want them to read…">${escapeHtml(draft.message)}</textarea>
+        <textarea id="pcMsg" rows="4">${escapeHtml(draft.message)}</textarea>
         <div class="tools">
           <button type="button" data-wrap="*" title="Bold"><b>B</b></button>
           <button type="button" data-wrap="_" title="Italic"><i>I</i></button>
@@ -387,8 +383,7 @@ export function renderPromoCompose() {
         </span>
         <span class="body">
           <span class="t" id="pcFileName">Add a photo or video</span>
-          <span class="s">Sent above the text</span>
-        </span>
+                  </span>
       </label>
       <div class="field-foot" ${draft.file || draft.keepFilePath ? '' : 'hidden'} id="pcFileFoot">
         <span></span>
@@ -396,8 +391,8 @@ export function renderPromoCompose() {
       </div>
     </div>
 
-    <div class="field">
-      <span class="eyebrow">Preview</span>
+    <details class="field pc-prev">
+      <summary class="eyebrow">Preview</summary>
       <div class="wa-preview">
         <div class="wa-bar">
           <span>Isha Place, Vijayanagar</span>
@@ -409,12 +404,8 @@ export function renderPromoCompose() {
         <div class="wa-canvas">
           <div class="wa-bubble" id="pcBubble"></div>
         </div>
-        <div class="wa-note">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
-          <span>WhatsApp reads <span class="mono">*bold*</span>, <span class="mono">_italic_</span> and <span class="mono">~strike~</span>.</span>
-        </div>
       </div>
-    </div>
+    </details>
 
     <div class="prog" id="pcProg" hidden>
       <div class="prog-track"><div class="prog-fill" id="pcProgFill"></div></div>
@@ -544,9 +535,7 @@ function sync() {
   const lists = draft.targets.length;
   $('#pcAudName').textContent = audienceSummary(draft.targets);
   $('#pcAudName').closest('.picker').classList.toggle('is-empty', !lists);
-  $('#pcAudSub').textContent = lists
-    ? `${lists} ${lists === 1 ? 'list' : 'lists'} selected`
-    : 'Pick at least one list';
+  $('#pcAudSub').textContent = '';
   $('#pcAudCount').textContent = total;
 
   const len = draft.message.length;
@@ -555,7 +544,9 @@ function sync() {
   count.classList.toggle('warn', len > WARN_CHARS);
 
   const whenInput = $('#pcWhen');
-  if (whenInput) whenInput.min = toLocalInput(new Date());
+  // Never touch `min` while the field is being typed in: Chrome drops the
+  // half-typed day/month digit, so "14" became "04". It is set on focus instead.
+  if (whenInput && document.activeElement !== whenInput) whenInput.min = toLocalInput(new Date());
   const whenSub = $('#pcWhenSub');
   if (whenSub) {
     whenSub.textContent = untilText(draft.runAt);
@@ -585,7 +576,7 @@ function sync() {
     : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const body = draft.message.trim()
     ? bubbleHtml(draft.message)
-    : '<span class="ph">Your message appears here</span>';
+    : '';
   const previewUrl = draft.fileUrl || draft.keepFileUrl || '';
   const tickIcon = draft.later ? TICK_CLOCK : (sending && !delivered ? TICK_PENDING : TICK_SENT);
   const tickClass = delivered ? ' is-sent' : '';
@@ -610,20 +601,15 @@ function sync() {
         : `Schedule for ${total} ${total === 1 ? 'person' : 'people'}`)
       : `Send to ${total} ${total === 1 ? 'person' : 'people'}`;
 
+  // Only the one thing you must know: a spread-out send needs this page open.
   const fine = $('#pcFine');
-  if (!lists) {
-    fine.textContent = 'Nothing goes out yet.';
-  } else if (draft.later) {
-    const rows = scheduleTargets(draft.targets).length;
-    fine.textContent = `${rows} scheduled ${rows === 1 ? 'row' : 'rows'} · the server sends them for you`;
-  } else {
+  fine.textContent = '';
+  if (lists && !draft.later) {
     const n = sendRecipients(draft.targets).length;
-    if (n === 1) {
-      fine.textContent = 'One list · goes out right away';
-    } else {
+    if (n > 1) {
       const avg = (GAP_MIN_MS + GAP_MAX_MS) / 2;
       const mins = Math.max(1, Math.round(((n - 1) * avg) / 60000));
-      fine.textContent = `Spread out, ${GAP_MIN_MS / 1000}–${GAP_MAX_MS / 1000}s apart · about ${mins} ${mins === 1 ? 'minute' : 'minutes'}. Keep this open.`;
+      fine.textContent = `About ${mins} ${mins === 1 ? 'minute' : 'minutes'} · keep this open`;
     }
   }
 }

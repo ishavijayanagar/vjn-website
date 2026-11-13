@@ -282,7 +282,7 @@ send path automatically:
 | Daily / hourly caps | 120 a day, 30 an hour. Counted in `state.json`, so a restart does not hand out a fresh budget |
 | Partial resume | A fan-out stopped by quiet hours or a cap remembers who already received it and continues later — no duplicates |
 | Typing presence | A short, length-scaled typing indicator before each send |
-| Caption variation | Opener and closer vary per chat when one message goes to many. The body is never altered |
+| Messages sent as written | Nothing is ever added to a message: no greeting, no closing line, no signature |
 | Audit log | One JSON line per send in `send-audit.jsonl`, so the real interval distribution can be checked |
 
 Every value is overridable from `.env` — see `.env.example`. A twelve-group flyer
@@ -340,7 +340,6 @@ leave rarely block, and the ones who do leave were never going to attend.
 | `SANDESHA_QUIET_START_HOUR` / `_END_HOUR` | 22 / 8 | Do-not-send window, IST. Equal values disable it |
 | `SANDESHA_MAX_SENDS_PER_HOUR` / `_PER_DAY` | 30 / 120 | Send ceilings; 0 disables |
 | `SANDESHA_TYPING_SIMULATION` | 1 | Typing indicator before a send |
-| `SANDESHA_CAPTION_VARIATION` | 1 | Vary opener/closer across a fan-out |
 | `SANDESHA_SEND_AUDIT` | 1 | Write `send-audit.jsonl` |
 
 ### Commands Group

@@ -7,7 +7,8 @@ import { openHelp } from './help.js';
 import { canPromptInstall, promptInstall } from '../pwa.js';
 import { describeWhatsAppStatus } from '../wa-status.js';
 import { renderApiSettings } from '../api-settings.js';
-import { clearSandeshaSession } from '../auth-bridge.js';
+import { clearSandeshaSession, isAdminRole } from '../auth-bridge.js';
+import { loadQuietHours, saveQuietHours, currentQuiet, hourLabel } from '../quiet-hours.js?v=1';
 import { toast } from '../toast.js';
 import { supported as pushSupported, state as pushState, enable as pushEnable, disable as pushDisable, sendTest as pushTest } from '../push.js';
 
@@ -76,6 +77,22 @@ export function renderSettings() {
       <p class="hint" id="notif-note" style="margin:8px 0 0"></p>
     </div>
 
+    ${isAdminRole() ? `
+    <div class="settings-footer-card" id="quiet-card">
+      <h3>Quiet hours</h3>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:center;margin-bottom:12px">
+        <label for="qh-start">No sends from</label>
+        <select id="qh-start" class="ios-input" style="min-height:44px"></select>
+        <label for="qh-end">Until</label>
+        <select id="qh-end" class="ios-input" style="min-height:44px"></select>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <input type="checkbox" id="qh-off"> Send at any hour
+      </label>
+      <div class="btn-row"><button type="button" class="btn" id="qh-save">Save</button></div>
+      <p class="hint" id="qh-note" style="margin:8px 0 0"></p>
+    </div>` : ''}
+
     <div id="settings-api-host"></div>
 
     ${canPromptInstall() ? `
@@ -99,6 +116,7 @@ export function renderSettings() {
 
   container.querySelector('.wa-status-card')?.addEventListener('click', () => openStatus());
   wireNotifications(container);
+  wireQuietHours(container);
   container.querySelector('#settings-install')?.addEventListener('click', async () => {
     await promptInstall();
   });
@@ -115,6 +133,49 @@ export function renderSettings() {
       },
     });
   }
+}
+
+async function wireQuietHours(container) {
+  const card = container.querySelector('#quiet-card');
+  if (!card) return;
+  const startEl = card.querySelector('#qh-start');
+  const endEl = card.querySelector('#qh-end');
+  const offEl = card.querySelector('#qh-off');
+  const saveBtn = card.querySelector('#qh-save');
+  const note = card.querySelector('#qh-note');
+  const options = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${hourLabel(h)}</option>`).join('');
+  startEl.innerHTML = options;
+  endEl.innerHTML = options;
+
+  function paint(q) {
+    const off = q.start === q.end;
+    offEl.checked = off;
+    startEl.value = String(off ? 22 : q.start);
+    endEl.value = String(off ? 8 : q.end);
+    startEl.disabled = off;
+    endEl.disabled = off;
+  }
+  paint(await loadQuietHours());
+  offEl.addEventListener('change', () => {
+    startEl.disabled = offEl.checked;
+    endEl.disabled = offEl.checked;
+  });
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    note.textContent = '';
+    try {
+      const start = offEl.checked ? 0 : Number(startEl.value);
+      const end = offEl.checked ? 0 : Number(endEl.value);
+      if (!offEl.checked && start === end) throw new Error('Pick two different hours, or choose "Send at any hour".');
+      paint(await saveQuietHours({ start, end }));
+      toast('Quiet hours saved', 'ok');
+    } catch (err) {
+      note.textContent = err.message || 'Could not save';
+      toast(err.message || 'Could not save', 'err');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
 }
 
 async function wireNotifications(container) {

@@ -8,6 +8,7 @@ import { api, escapeHtml, escapeAttr } from '../api.js';
 import { getState, jidToName } from '../store.js?v=34';
 import { toast } from '../toast.js';
 import { releaseBoardPost } from '../vjn-sheet.js';
+import { inQuiet, hourLabel, currentQuiet } from '../quiet-hours.js?v=1';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -46,7 +47,8 @@ function clockOf(date) {
 /** Kept to one short line so rows stay the same height. */
 function countdown(date) {
   const diff = date - Date.now();
-  if (diff <= 0) return 'Overdue';
+  // The server checks every 30 s, so just-passed rows are on their way, not late.
+  if (diff <= 0) return diff > -3 * 60000 && !inQuiet() ? 'Sending' : 'Overdue';
   const mins = Math.round(diff / 60000);
   if (mins < 60) return `in ${mins}m`;
   const hours = Math.floor(mins / 60);
@@ -113,16 +115,21 @@ function weekHtml(days, counts, todayKey) {
     .join('');
 }
 
+// Sandesha sends nothing inside the quiet hours (set by the admin), so a row
+// that comes due in that window is held for the morning, not late.
 function rowHtml(entry, now) {
-  const overdue = entry.when <= now;
+  const due = entry.when <= now;
+  const held = due && inQuiet();
+  const sending = due && !held && Date.now() - entry.when.getTime() < 3 * 60000;
+  const overdue = due && !held && !sending;
   const armed = armedId === String(entry.id);
   return `
     <div class="listrow" data-row="${escapeAttr(entry.id)}">
-      <div class="time">${clockOf(entry.when)}<small>${escapeHtml(countdown(entry.when))}</small></div>
+      <div class="time">${clockOf(entry.when)}<small>${held ? `Until ${hourLabel(currentQuiet().end).replace(':00', '')}` : escapeHtml(countdown(entry.when))}</small></div>
       <button type="button" class="body" data-open="${escapeAttr(entry.id)}"
               aria-label="Edit this message">
         <div class="meta">
-          <span class="chip ${overdue ? 'late' : 'queued'}">${overdue ? 'Due' : 'Queued'}</span>
+          <span class="chip ${overdue ? 'late' : 'queued'}">${held ? 'Held' : sending ? 'Sending' : overdue ? 'Due' : 'Queued'}</span>
           <span class="aud">${escapeHtml(targetLabel(entry))}</span>
           ${entry.filePath ? `<span class="clip" title="Has a flyer">${CLIP_ICON}</span>` : ''}
         </div>
@@ -195,8 +202,7 @@ export function renderPromoSchedule() {
         <div class="mark-art">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
         </div>
-        <h3>The week is clear</h3>
-        Anything you schedule lands here, grouped by day.<br/>
+        <h3>Nothing scheduled</h3>
         <button type="button" class="link" data-goto-compose>Write a message</button>
       </div>`;
     bind(host);
@@ -215,15 +221,6 @@ export function renderPromoSchedule() {
     }
     parts.push(rowHtml(entry, now));
   }
-  parts.push(
-    `<p class="note-line" style="margin-top:16px">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
-      <span>Times follow this device — ${escapeHtml(
-        Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time',
-      )}.</span>
-    </p>`,
-  );
-
   host.innerHTML = parts.join('');
   bind(host);
 }
@@ -248,7 +245,7 @@ async function editSchedule(entry) {
     }));
     return;
   }
-  const { loadScheduleIntoCompose } = await import('./promo-compose.js?v=36');
+  const { loadScheduleIntoCompose } = await import('./promo-compose.js?v=39');
   loadScheduleIntoCompose(entry, siblingsOf(entry).map((s) => s.id));
   window.dispatchEvent(new CustomEvent('promo:goto', { detail: { mode: 'send' } }));
 }

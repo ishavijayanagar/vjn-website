@@ -107,6 +107,7 @@ sandesha.out
 
 groups-cache.json
 delivered.json
+quiet-hours.json
 
 # Old JSON state files carried into the database on first start
 *.migrated

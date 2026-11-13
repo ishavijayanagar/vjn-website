@@ -31,6 +31,7 @@ const ADMIN_ONLY = [
   'GET /groups/inactive',
   'GET /groups/find-member',
   'GET /groups/:jid/members',
+  'POST /groups/export-members',
   'POST /send/broadcast',
   'POST /send/bulk',
   'POST /jobs/add-members',

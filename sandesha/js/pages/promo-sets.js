@@ -212,7 +212,7 @@ function mountDrawer() {
         <div class="ios-group set-fields">
           <label class="set-field">
             <span>Name</span>
-            <input type="text" id="setName" value="${escapeAttr(editing.name)}" placeholder="e.g. Volunteers Bangalore" maxlength="40" autocomplete="off"/>
+            <input type="text" id="setName" value="${escapeAttr(editing.name)}" maxlength="40" autocomplete="off"/>
           </label>
           <label class="set-field">
             <span>Search</span>

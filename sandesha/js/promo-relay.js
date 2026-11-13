@@ -12,8 +12,9 @@
 import { api, uploadFile, getApiBase } from './api.js';
 import { ensureSandeshaAuth } from './auth-bridge.js';
 import { toast } from './toast.js';
+import { loadQuietHours } from './quiet-hours.js?v=1';
 import { getState, getTargetOptions, refreshHealth, ensureGroups, ensureSets } from './store.js?v=34';
-import { openAudienceSheet, audienceSummary, audienceTotal } from './promo-audience.js?v=34';
+import { openAudienceSheet, audienceSummary, audienceTotal } from './promo-audience.js?v=35';
 import { scheduleTargets } from './schedule-targets.js?v=34';
 
 const DEFAULT_TARGET_KEY = 'promo_default_audience';
@@ -67,6 +68,7 @@ const SandeshaPromo = {
   async ready() {
     await ensureSandeshaAuth();
     refreshHealth().catch(() => {});
+    loadQuietHours().then(() => window.dispatchEvent(new CustomEvent('promo:quiet-hours'))).catch(() => {});
     return true;
   },
 
