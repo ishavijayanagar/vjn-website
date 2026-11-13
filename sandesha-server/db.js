@@ -208,6 +208,53 @@ const MIGRATIONS = [
      resource_id TEXT NOT NULL DEFAULT ''
    ) STRICT;
    CREATE INDEX admin_audit_log_time ON admin_audit_log (at)`,
+  // 17 — message reach split into messages, read-curve samples and reactions
+  `ALTER TABLE message_reach RENAME TO message_reach_blob_old;
+   DROP INDEX message_reach_time;
+   CREATE TABLE message_reach (
+     id TEXT PRIMARY KEY,
+     key TEXT NOT NULL DEFAULT '',
+     chat TEXT NOT NULL DEFAULT '',
+     chat_name TEXT NOT NULL DEFAULT '',
+     is_group INTEGER NOT NULL DEFAULT 0,
+     audience INTEGER NOT NULL DEFAULT 0,
+     kind TEXT NOT NULL DEFAULT 'text',
+     mime TEXT NOT NULL DEFAULT '',
+     text TEXT NOT NULL DEFAULT '',
+     thumb TEXT NOT NULL DEFAULT '',
+     sent_at INTEGER NOT NULL DEFAULT 0,
+     via TEXT NOT NULL DEFAULT '',
+     post TEXT NOT NULL DEFAULT '',
+     actor_json TEXT NOT NULL DEFAULT 'null',
+     checks_done INTEGER NOT NULL DEFAULT 0,
+     next_check_at INTEGER NOT NULL DEFAULT 0,
+     status TEXT NOT NULL DEFAULT 'measuring',
+     delivered INTEGER NOT NULL DEFAULT 0,
+     read INTEGER NOT NULL DEFAULT 0,
+     played INTEGER NOT NULL DEFAULT 0,
+     not_delivered INTEGER,
+     not_read INTEGER,
+     first_delivered_at INTEGER,
+     first_read_at INTEGER,
+     ack INTEGER NOT NULL DEFAULT 0,
+     replies INTEGER NOT NULL DEFAULT 0,
+     reply_samples_json TEXT NOT NULL DEFAULT '[]',
+     extra_json TEXT NOT NULL DEFAULT '{}'
+   ) STRICT;
+   CREATE INDEX message_reach_time ON message_reach (sent_at);
+   CREATE INDEX message_reach_next ON message_reach (status, next_check_at);
+   CREATE TABLE message_reach_samples (
+     message_id TEXT NOT NULL REFERENCES message_reach (id) ON DELETE CASCADE,
+     hour INTEGER NOT NULL,
+     reads INTEGER NOT NULL,
+     PRIMARY KEY (message_id, hour)
+   ) STRICT;
+   CREATE TABLE message_reactions (
+     message_id TEXT NOT NULL REFERENCES message_reach (id) ON DELETE CASCADE,
+     sender_hash TEXT NOT NULL,
+     emoji TEXT NOT NULL,
+     PRIMARY KEY (message_id, sender_hash)
+   ) STRICT`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {

@@ -55,20 +55,74 @@ function init(options = {}) {
   load();
 }
 
+const KNOWN = new Set(['id', 'key', 'chat', 'chatName', 'isGroup', 'audience', 'kind', 'mime', 'text', 'thumb', 'sentAt', 'via', 'post',
+  'actor', 'checksDone', 'nextCheckAt', 'status', 'delivered', 'read', 'played', 'notDelivered', 'notRead', 'firstDeliveredAt',
+  'firstReadAt', 'ack', 'replies', 'replySamples', 'readCurve', 'reactions']);
+const nul = (v) => (v === null || v === undefined ? null : Number(v));
+
+/** What was last written for each message, so only the ones that changed are written again. */
+let written = new Map();
+
+function recToRows(rec) {
+  const extra = {};
+  for (const [k, v] of Object.entries(rec)) if (!KNOWN.has(k)) extra[k] = v;
+  return {
+    msg: [
+      rec.id, rec.key || '', rec.chat || '', rec.chatName || '', rec.isGroup ? 1 : 0, Number(rec.audience) || 0, rec.kind || 'text',
+      rec.mime || '', rec.text || '', rec.thumb || '', Number(rec.sentAt) || 0, rec.via || '', rec.post || '',
+      JSON.stringify(rec.actor || null), Number(rec.checksDone) || 0, Number(rec.nextCheckAt) || 0, rec.status || 'measuring',
+      Number(rec.delivered) || 0, Number(rec.read) || 0, Number(rec.played) || 0, nul(rec.notDelivered), nul(rec.notRead),
+      nul(rec.firstDeliveredAt), nul(rec.firstReadAt), Number(rec.ack) || 0, Number(rec.replies) || 0,
+      JSON.stringify(rec.replySamples || []), JSON.stringify(extra),
+    ],
+    samples: Object.entries(rec.readCurve || {}).map(([h, n]) => [rec.id, Number(h), Number(n) || 0]),
+    reactions: Object.entries(rec.reactions || {}).map(([who, emoji]) => [rec.id, who, String(emoji)]),
+  };
+}
+
+function rowToRec(r, samples, reactions) {
+  const rec = {
+    ...JSON.parse(r.extra_json || '{}'),
+    id: r.id, key: r.key, chat: r.chat, chatName: r.chat_name, isGroup: !!r.is_group, audience: r.audience, kind: r.kind,
+    mime: r.mime, text: r.text, thumb: r.thumb, sentAt: r.sent_at, via: r.via, post: r.post, actor: JSON.parse(r.actor_json),
+    checksDone: r.checks_done, nextCheckAt: r.next_check_at, status: r.status, delivered: r.delivered, read: r.read, played: r.played,
+    notDelivered: r.not_delivered, notRead: r.not_read, readCurve: {}, firstDeliveredAt: r.first_delivered_at,
+    firstReadAt: r.first_read_at, ack: r.ack, replies: r.replies, replySamples: JSON.parse(r.reply_samples_json), reactions: {},
+  };
+  for (const x of samples || []) rec.readCurve[x.hour] = x.reads;
+  for (const x of reactions || []) rec.reactions[x.sender_hash] = x.emoji;
+  return rec;
+}
+
 function load() {
   if (store) return store;
   store = { version: 1, messages: {} };
   if (deps.db) {
-    // Database: one row per message. The old reach.json is carried over once, into an empty table.
     try {
-      if (deps.db.prepare('SELECT COUNT(*) AS n FROM message_reach').get().n === 0 && fs.existsSync(STORE_FILE)) {
-        const old = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-        if (old && typeof old.messages === 'object') store = old;
-        persist();
-        fs.renameSync(STORE_FILE, `${STORE_FILE}.migrated`);
-      } else {
-        for (const r of deps.db.prepare('SELECT id, data FROM message_reach').all()) store.messages[r.id] = JSON.parse(r.data);
+      const db = deps.db;
+      const samples = new Map();
+      const reacts = new Map();
+      for (const x of db.prepare('SELECT message_id, hour, reads FROM message_reach_samples').all()) (samples.get(x.message_id) || samples.set(x.message_id, []).get(x.message_id)).push(x);
+      for (const x of db.prepare('SELECT message_id, sender_hash, emoji FROM message_reactions').all()) (reacts.get(x.message_id) || reacts.set(x.message_id, []).get(x.message_id)).push(x);
+      for (const r of db.prepare('SELECT * FROM message_reach').all()) store.messages[r.id] = rowToRec(r, samples.get(r.id), reacts.get(r.id));
+
+      // Carry over, once: a copy saved as one JSON blob per message, then the old reach.json.
+      const old = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'message_reach_blob_old'").get();
+      if (old) {
+        for (const r of db.prepare('SELECT data FROM message_reach_blob_old').all()) {
+          const rec = JSON.parse(r.data);
+          if (rec && rec.id && !store.messages[rec.id]) store.messages[rec.id] = rec;
+        }
       }
+      if (!Object.keys(store.messages).length && fs.existsSync(STORE_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+        if (raw && typeof raw.messages === 'object') store.messages = raw.messages;
+        fs.renameSync(STORE_FILE, `${STORE_FILE}.migrated`);
+      }
+      written = new Map();
+      for (const r of db.prepare('SELECT * FROM message_reach').all()) written.set(r.id, JSON.stringify(store.messages[r.id]));
+      if (Object.keys(store.messages).some((id) => !written.has(id))) persist();
+      if (old) db.exec('DROP TABLE message_reach_blob_old');
     } catch (err) {
       deps.log(`[REACH] could not load: ${err.message}`);
     }
@@ -82,13 +136,30 @@ function load() {
   return store;
 }
 
-/** Writes every tracked message to the database in one transaction (and drops the ones pruned from memory). */
+/** Writes the messages that changed (and removes the ones pruned from memory), all in one transaction. */
 function persist() {
   const db = deps.db;
-  const put = db.prepare('INSERT INTO message_reach (id, sent_at, data) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET data = excluded.data');
+  const putMsg = db.prepare(`INSERT OR REPLACE INTO message_reach (id, key, chat, chat_name, is_group, audience, kind, mime, text, thumb, sent_at, via, post,
+    actor_json, checks_done, next_check_at, status, delivered, read, played, not_delivered, not_read, first_delivered_at, first_read_at, ack, replies,
+    reply_samples_json, extra_json) VALUES (${Array(28).fill('?').join(',')})`);
+  const putSample = db.prepare('INSERT OR REPLACE INTO message_reach_samples (message_id, hour, reads) VALUES (?, ?, ?)');
+  const putReact = db.prepare('INSERT OR REPLACE INTO message_reactions (message_id, sender_hash, emoji) VALUES (?, ?, ?)');
   db.transaction(() => {
-    db.prepare('DELETE FROM message_reach').run();
-    for (const [id, rec] of Object.entries(store.messages)) put.run(id, Number(rec.sentAt || rec.at || 0) || 0, JSON.stringify(rec));
+    for (const id of [...written.keys()]) {
+      if (!store.messages[id]) { db.prepare('DELETE FROM message_reach WHERE id = ?').run(id); written.delete(id); }
+    }
+    for (const [id, rec] of Object.entries(store.messages)) {
+      const snap = JSON.stringify(rec);
+      if (written.get(id) === snap) continue;
+      const rows = recToRows(rec);
+      // INSERT OR REPLACE on a parent row would cascade-delete its children, so write the children after it.
+      putMsg.run(...rows.msg);
+      db.prepare('DELETE FROM message_reach_samples WHERE message_id = ?').run(id);
+      db.prepare('DELETE FROM message_reactions WHERE message_id = ?').run(id);
+      for (const x of rows.samples) putSample.run(...x);
+      for (const x of rows.reactions) putReact.run(...x);
+      written.set(id, snap);
+    }
   })();
 }
 
@@ -750,5 +821,6 @@ module.exports = {
   _applyInfo: applyInfo,
   _reset: (s) => { store = s || { version: 1, messages: {} }; reindex(); },
   _store: () => store,
+  _persist: () => persist(),
   CHECKPOINTS_MS,
 };

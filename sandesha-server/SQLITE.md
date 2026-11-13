@@ -31,7 +31,7 @@ Sandesha's own state also lives in the database now (nothing is kept in loose JS
 | `push_subscriptions` | Phones that get push notifications |
 | `promo_send_jobs` | Promotion send jobs (48 hours) |
 | `activity_log`, `send_audit_log` | The Activity log and the send audit (90 days) |
-| `message_reach` | How far each post travelled |
+| `message_reach`, `message_reach_samples`, `message_reactions` | How far each post travelled: one row per message, its read-curve points, and its reactions (sender stored as a one-way hash) |
 | `volunteer_roster` | The volunteer roster, one row per person (refreshed from its Sheet every 10 minutes) |
 | `admin_audit_log` | Who changed what in the admin (1 year; no contents) |
 | `app_setting` | Small settings: poll cursor and send budget (`bot_state`), planning group (`planning_config`), last group list (`groups_cache`), push heads-up memory, flags |
