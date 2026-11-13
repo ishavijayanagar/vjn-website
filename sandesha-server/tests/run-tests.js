@@ -47,9 +47,8 @@ async function runTests() {
 
   const sets = loadSets();
   assert(typeof sets === 'object', 'loadSets returns an object');
-  assert(Array.isArray(sets.all), 'groups.json has "all" array');
-  assert(sets.all.length > 0, 'groups.json "all" is not empty');
-  assert(sets.all.includes('Hebbal Sector Anand Ale SPOCs and Volunteers'), 'groups.json contains Hebbal group');
+  // groups.json is per-machine (git-ignored), so only check its shape: every set is a list.
+  assert(Object.values(sets).every((v) => Array.isArray(v)), 'every group set in groups.json is a list');
 
   const schedules = loadSchedules();
   assert(Array.isArray(schedules), 'loadSchedules returns an array');
