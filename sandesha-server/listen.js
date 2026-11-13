@@ -147,7 +147,7 @@ function log(...args) {
 
 // Flyer sends fail until this is in the script WhatsApp's page runs.
 const { patchWwebjsSend } = require('./patch-wwebjs-send');
-log(patchWwebjsSend() ? '[PATCH] flyer send: media id removed' : '[PATCH] flyer send: could not patch whatsapp-web.js');
+log(patchWwebjsSend() ? '[PATCH] send: media id removed, sent message looked up by short id' : '[PATCH] flyer send: could not patch whatsapp-web.js');
 
 let lastReplyText = null;
 let recentReplies = new Set();

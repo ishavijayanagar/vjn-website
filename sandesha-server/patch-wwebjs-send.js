@@ -18,10 +18,35 @@ const path = require('path');
 const ANCHOR = "        // Bot's won't reply if canonicalUrl is set (linking)\n";
 const INSERT = "        // MediaData's private id collides with the message id. Drop it.\n        delete message.__x_id;\n\n";
 
+// The library ends every send with Msg.get(newMsgKey._serialized). When WhatsApp Web files the new message
+// under a slightly different key (a LID chat, or a group that has not acked yet) that returns nothing, so the
+// caller gets no message id back and Reach has nothing to measure. Look it up by its short id instead, and
+// give WhatsApp Web a moment to add it.
+const RETURN_OLD = "        return window\n            .require('WAWebCollections')\n            .Msg.get(newMsgKey._serialized);\n    };\n";
+const RETURN_NEW = `        // Sandesha: find the sent message even when it is filed under another form of the chat id.
+        const sentMsgs = window.require('WAWebCollections').Msg;
+        const findSent = () =>
+            sentMsgs.get(newMsgKey._serialized) ||
+            (sentMsgs.getModelsArray ? sentMsgs.getModelsArray() : sentMsgs.models || []).find(
+                (m) => m && m.id && m.id.fromMe && m.id.id === newMsgKey.id,
+            );
+        let sentMsg = findSent();
+        for (let i = 0; !sentMsg && i < 20; i++) {
+            await new Promise((r) => setTimeout(r, 250));
+            sentMsg = findSent();
+        }
+        return sentMsg;
+    };
+`;
+
 function patchSendSource(text) {
-  if (text.includes('delete message.__x_id;')) return text;
-  if (!text.includes(ANCHOR)) return null;
-  return text.replace(ANCHOR, INSERT + ANCHOR);
+  let out = text;
+  if (!out.includes('delete message.__x_id;')) {
+    if (!out.includes(ANCHOR)) return null;
+    out = out.replace(ANCHOR, INSERT + ANCHOR);
+  }
+  if (!out.includes('findSent') && out.includes(RETURN_OLD)) out = out.replace(RETURN_OLD, RETURN_NEW);
+  return out;
 }
 
 function patchWwebjsSend(file = path.join(__dirname, 'node_modules', 'whatsapp-web.js', 'src', 'util', 'Injected', 'Utils.js')) {
