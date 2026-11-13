@@ -24,6 +24,12 @@ const MEDIA_DIR = process.env.REACH_MEDIA_DIR || path.join(__dirname, 'reach-med
 const KEEP_MS = 90 * 24 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
 /** When to look again after sending. After the last one the numbers are final. */
+/** Early looks: the live counts show up within minutes instead of waiting for the 10-minute check. */
+const EARLY_FIRST_MS = 2 * 60 * 1000;
+const EARLY_SECOND_MS = 5 * 60 * 1000;
+const EARLY_WINDOW_MS = 60 * 60 * 1000; // an ack event only triggers a look in the first hour
+const EARLY_GAP_MS = 5 * 60 * 1000;     // and at most one look every 5 minutes
+const EARLY_DELAY_MS = 15 * 1000;       // let WhatsApp finish updating before looking
 const CHECKPOINTS_MS = [10 * 60 * 1000, HOUR, 6 * HOUR, 24 * HOUR, 72 * HOUR, 168 * HOUR];
 const CURVE_HOURS = 168;
 const TICK_MS = 60 * 1000;
@@ -279,6 +285,7 @@ function track(sent, { jid, content, caption, context } = {}) {
       actor: ctx.actor ? { name: String(ctx.actor.name || ''), role: String(ctx.actor.role || '') } : null,
       checksDone: 0,
       nextCheckAt: sentAt + CHECKPOINTS_MS[0],
+      earlyCheckAt: sentAt + EARLY_FIRST_MS,
       status: 'measuring',
       delivered: 0,
       read: 0,
@@ -369,6 +376,10 @@ function onAck(msg, ack) {
         bumpCurve(rec, now, 1, true);
       }
     }
+    // Something just changed on this message: look at the counts soon, but not too often.
+    if (now - rec.sentAt <= EARLY_WINDOW_MS && now - (rec.lastEarlyAt || 0) >= EARLY_GAP_MS) {
+      rec.earlyCheckAt = Math.min(rec.earlyCheckAt || Infinity, now + EARLY_DELAY_MS);
+    }
     save();
   } catch { /* best effort */ }
 }
@@ -430,14 +441,16 @@ async function tick() {
   tickInFlight = true;
   try {
     const now = Date.now();
+    const dueAt = (r) => Math.min(r.nextCheckAt || Infinity, r.earlyCheckAt || Infinity);
     const due = Object.values(store.messages)
-      .filter((r) => r.nextCheckAt && r.nextCheckAt <= now)
-      .sort((a, b) => a.nextCheckAt - b.nextCheckAt)
+      .filter((r) => dueAt(r) <= now)
+      .sort((a, b) => dueAt(a) - dueAt(b))
       .slice(0, CHECKS_PER_TICK);
     for (const rec of due) {
       // A send started meanwhile — it has right of way.
       if (deps.isBusy()) break;
-      await checkOne(client, rec);
+      if (rec.nextCheckAt && rec.nextCheckAt <= now) await checkOne(client, rec);
+      else await checkEarly(client, rec);
       await delay(CHECK_GAP_MS);
     }
     if (due.length) save();
@@ -459,10 +472,32 @@ async function checkOne(client, rec) {
     rec.checkErrors = (rec.checkErrors || 0) + 1;
     deps.log(`[REACH] check ${rec.chatName || rec.chat}: ${err.message}`);
   }
+  rec.earlyCheckAt = null;
   advance(rec, now);
 }
 
 /** Move to the next checkpoint that hasn't already passed (the Pi may have been off). */
+/**
+ * A quick look between the regular checks: refreshes the counts, nothing else. It does not use up a
+ * regular check. At most one more is planned (5 minutes after sending); an ack event can ask for another.
+ */
+async function checkEarly(client, rec) {
+  const now = Date.now();
+  rec.lastEarlyAt = now;
+  const nextFixed = rec.sentAt + EARLY_SECOND_MS;
+  rec.earlyCheckAt = now < nextFixed && !rec.earlySecondDone ? nextFixed : null;
+  if (rec.earlyCheckAt) rec.earlySecondDone = true;
+  try {
+    const msg = await withTimeout(client.getMessageById(rec.id), INFO_TIMEOUT_MS);
+    const info = msg ? await withTimeout(msg.getInfo(), INFO_TIMEOUT_MS) : null;
+    if (info) applyInfo(rec, info);
+    rec.lastCheckedAt = now;
+  } catch (err) {
+    // Not worth counting: the regular checks will try again.
+    deps.log(`[REACH] early look ${rec.chatName || rec.chat}: ${err.message}`);
+  }
+}
+
 function advance(rec, now) {
   let i = rec.checksDone + 1;
   while (i < CHECKPOINTS_MS.length && rec.sentAt + CHECKPOINTS_MS[i] <= now) i += 1;
