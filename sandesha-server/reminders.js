@@ -23,6 +23,8 @@ function createReminders({ db, ev, listings, notify, now = () => Date.now(), log
           url: 'admin.html#volunteering',
           tag: `vjn-attendance-${need.event_id}`,
           kind: 'internal',
+          urgency: 'normal',
+          ttl: 24 * 3600,
         });
         ev.markReminded(need);
       } catch (err) {
@@ -56,6 +58,8 @@ function createReminders({ db, ev, listings, notify, now = () => Date.now(), log
           url: 'admin.html#events',
           tag: `vjn-program-2d-${p.id}`,
           kind: 'internal',
+          urgency: 'normal',
+          ttl: 24 * 3600,
         });
         sent[p.id] = target;
         changed = true;

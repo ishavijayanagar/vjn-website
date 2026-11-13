@@ -36,7 +36,7 @@ class HttpError extends Error {
   }
 }
 
-function createVjnApi({ listings, content, inquiries, ev, checkins = null, roster = null, ready = () => true }) {
+function createVjnApi({ listings, content, inquiries, ev, checkins = null, roster = null, notify = null, ready = () => true }) {
   function need(session, roles) {
     if (!roles.includes(session.role)) throw new HttpError(403, 'You do not have access to this.');
   }
@@ -155,6 +155,19 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
     const type = String(data.formType || '');
     if (!PUBLIC_FORMS.includes(type)) return undefined;
     inquiries.submit(type, data);
+    // Tell Nurturing right away instead of waiting for the app to be opened.
+    if (notify && type !== 'volunteerAttendance') {
+      try {
+        Promise.resolve(notify('nurturing', {
+          title: 'New website enquiry',
+          body: 'Someone just sent a message from the website.',
+          url: 'admin.html#queries',
+          tag: 'vjn-new-query',
+          kind: 'inquiry',
+          urgency: 'high',
+        })).catch(() => {});
+      } catch { /* a push failure must never fail the visitor's form */ }
+    }
     if (type === 'volunteerAttendance' && checkins) {
       // The check-in sheet is extra; it must never fail the existing attendance entry.
       try { checkins.record(data); } catch (err) { console.error('check-in not recorded:', err.message); }

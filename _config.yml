@@ -15,3 +15,13 @@ exclude:
   - Gemfile.lock
   - node_modules/
   - vendor/
+  # Not part of the website: server-side script, local tools, notes
+  - apps-script.js
+  - _devstub.js
+  - dev.sh
+  - config.local.example.js
+  - CLAUDE.md
+  - setup-guide.md
+  - skills-lock.json
+  - .agents/
+  - .cursor/

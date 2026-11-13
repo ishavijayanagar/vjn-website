@@ -1,5 +1,7 @@
 'use strict';
 
+const { readLimited } = require('./body-limit');
+
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -1539,12 +1541,7 @@ function createApiHandlers(deps) {
 }
 
 function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (c) => { body += c; });
-    req.on('end', () => resolve(body));
-    req.on('error', reject);
-  });
+  return readLimited(req);
 }
 
 module.exports = { createApiHandlers };

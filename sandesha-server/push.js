@@ -185,7 +185,8 @@ async function notify(audience, payload, extraFilter) {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: s.keys },
           body,
-          { TTL: 600 },
+          // Hold it for hours if the phone is off; "high" wakes the phone for time-critical alerts.
+          { TTL: Number(payload.ttl) > 0 ? Number(payload.ttl) : 6 * 3600, urgency: ['very-low', 'low', 'normal', 'high'].includes(payload.urgency) ? payload.urgency : 'normal' },
         );
         sent += 1;
       } catch (err) {

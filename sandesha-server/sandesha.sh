@@ -244,6 +244,10 @@ do_start() {
     free_port || die "could not free port ${PORT}."
     say "Starting Sandesha..."
     nohup node listen.js >>"$OUT_FILE" 2>&1 &
+    # Keep the console log from growing forever: past 5 MB, the old one is set aside.
+    if [[ -f "$OUT_FILE" && "$(stat -c %s "$OUT_FILE" 2>/dev/null || echo 0)" -gt 5242880 ]]; then
+      mv -f "$OUT_FILE" "${OUT_FILE}.1"
+    fi
     echo $! >"$PID_FILE"
     disown 2>/dev/null || true
     wait_for_api kill -0 "$(cat "$PID_FILE")"

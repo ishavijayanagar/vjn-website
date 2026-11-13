@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v183";
+const CACHE_NAME = "isha-vjn-v192";
 // Only unversioned files here: pages ask for "style.css?v=…" and each of
 // those is cached the first time it is fetched (see the fetch handler).
 const PRECACHE = [
@@ -14,7 +14,6 @@ const PRECACHE = [
   "./assets/icon-192.png",
   "./assets/icon-512.png",
   "./assets/sadhguru-hero.jpg",
-  "./assets/sg.jpg",
   "./assets/sg.webp",
   "./assets/signature-40159.png"
 ];
@@ -37,6 +36,10 @@ self.addEventListener("install", function (event) {
 });
 
 self.addEventListener("activate", function (event) {
+  event.waitUntil(
+    // Start the page request while the service worker is still waking up.
+    (self.registration.navigationPreload ? self.registration.navigationPreload.enable() : Promise.resolve()).catch(function () {})
+  );
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(
@@ -140,7 +143,9 @@ function putInCache(request, res) {
    NAV_TIMEOUT_MS and show the cached copy instead of a blank screen. */
 function networkFirst(event) {
   var request = event.request;
-  var network = fetch(request).then(function (res) {
+  var network = Promise.resolve(event.preloadResponse).then(function (pre) {
+    return pre || fetch(request);
+  }).then(function (res) {
     event.waitUntil(putInCache(request, res));
     return res;
   });
