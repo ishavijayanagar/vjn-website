@@ -12,6 +12,8 @@ const { createMirror } = require('./mirror');
 const { createVjnApi } = require('./vjn-api');
 const { createRoster } = require('./roster');
 const { readLimited, guardBody, SMALL_MAX_BYTES } = require('./body-limit');
+const { createStateStore } = require('./state-store');
+
 const { createCheckins } = require('./checkins');
 const { createReminders } = require('./reminders');
 const { createInbox } = require('./inbox');
@@ -76,9 +78,7 @@ function clearLocalAuthSession() {
 }
 
 const QR_PATH = path.join(__dirname, 'qr-code.png');
-const GROUPS_FILE = path.join(__dirname, 'groups.json');
 const DOCS_DIR = path.join(__dirname, 'docs');
-const SCHEDULES_FILE = path.join(__dirname, 'schedules.json');
 const DELIVERED_FILE = path.join(__dirname, 'delivered.json');
 const DELIVERED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const NOTIFY_FILE = path.join(__dirname, 'notifications.log');
@@ -86,6 +86,11 @@ const MEDIA_DIR = path.join(__dirname, 'media');
 const LOG_FILE = path.join(__dirname, 'sandesha.log');
 const ZC_WEBHOOK = 'http://127.0.0.1:42617/webhook';
 const LISTEN_PORT = 42620;
+
+// Everything Sandesha remembers lives in the database; files the old versions wrote are carried over once.
+const stateStore = createStateStore(shared());
+stateStore.importLegacy(__dirname, (m) => console.log(m));
+require('./planning-config').useStore(stateStore);
 const COMMANDS_GROUP_NAME = 'Me Commands';
 const COMMANDS_GROUP_JID = '120363426133559474@g.us';
 
@@ -253,11 +258,11 @@ async function botReply(msg, text) {
 }
 
 function loadSets() {
-  try { return JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8')); } catch { return {}; }
+  try { return stateStore.loadSets(); } catch { return {}; }
 }
 
 function saveSets(sets) {
-  fs.writeFileSync(GROUPS_FILE, JSON.stringify(sets, null, 2));
+  stateStore.saveSets(sets);
 }
 
 let settingsWizard = null;
@@ -356,11 +361,11 @@ async function reloadPlanningFromConfig() {
 }
 
 function loadSchedules() {
-  try { return JSON.parse(fs.readFileSync(SCHEDULES_FILE, 'utf8')); } catch { return []; }
+  try { return stateStore.loadSchedules(); } catch { return []; }
 }
 
 function saveSchedules(schedules) {
-  fs.writeFileSync(SCHEDULES_FILE, JSON.stringify(schedules, null, 2));
+  stateStore.saveSchedules(schedules);
 }
 
 function cancelPlanningScheduleById(id) {
@@ -407,14 +412,13 @@ function recordDelivered(schedules) {
   }
 }
 
-const CONTACTS_FILE = path.join(__dirname, 'contacts.json');
 
 function loadContacts() {
-  try { return JSON.parse(fs.readFileSync(CONTACTS_FILE, 'utf8')); } catch { return { contacts: {} }; }
+  try { return stateStore.loadContacts(); } catch { return { contacts: {} }; }
 }
 
 function saveContacts(data) {
-  fs.writeFileSync(CONTACTS_FILE, JSON.stringify(data, null, 2));
+  stateStore.saveContacts(data);
 }
 
 /**
@@ -788,7 +792,7 @@ function wireClientEvents(c) {
         budget: sendBudget,
         onSessionError: notifyWhatsAppSessionError,
         getChats: getChatsShared,
-        GROUPS_CACHE_FILE: path.join(__dirname, 'groups-cache.json'),
+        groupsCacheStore: { get: () => stateStore.getJson('groups_cache'), set: (v) => stateStore.setJson('groups_cache', v) },
         sendToTarget: deliverNowToTarget,
         sendGap: safety.sendGap,
       });
@@ -1097,12 +1101,10 @@ process.on('unhandledRejection', (reason) => {
 startSendServer();
 createAndStartWhatsApp();
 
-const STATE_FILE = path.join(__dirname, 'state.json');
-
 function loadState() {
   try {
-    if (fs.existsSync(STATE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    const data = stateStore.getJson('bot_state');
+    if (data && typeof data === 'object') {
       console.log(`[STATE] Loaded lastProcessedTimestamp: ${data.lastProcessedTimestamp}`);
       return data;
     }
@@ -1114,15 +1116,11 @@ function loadState() {
   return { lastProcessedTimestamp: ts };
 }
 
-/** Merges, because state.json holds both the poll cursor and the send budget. */
+/** Merges, because the state holds both the poll cursor and the send budget. */
 function saveState(patch) {
   let current = {};
-  try {
-    if (fs.existsSync(STATE_FILE)) current = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) || {};
-  } catch {
-    current = {};
-  }
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ ...current, ...patch }, null, 2));
+  try { current = stateStore.getJson('bot_state') || {}; } catch { current = {}; }
+  stateStore.setJson('bot_state', { ...current, ...patch });
 }
 
 const sendBudget = safety.createSendBudget({ loadState, saveState, log: (m) => log(m) });
@@ -4740,13 +4738,12 @@ async function friendlyTarget(schedule) {
   }
 }
 
-const HEADSUP_FILE = path.join(__dirname, 'push-prewarned.json');
 function loadPrewarned() {
-  try { return new Set(JSON.parse(fs.readFileSync(HEADSUP_FILE, 'utf8'))); }
+  try { return new Set(stateStore.getJson('push_prewarned') || []); }
   catch { return new Set(); }
 }
 function savePrewarned(set) {
-  try { fs.writeFileSync(HEADSUP_FILE, JSON.stringify([...set])); } catch { /* ignore */ }
+  try { stateStore.setJson('push_prewarned', [...set]); } catch { /* ignore */ }
 }
 
 let headsUpRunning = false;

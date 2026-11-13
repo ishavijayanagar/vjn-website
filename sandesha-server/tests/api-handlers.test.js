@@ -626,15 +626,16 @@ async function run() {
   });
 
   await test('getGroupsEnriched remembers the list across a restart', async () => {
-    const file = path.join(os.tmpdir(), `groups-cache-${process.pid}-${Date.now()}.json`);
+    let saved;
+    const store = { get: () => saved, set: (v) => { saved = v; } };
     try {
       const group = { isGroup: true, name: 'Remembered', id: { _serialized: 'r@g.us' }, fetchMessages: async () => [] };
-      const first = createApiHandlers(makeDeps({ client: { getChats: async () => [group] }, GROUPS_CACHE_FILE: file }));
+      const first = createApiHandlers(makeDeps({ client: { getChats: async () => [group] }, groupsCacheStore: store }));
       assert.strictEqual((await first.getGroupsEnriched())[0].name, 'Remembered');
       // "Restart": new handlers, WhatsApp not answering at all.
       const second = createApiHandlers(makeDeps({
         client: { getChats: () => new Promise(() => {}) },
-        GROUPS_CACHE_FILE: file,
+        groupsCacheStore: store,
       }));
       const list = await Promise.race([
         second.getGroupsEnriched(),
@@ -642,7 +643,7 @@ async function run() {
       ]);
       assert.strictEqual(list[0].name, 'Remembered');
     } finally {
-      try { fs.unlinkSync(file); } catch { /* ignore */ }
+      saved = undefined;
     }
   });
 

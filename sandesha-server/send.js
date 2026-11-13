@@ -4,7 +4,6 @@ const fs = require('fs');
 
 require('./auth');
 
-const GROUPS_FILE = path.join(__dirname, 'groups.json');
 let apiToken = null;
 
 const args = process.argv.slice(2);
@@ -38,14 +37,15 @@ Usage:
   node send.js --set family --file "C:\\path\\video.mp4" --caption "Hi"  Send media to set
   node send.js --group "Group1" --file "photo.jpg" --caption "Look!"     Send media to group
 
-Group sets are defined in groups.json.
+Group sets are the ones saved in Sandesha (Settings → Sets).
 `);
   process.exit(0);
 }
 
 function loadSets() {
   try {
-    return JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8'));
+    const { shared } = require('./db');
+    return require('./state-store').createStateStore(shared()).loadSets();
   } catch {
     return {};
   }

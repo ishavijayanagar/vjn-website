@@ -87,7 +87,8 @@ function createApiHandlers(deps) {
     sendToTarget = null,
     sendGap = async () => {},
     // Where to remember the last group list so a restart does not start from nothing.
-    GROUPS_CACHE_FILE = null,
+    // { get(), set(value) } → where the last group list is remembered (the database).
+    groupsCacheStore = null,
     pushSvc = push,
     promoJobsDb = null,
     promoFetch,
@@ -96,9 +97,9 @@ function createApiHandlers(deps) {
 
   let groupsCache = { at: 0, data: null };
   let groupsInFlight = null;
-  if (GROUPS_CACHE_FILE) {
+  if (groupsCacheStore) {
     try {
-      const saved = JSON.parse(fs.readFileSync(GROUPS_CACHE_FILE, 'utf8'));
+      const saved = groupsCacheStore.get();
       if (saved && Array.isArray(saved.data) && Date.now() - saved.at < GROUPS_STALE_MAX_MS) {
         groupsCache = { at: saved.at, data: saved.data };
       }
@@ -402,8 +403,8 @@ function createApiHandlers(deps) {
         }));
         enriched.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         groupsCache = { at: Date.now(), data: enriched };
-        if (GROUPS_CACHE_FILE) {
-          try { fs.writeFileSync(GROUPS_CACHE_FILE, JSON.stringify(groupsCache)); } catch { /* best effort */ }
+        if (groupsCacheStore) {
+          try { groupsCacheStore.set(groupsCache); } catch { /* best effort */ }
         }
         return enriched;
       } catch (err) {

@@ -8,9 +8,15 @@ const CONFIG_FILE = path.join(__dirname, 'planning-config.json');
 
 let onChangeHook = null;
 
+// Settings live in the database (key planning_config) once useStore() is called; before that, in memory.
+let store = null;
+let memory = {};
+
+function useStore(s) { store = s; }
+
 function loadFile() {
   try {
-    const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    const raw = store ? store.getJson('planning_config') : memory;
     return raw && typeof raw === 'object' ? raw : {};
   } catch {
     return {};
@@ -18,7 +24,8 @@ function loadFile() {
 }
 
 function saveFile(data) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
+  if (store) store.setJson('planning_config', data);
+  else memory = data;
 }
 
 function normalizeOperatorList(list, normalizePhoneDigits) {
@@ -115,6 +122,7 @@ function setOnChange(fn) {
 module.exports = {
   CONFIG_FILE,
   loadFile,
+  useStore,
   getEffectiveSettings,
   getPublicConfig,
   savePlanningConfig,

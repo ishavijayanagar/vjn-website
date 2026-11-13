@@ -150,6 +150,23 @@ const MIGRATIONS = [
      updated_at INTEGER NOT NULL DEFAULT 0,
      data TEXT NOT NULL DEFAULT '{}'
    ) STRICT`,
+  // 13 — scheduled sends, group sets and contacts (were schedules.json, groups.json, contacts.json)
+  `CREATE TABLE scheduled_sends (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     id TEXT NOT NULL UNIQUE,
+     run_at TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'pending',
+     data TEXT NOT NULL DEFAULT '{}'
+   ) STRICT;
+   CREATE INDEX scheduled_sends_due ON scheduled_sends (status, run_at);
+   CREATE TABLE group_sets (name TEXT PRIMARY KEY) STRICT;
+   CREATE TABLE group_set_members (
+     set_name TEXT NOT NULL REFERENCES group_sets (name) ON DELETE CASCADE,
+     group_jid TEXT NOT NULL,
+     pos INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (set_name, group_jid)
+   ) STRICT;
+   CREATE TABLE whatsapp_contacts (name TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {
