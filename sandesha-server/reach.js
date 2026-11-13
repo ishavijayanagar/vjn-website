@@ -203,7 +203,21 @@ function keyOf(id) {
 
 function serializedOf(id) {
   if (!id) return '';
-  return typeof id === 'object' ? String(id._serialized || '') : String(id);
+  if (typeof id !== 'object') return String(id);
+  if (id._serialized) return String(id._serialized);
+  // An id without the joined form: build it the way WhatsApp does (fromMe_chat_id).
+  if (id.id && id.remote) return `${id.fromMe ? 'true' : 'false'}_${typeof id.remote === 'object' ? id.remote._serialized || '' : id.remote}_${id.id}`;
+  return '';
+}
+
+/** What a send gave back, for the log when there is nothing to track. */
+function describeSent(sent) {
+  if (sent === undefined || sent === null) return 'the send returned nothing';
+  try {
+    return `the send returned ${typeof sent} with keys [${Object.keys(sent).slice(0, 12).join(', ')}] and id ${JSON.stringify(sent.id)}`;
+  } catch {
+    return 'the send returned something unreadable';
+  }
 }
 
 function hashOf(s) {
@@ -228,7 +242,7 @@ function track(sent, { jid, content, caption, context } = {}) {
     const id = serializedOf(sent?.id);
     const chat = String(jid || sent?.to || sent?.id?.remote || '');
     if (!id || !chat) {
-      deps.log(`[REACH] not tracked: the send gave back no message id (chat ${chat || 'unknown'}) — nothing to measure`);
+      deps.log(`[REACH] not tracked: no message id (chat ${chat || 'unknown'}); ${describeSent(sent)}`);
       return;
     }
     // Read the framing now — it changes as soon as the caller moves on.
