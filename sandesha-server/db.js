@@ -167,6 +167,31 @@ const MIGRATIONS = [
      PRIMARY KEY (set_name, group_jid)
    ) STRICT;
    CREATE TABLE whatsapp_contacts (name TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT`,
+  // 14 — the Activity log and the send audit (were activity.jsonl and send-audit.jsonl)
+  `CREATE TABLE activity_log (
+     id TEXT PRIMARY KEY,
+     at INTEGER NOT NULL,
+     category TEXT NOT NULL DEFAULT 'system',
+     type TEXT NOT NULL DEFAULT 'ok',
+     corr_id TEXT NOT NULL DEFAULT '',
+     data TEXT NOT NULL DEFAULT '{}'
+   ) STRICT;
+   CREATE INDEX activity_log_time ON activity_log (at);
+   CREATE TABLE send_audit_log (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     at INTEGER NOT NULL,
+     kind TEXT NOT NULL DEFAULT '',
+     target TEXT NOT NULL DEFAULT '',
+     chars INTEGER NOT NULL DEFAULT 0
+   ) STRICT;
+   CREATE INDEX send_audit_log_time ON send_audit_log (at)`,
+  // 15 — message reach (was reach.json): one row per tracked message
+  `CREATE TABLE message_reach (
+     id TEXT PRIMARY KEY,
+     sent_at INTEGER NOT NULL DEFAULT 0,
+     data TEXT NOT NULL DEFAULT '{}'
+   ) STRICT;
+   CREATE INDEX message_reach_time ON message_reach (sent_at)`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {

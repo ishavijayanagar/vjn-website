@@ -10,13 +10,10 @@
  * a caller: recording an event must not break the thing being recorded.
  */
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
 
 // Tests point this at a temp file so they never write into the live log.
-const ACTIVITY_FILE = process.env.SANDESHA_ACTIVITY_FILE || path.join(__dirname, 'activity.jsonl');
-const MAX_BYTES = 4 * 1024 * 1024;   // rows now carry per-recipient detail
-const READ_TAIL_BYTES = 3 * 1024 * 1024;
+const KEEP_MS = 90 * 24 * 60 * 60 * 1000;
+const MAX_ROWS = 20000;
 const MAX_META_CHARS = 16000;
 
 /** Known categories — kept in sync with the dashboard filter chips. */
@@ -41,6 +38,28 @@ const CATEGORIES = new Set([
  *                                      message, per-recipient results, errors, schedule times…
  * @param {boolean}[evt.push]           also fire a Web Push notification (summary events only)
  */
+/** The log lives in the database once useDb() is called (the server does); before that, in memory. */
+let db = null;
+let memory = [];
+let writes = 0;
+
+function useDb(handle) { db = handle; }
+
+function store(row) {
+  if (!db) {
+    memory.push(row);
+    if (memory.length > 500) memory = memory.slice(-500);
+    return;
+  }
+  db.prepare('INSERT OR IGNORE INTO activity_log (id, at, category, type, corr_id, data) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(row.id, Date.parse(row.at), row.category, row.type, row.corrId || '', JSON.stringify(row));
+  // Keep 90 days and at most MAX_ROWS rows; checked now and then, not on every write.
+  if (++writes % 200 === 0) {
+    db.prepare('DELETE FROM activity_log WHERE at < ?').run(Date.now() - KEEP_MS);
+    db.prepare('DELETE FROM activity_log WHERE at < (SELECT at FROM activity_log ORDER BY at DESC LIMIT 1 OFFSET ?)').run(MAX_ROWS);
+  }
+}
+
 function recordEvent(evt = {}) {
   try {
     const type = evt.type || (evt.ok === false ? 'err' : 'ok');
@@ -60,10 +79,7 @@ function recordEvent(evt = {}) {
       actor: cleanActor(evt.actor),
       meta: capMeta(evt.meta),
     };
-    if (fs.existsSync(ACTIVITY_FILE) && fs.statSync(ACTIVITY_FILE).size > MAX_BYTES) {
-      fs.renameSync(ACTIVITY_FILE, `${ACTIVITY_FILE}.1`);
-    }
-    fs.appendFileSync(ACTIVITY_FILE, `${JSON.stringify(row)}\n`);
+    store(row);
 
     if (evt.push && pushSender) {
       try { pushForEvent(row); } catch { /* push must not break logging */ }
@@ -142,39 +158,18 @@ function pushForEvent(row) {
  * @returns {Array<object>}
  */
 function loadActivity({ limit = 100, sinceIso = '' } = {}) {
-  let text = '';
+  const n = Math.max(1, Math.min(500, limit));
+  const sinceTs = sinceIso ? Date.parse(sinceIso) : NaN;
+  const since = Number.isNaN(sinceTs) ? 0 : sinceTs;
   try {
-    if (!fs.existsSync(ACTIVITY_FILE)) return [];
-    const { size } = fs.statSync(ACTIVITY_FILE);
-    const start = Math.max(0, size - READ_TAIL_BYTES);
-    const fd = fs.openSync(ACTIVITY_FILE, 'r');
-    try {
-      const buf = Buffer.alloc(size - start);
-      fs.readSync(fd, buf, 0, buf.length, start);
-      text = buf.toString('utf8');
-    } finally {
-      fs.closeSync(fd);
+    if (!db) {
+      return memory.slice().reverse().filter((r) => Date.parse(r.at) >= since).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, n);
     }
+    return db.prepare('SELECT data FROM activity_log WHERE at >= ? ORDER BY at DESC, rowid DESC LIMIT ?').all(since, n)
+      .map((r) => JSON.parse(r.data));
   } catch {
     return [];
   }
-
-  const sinceTs = sinceIso ? Date.parse(sinceIso) : NaN;
-  const rows = [];
-  for (const line of text.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed[0] !== '{') continue;
-    try {
-      const row = JSON.parse(trimmed);
-      if (!row.at) continue;
-      if (!Number.isNaN(sinceTs) && Date.parse(row.at) < sinceTs) continue;
-      rows.push(row);
-    } catch {
-      /* skip a torn line */
-    }
-  }
-  rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-  return rows.slice(0, Math.max(1, Math.min(500, limit)));
 }
 
-module.exports = { ACTIVITY_FILE, CATEGORIES, recordEvent, loadActivity, setPushSender };
+module.exports = { CATEGORIES, recordEvent, loadActivity, setPushSender, useDb };

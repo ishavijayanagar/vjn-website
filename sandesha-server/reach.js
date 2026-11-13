@@ -41,6 +41,7 @@ let deps = {
   ignoreChat: () => false,
   myId: () => null,
   log: () => {},
+  db: null,
 };
 let store = null;
 let saveTimer = null;
@@ -56,14 +57,39 @@ function init(options = {}) {
 
 function load() {
   if (store) return store;
-  try {
-    const raw = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-    store = raw && typeof raw.messages === 'object' ? raw : { version: 1, messages: {} };
-  } catch {
-    store = { version: 1, messages: {} };
+  store = { version: 1, messages: {} };
+  if (deps.db) {
+    // Database: one row per message. The old reach.json is carried over once, into an empty table.
+    try {
+      if (deps.db.prepare('SELECT COUNT(*) AS n FROM message_reach').get().n === 0 && fs.existsSync(STORE_FILE)) {
+        const old = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+        if (old && typeof old.messages === 'object') store = old;
+        persist();
+        fs.renameSync(STORE_FILE, `${STORE_FILE}.migrated`);
+      } else {
+        for (const r of deps.db.prepare('SELECT id, data FROM message_reach').all()) store.messages[r.id] = JSON.parse(r.data);
+      }
+    } catch (err) {
+      deps.log(`[REACH] could not load: ${err.message}`);
+    }
+  } else {
+    try {
+      const raw = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+      if (raw && typeof raw.messages === 'object') store = raw;
+    } catch { /* start empty */ }
   }
   reindex();
   return store;
+}
+
+/** Writes every tracked message to the database in one transaction (and drops the ones pruned from memory). */
+function persist() {
+  const db = deps.db;
+  const put = db.prepare('INSERT INTO message_reach (id, sent_at, data) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET data = excluded.data');
+  db.transaction(() => {
+    db.prepare('DELETE FROM message_reach').run();
+    for (const [id, rec] of Object.entries(store.messages)) put.run(id, Number(rec.sentAt || rec.at || 0) || 0, JSON.stringify(rec));
+  })();
 }
 
 function reindex() {
@@ -78,9 +104,13 @@ function save(now = false) {
   const write = () => {
     saveTimer = null;
     try {
-      const tmp = `${STORE_FILE}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify(store));
-      fs.renameSync(tmp, STORE_FILE);
+      if (deps.db) {
+        persist();
+      } else {
+        const tmp = `${STORE_FILE}.tmp`;
+        fs.writeFileSync(tmp, JSON.stringify(store));
+        fs.renameSync(tmp, STORE_FILE);
+      }
     } catch (err) {
       deps.log(`[REACH] could not save: ${err.message}`);
     }

@@ -91,6 +91,8 @@ const LISTEN_PORT = 42620;
 const stateStore = createStateStore(shared());
 stateStore.importLegacy(__dirname, (m) => console.log(m));
 require('./planning-config').useStore(stateStore);
+activity.useDb(shared());
+safety.useDb(shared());
 const COMMANDS_GROUP_NAME = 'Me Commands';
 const COMMANDS_GROUP_JID = '120363426133559474@g.us';
 
@@ -1572,6 +1574,7 @@ function withSendContext(ctx, fn) {
 
 // Reach tracking reads these lazily — the client is replaced on reconnect.
 reach.init({
+  db: shared(),
   getClient: () => client,
   getContext: () => sendContext,
   // A send in progress has right of way over reach checks.

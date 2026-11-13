@@ -15,8 +15,6 @@ const fs = require('fs');
 const path = require('path');
 
 const TZ = 'Asia/Kolkata';
-const AUDIT_FILE = path.join(__dirname, 'send-audit.jsonl');
-const AUDIT_MAX_BYTES = 2 * 1024 * 1024;
 
 function envInt(name, fallback) {
   const raw = Number(process.env[name]);
@@ -303,13 +301,16 @@ async function withTypingPresence(chat, text, { enabled = CONFIG.typingSimulatio
  * One line per send, so the real interval distribution can be audited rather
  * than assumed. Rotates itself; never throws into a send path.
  */
+let auditDb = null;
+let auditWrites = 0;
+function useDb(handle) { auditDb = handle; }
+
 function auditSend(entry) {
-  if (!CONFIG.auditLog) return;
+  if (!CONFIG.auditLog || !auditDb) return;
   try {
-    if (fs.existsSync(AUDIT_FILE) && fs.statSync(AUDIT_FILE).size > AUDIT_MAX_BYTES) {
-      fs.renameSync(AUDIT_FILE, `${AUDIT_FILE}.1`);
-    }
-    fs.appendFileSync(AUDIT_FILE, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`);
+    auditDb.prepare('INSERT INTO send_audit_log (at, kind, target, chars) VALUES (?, ?, ?, ?)')
+      .run(Date.now(), String(entry.kind || ''), String(entry.target || ''), Number(entry.chars) || 0);
+    if (++auditWrites % 500 === 0) auditDb.prepare('DELETE FROM send_audit_log WHERE at < ?').run(Date.now() - 90 * 24 * 3600e3);
   } catch {
     /* auditing must never break sending */
   }
@@ -318,7 +319,7 @@ function auditSend(entry) {
 module.exports = {
   CONFIG,
   TZ,
-  AUDIT_FILE,
+  useDb,
   delay,
   jitter,
   sendGap,
