@@ -2939,6 +2939,8 @@
       (phone ? '<span class="vpr-detail"><b>WhatsApp</b> ' + escapeHtml(phone) + "</span>" : "") +
       (v.ieCompletion ? '<span class="vpr-detail"><b>IE completed</b> ' + escapeHtml(v.ieCompletion) + "</span>" : "") +
       (v.addedBy ? '<span class="vpr-detail"><b>Added by</b> ' + escapeHtml(v.addedBy === "google-form" ? "Google form" : v.addedBy) + "</span>" : "") +
+      (v.source ? '<span class="vpr-detail"><b>Source</b> ' + escapeHtml(v.source === "google-form" ? "Google form" : v.source === "walk-in" ? "Walk-in" : "Team") + "</span>" : "") +
+      (v.checkedInAt ? '<span class="vpr-detail"><b>Checked in</b> ' + escapeHtml(String(v.checkedInAt).replace("T", " ")) + "</span>" : "") +
       (v.remarks ? volunteerRemarksHtml(v.remarks, "vpr-remarks") : "") +
       (closed
         ? '<span class="vpr-chips">' +
