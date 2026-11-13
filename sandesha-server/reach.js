@@ -227,9 +227,14 @@ function track(sent, { jid, content, caption, context } = {}) {
   try {
     const id = serializedOf(sent?.id);
     const chat = String(jid || sent?.to || sent?.id?.remote || '');
-    if (!id || !chat || deps.ignoreChat(chat)) return;
+    if (!id || !chat) {
+      deps.log(`[REACH] not tracked: the send gave back no message id (chat ${chat || 'unknown'}) — nothing to measure`);
+      return;
+    }
+    if (deps.ignoreChat(chat)) return;
     load();
     if (store.messages[id]) return;
+    deps.log(`[REACH] tracking ${id} in ${chat}`);
 
     // Read the framing now — it changes as soon as the caller moves on.
     const ctx = { ...(deps.getContext() || {}), ...(context || {}) };
