@@ -107,3 +107,6 @@ sandesha.out
 
 groups-cache.json
 delivered.json
+
+# Old JSON state files carried into the database on first start
+*.migrated
