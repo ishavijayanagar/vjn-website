@@ -644,6 +644,51 @@ function totals(posts) {
   return t;
 }
 
+/**
+ * When posts get read. Group sends from the last `days`, old enough to have settled (a day), grouped by
+ * IST time of day (3-hour bands) and by weekday. Read rate = read ÷ members, a lower bound (people with
+ * read receipts off only count as reached). A band is only ranked once it has MIN_SENDS sends — a few
+ * posts say nothing about a time of day.
+ */
+const MIN_SENDS = 3;
+const SETTLED_MS = 24 * HOUR;
+const BANDS = [[0, 3], [3, 6], [6, 9], [9, 12], [12, 15], [15, 18], [18, 21], [21, 24]];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function bandLabel([a, b]) {
+  const h = (n) => `${n % 12 === 0 ? 12 : n % 12}${n % 24 >= 12 ? ' pm' : ' am'}`;
+  return `${h(a)}–${h(b === 24 ? 0 : b)}`;
+}
+
+function bestTimes(days = 90) {
+  const now = Date.now();
+  const from = now - Math.max(1, Math.min(90, Number(days) || 90)) * 24 * HOUR;
+  const slots = BANDS.map((b) => ({ label: bandLabel(b), sends: 0, audience: 0, read: 0 }));
+  const weekdays = DAY_NAMES.map((d) => ({ label: d, sends: 0, audience: 0, read: 0 }));
+  let used = 0;
+  for (const r of Object.values(load().messages)) {
+    if (!r.isGroup || !(r.audience > 0) || r.sentAt < from || r.sentAt > now - SETTLED_MS) continue;
+    const ist = new Date(r.sentAt + IST_OFFSET_MS);
+    const slot = slots[Math.floor(ist.getUTCHours() / 3)];
+    const day = weekdays[ist.getUTCDay()];
+    for (const b of [slot, day]) {
+      b.sends += 1;
+      b.audience += r.audience;
+      b.read += Math.min(r.read || 0, r.audience);
+    }
+    used += 1;
+  }
+  const rate = (b) => (b.audience ? b.read / b.audience : 0);
+  const finish = (list) => {
+    const rows = list.map((b) => ({ ...b, readRate: rate(b), enough: b.sends >= MIN_SENDS }));
+    const ranked = rows.filter((b) => b.enough).sort((a, b) => b.readRate - a.readRate);
+    return { rows, best: ranked.length ? ranked[0].label : '' };
+  };
+  const t = finish(slots);
+  const d = finish(weekdays);
+  return { minSends: MIN_SENDS, sends: used, times: t.rows, bestTime: t.best, days: d.rows, bestDay: d.best };
+}
+
 function summary(rangeDays = 30) {
   const days = Math.max(1, Math.min(90, Number(rangeDays) || 30));
   const now = Date.now();
@@ -711,6 +756,7 @@ function summary(rangeDays = 30) {
     previous: totals(prev),
     daily,
     groups,
+    bestTimes: bestTimes(),
     measuring: posts.filter((p) => p.status === 'measuring').length,
     trackingSince: Object.values(store.messages).reduce((m, r) => Math.min(m, r.sentAt), Infinity),
   };

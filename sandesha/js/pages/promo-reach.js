@@ -270,22 +270,54 @@ function postCard(p) {
 
 function groupsCard(groups) {
   if (!groups.length) return '';
-  const top = groups.filter((g) => g.audience > 0).slice(0, 8);
-  if (!top.length) return '';
-  return `<div class="rc-card">
-    <div class="rc-card-head">
-      <h3 class="rc-h">Groups that read the most</h3>
-    </div>
-    <ol class="rc-groups">
-      ${top.map((g) => `<li>
+  const all = groups.filter((g) => g.audience > 0);
+  if (!all.length) return '';
+  const row = (g) => `<li>
         <div class="rc-g-row">
           <span class="rc-g-name">${escapeHtml(g.name)}</span>
           <span class="rc-g-pct">${pctText(g.read, g.audience) || '—'}</span>
         </div>
         ${reachBar(g.audience, g.delivered, g.read)}
         <span class="rc-g-sub">${g.posts} post${g.posts === 1 ? '' : 's'} · ${num(g.read)} reads in total${g.replies ? ` · 💬 ${num(g.replies)}` : ''}</span>
-      </li>`).join('')}
-    </ol>
+      </li>`;
+  const top = all.slice(0, 8);
+  const rest = all.slice(8);
+  return `<div class="rc-card">
+    <div class="rc-card-head">
+      <h3 class="rc-h">Groups that read the most</h3>
+    </div>
+    <ol class="rc-groups">${top.map(row).join('')}</ol>
+    ${rest.length ? `<details class="rc-table"><summary>Show all ${all.length} groups</summary><ol class="rc-groups">${rest.map(row).join('')}</ol></details>` : ''}
+  </div>`;
+}
+
+/** When posts get read: read rate by time of day and by weekday. Ranked only where there is enough to go on. */
+function bestTimeCard(b) {
+  if (!b) return '';
+  const rowsHtml = (rows, best) => rows.map((r) => `<li class="${r.label === best ? 'rc-best' : ''}">
+      <div class="rc-g-row">
+        <span class="rc-g-name">${escapeHtml(r.label)}${r.label === best ? ' · best' : ''}</span>
+        <span class="rc-g-pct">${r.enough ? pctText(r.read, r.audience) || '0%' : '—'}</span>
+      </div>
+      ${r.enough ? reachBar(r.audience, r.audience, r.read) : '<div class="rc-bar" aria-hidden="true"></div>'}
+      <span class="rc-g-sub">${r.sends} send${r.sends === 1 ? '' : 's'}${r.enough ? '' : ` · needs ${b.minSends}`}</span>
+    </li>`).join('');
+  const anyRanked = b.bestTime || b.bestDay;
+  const headline = anyRanked
+    ? `Your posts are read most ${b.bestTime ? `between <strong>${escapeHtml(b.bestTime)}</strong>` : ''}${b.bestTime && b.bestDay ? ', ' : ''}${b.bestDay ? `on <strong>${escapeHtml(b.bestDay)}s</strong>` : ''}.`
+    : `Not enough yet. Each time slot or day needs ${b.minSends} group posts that are a day old; ${b.sends} so far.`;
+  return `<div class="rc-card">
+    <div class="rc-card-head"><h3 class="rc-h">Best time to post</h3></div>
+    <p class="rc-empty-line">${headline}</p>
+    <details class="rc-table" ${anyRanked ? 'open' : ''}>
+      <summary>Read rate by time of day</summary>
+      <ol class="rc-groups">${rowsHtml(b.times, b.bestTime)}</ol>
+    </details>
+    <details class="rc-table">
+      <summary>Read rate by weekday</summary>
+      <ol class="rc-groups">${rowsHtml(b.days, b.bestDay)}</ol>
+    </details>
+    <p class="rc-g-sub">Based on ${b.sends} group posts at least a day old, in Indian time. Counts are a lower bound: people with read receipts off only show as reached.</p>
   </div>`;
 }
 
@@ -339,6 +371,7 @@ async function renderList() {
       ${list.more ? `<button type="button" class="rc-more" data-more="${list.posts[list.posts.length - 1].sentAt}">Show older posts</button>` : ''}
     </div>
     ${groupsCard(s.groups)}
+    ${bestTimeCard(s.bestTimes)}
     ${note(s)}
   </div>`;
   bindTop();
