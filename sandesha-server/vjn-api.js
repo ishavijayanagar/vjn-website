@@ -36,7 +36,7 @@ class HttpError extends Error {
   }
 }
 
-function createVjnApi({ listings, content, inquiries, ev, checkins = null, roster = null, notify = null, ready = () => true }) {
+function createVjnApi({ listings, content, inquiries, ev, checkins = null, roster = null, notify = null, audit = null, ready = () => true }) {
   function need(session, roles) {
     if (!roles.includes(session.role)) throw new HttpError(403, 'You do not have access to this.');
   }
@@ -66,6 +66,13 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
   /** Returns the reply, or undefined when this formType is not handled here
    * (or the Sheet's data has not been copied in yet — see scripts/import-data.js). */
   function admin(session, data) {
+    const out = adminInner(session, data);
+    // A change that went through is recorded: who, what, which item.
+    if (audit && out !== undefined && ROLES[String(data.formType || '')]) audit(session, String(data.formType), data);
+    return out;
+  }
+
+  function adminInner(session, data) {
     const type = String(data.formType || '');
     // Who is signed in: answered here whether or not the data has moved, so the page opens without a trip to Apps Script.
     if (type === 'adminSession') {

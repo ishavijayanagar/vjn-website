@@ -192,12 +192,30 @@ const MIGRATIONS = [
      data TEXT NOT NULL DEFAULT '{}'
    ) STRICT;
    CREATE INDEX message_reach_time ON message_reach (sent_at)`,
+  // 16 — the volunteer roster as rows, and a record of who changed what in the admin
+  `CREATE TABLE volunteer_roster (
+     pos INTEGER PRIMARY KEY,
+     data TEXT NOT NULL DEFAULT '[]'
+   ) STRICT;
+   CREATE TABLE admin_audit_log (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     at INTEGER NOT NULL,
+     user_id TEXT NOT NULL DEFAULT '',
+     username TEXT NOT NULL DEFAULT '',
+     role TEXT NOT NULL DEFAULT '',
+     action TEXT NOT NULL,
+     resource TEXT NOT NULL DEFAULT '',
+     resource_id TEXT NOT NULL DEFAULT ''
+   ) STRICT;
+   CREATE INDEX admin_audit_log_time ON admin_audit_log (at)`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  db.pragma('synchronous = NORMAL'); // safe with WAL, and faster
+  db.pragma('busy_timeout = 5000');
   const version = db.pragma('user_version', { simple: true });
   for (let i = version; i < MIGRATIONS.length; i++) {
     db.transaction(() => {

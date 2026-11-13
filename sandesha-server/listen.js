@@ -13,6 +13,7 @@ const { createVjnApi } = require('./vjn-api');
 const { createRoster } = require('./roster');
 const { readLimited, guardBody, SMALL_MAX_BYTES } = require('./body-limit');
 const { createStateStore } = require('./state-store');
+const { createAuditTrail } = require('./audit-trail');
 
 const { createCheckins } = require('./checkins');
 const { createReminders } = require('./reminders');
@@ -3807,9 +3808,11 @@ const vjnInbox = createInbox({
   inquiries: vjnInquiries, ev: vjnEv, sheetCall, log, enabled: () => !!dataFlag.get(),
 });
 const vjnCheckins = createCheckins({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
+const adminAudit = createAuditTrail(vjnDb);
 const vjnApi = createVjnApi({
   listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, checkins: vjnCheckins, roster: vjnRoster,
   notify: (audience, payload) => push.notify(audience, payload),
+  audit: (session, action, data) => adminAudit.record(session, action, data),
   // Until scripts/import-data.js has run, the Sheet is still the record.
   ready: () => !!dataFlag.get(),
 });
@@ -4796,6 +4799,15 @@ async function runScheduleHeadsUp() {
   } finally {
     headsUpRunning = false;
   vjnRoster.start();
+  // Hourly housekeeping: fold the write-ahead log back into the database file and drop expired logins.
+  const maintain = () => {
+    try {
+      vjnDb.prepare('DELETE FROM login_sessions WHERE expires_at <= ?').run(Date.now());
+      vjnDb.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (err) { log(`[db] maintenance failed: ${err.message}`); }
+  };
+  maintain();
+  setInterval(maintain, 3600e3).unref();
   }
 }
 

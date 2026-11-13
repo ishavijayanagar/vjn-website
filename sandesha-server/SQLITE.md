@@ -19,6 +19,29 @@ copy and the public pages can read it if the Pi is down.
 | `id_counters` | Next ID numbers, so deleted IDs are never reused | — |
 | `checkins` | Volunteer check-ins (to be folded into `event_vols`) | *monthly tabs* |
 
+Sandesha's own state also lives in the database now (nothing is kept in loose JSON files any more):
+
+| Table | What |
+|---|---|
+| `login_sessions` | Signed-in sessions (stored as a hash of the token; people sign in again after a restart only once) |
+| `scheduled_sends` | Scheduled WhatsApp sends |
+| `delivered_sends` | Which scheduled sends were delivered (so a post is never sent twice) |
+| `group_sets`, `group_set_members` | Named sets of WhatsApp groups |
+| `whatsapp_contacts` | Saved contact names and numbers |
+| `push_subscriptions` | Phones that get push notifications |
+| `promo_send_jobs` | Promotion send jobs (48 hours) |
+| `activity_log`, `send_audit_log` | The Activity log and the send audit (90 days) |
+| `message_reach` | How far each post travelled |
+| `volunteer_roster` | The volunteer roster, one row per person (refreshed from its Sheet every 10 minutes) |
+| `admin_audit_log` | Who changed what in the admin (1 year; no contents) |
+| `app_setting` | Small settings: poll cursor and send budget (`bot_state`), planning group (`planning_config`), last group list (`groups_cache`), push heads-up memory, flags |
+
+The first time the new version starts, the old files (`schedules.json`, `groups.json`, `contacts.json`,
+`state.json`, `planning-config.json`, `groups-cache.json`, `push-prewarned.json`, `push-subscriptions.json`,
+`reach.json`) are copied in once and renamed to `.migrated`; nothing is overwritten. `activity.jsonl` and
+`send-audit.jsonl` are left where they are and no longer written. Every hour the server folds the write-ahead
+log back into the database file and removes expired logins.
+
 Still in Apps Script, because they need Google: **Google Forms** (making,
 connecting, responses), **Slides flyers** (templates, rendering, thumbnails),
 **Drive uploads**, and the external volunteer-roster sheet.
