@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"/>
+  <meta name="referrer" content="no-referrer"/>
+  <meta name="robots" content="noindex"/>
+  <meta name="theme-color" content="#f5f0e8"/>
+  <title>Directory – Isha Place, Vijayanagar</title>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="stylesheet" href="vol-interests.css?v=13"/>
+  <link rel="stylesheet" href="volunteers.css?v=11"/>
+  <script src="config.js"></script>
+</head>
+<body>
+  <main class="vi-wrap vd-wrap">
+    <header class="vi-head" id="vdHead">
+      <a class="vi-back" href="admin.html#volunteers" aria-label="Back to volunteers">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </a>
+      <h1>Directory</h1>
+      <div class="vd-head-actions">
+        <div class="vd-menu-wrap">
+          <button type="button" class="vi-btn" id="vdExportBtn" aria-haspopup="true" aria-expanded="false">Export</button>
+          <div class="vd-menu" id="vdExportMenu" role="menu" inert>
+            <button type="button" role="menuitem" id="vdCsv">Download CSV</button>
+            <button type="button" role="menuitem" id="vdSheet">Open in Google Sheets</button>
+          </div>
+        </div>
+        <button type="button" class="vi-btn vi-btn--primary" id="vdCampaignBtn">Create campaign</button>
+      </div>
+    </header>
+
+
+    <p class="vi-note" id="vdAuth" hidden>Sign in on the <a href="admin.html">admin page</a> first.</p>
+
+    <section class="vi-panel vd-filters" aria-label="Filters">
+      <div class="vd-row">
+        <label class="vd-search"><span class="vd-sr">Search</span>
+          <input type="text" id="fSearch" placeholder="Search name or number" autocomplete="off"/>
+        </label>
+        <div class="vd-pop-wrap">
+          <button type="button" class="vd-select" id="fProgramBtn" aria-haspopup="true" aria-expanded="false"><span id="fProgramLabel">All programs</span></button>
+          <div class="vd-pop" id="fProgramPop" inert>
+            <input type="text" id="fProgramFind" placeholder="Find a program" autocomplete="off"/>
+            <div class="vd-pop-list" id="fProgramList"></div>
+            <div class="vd-pop-foot"><button type="button" class="vi-btn vi-btn--text" id="fProgramClear">Clear</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vd-chips" id="fStages" role="group" aria-label="Stage"></div>
+
+      <button type="button" class="vd-more" id="vdMoreBtn" aria-expanded="false">
+        <span class="vd-more-l">More filters</span><span class="vd-badge" id="vdBadge" hidden></span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+
+      <div class="vd-expand" id="vdMore" inert role="group" aria-label="More filters">
+        <div class="vd-expand-inner">
+          <div class="vd-sheet-head">
+            <h3 id="vdSheetTitle" tabindex="-1">Filters</h3>
+            <button type="button" class="vi-btn vi-btn--primary" id="vdMoreDone">Show results</button>
+          </div>
+      <div class="vd-grid">
+        <div class="vd-field"><label for="fProgFrom">Program date from</label><input type="date" id="fProgFrom"/></div>
+        <div class="vd-field"><label for="fProgTo">Program date to</label><input type="date" id="fProgTo"/></div>
+        <div class="vd-field"><label for="fAddedFrom">Added from</label><input type="date" id="fAddedFrom"/></div>
+        <div class="vd-field"><label for="fAddedTo">Added to</label><input type="date" id="fAddedTo"/></div>
+        <div class="vd-field"><label for="fArea">Area</label><input type="text" id="fArea" list="fAreaList" autocomplete="off"/><datalist id="fAreaList"></datalist></div>
+        <div class="vd-field"><label for="fIe">IE completion</label>
+          <select id="fIe"><option value="any">Any</option><option value="has">Has a date</option><option value="none">No date</option></select></div>
+        <div class="vd-field"><label for="fIeFrom">IE year from</label><input type="number" id="fIeFrom" inputmode="numeric" min="1990" max="2100" placeholder="2020"/></div>
+        <div class="vd-field"><label for="fIeTo">IE year to</label><input type="number" id="fIeTo" inputmode="numeric" min="1990" max="2100" placeholder="2024"/></div>
+        <div class="vd-field"><label for="fGroup">WhatsApp group</label>
+          <select id="fGroup"><option value="any">Any</option><option value="yes">In the group</option><option value="no">Not in the group</option></select></div>
+        <div class="vd-field"><label for="fAttended">Attendance</label>
+          <select id="fAttended"><option value="any">Any</option><option value="yes">Marked present</option><option value="no">Marked absent</option><option value="unmarked">Not marked yet</option></select></div>
+        <div class="vd-field"><label for="fMin">Checked in at least</label><input type="number" id="fMin" inputmode="numeric" min="0" max="99" placeholder="0"/></div>
+        <div class="vd-field vd-field--wide"><span class="vd-label">Source</span><div class="vd-chips vd-chips--small" id="fSources" role="group" aria-label="Source"></div></div>
+        <label class="vd-switch vd-field--wide"><input type="checkbox" id="fUnique"/><span>Show each person once</span></label>
+      </div>
+        </div>
+      </div>
+
+      <div class="vd-backdrop vd-backdrop--sheet" id="vdMoreBackdrop" hidden></div>
+
+      <div class="vd-foot" id="vdFoot" hidden><button type="button" class="vi-btn vi-btn--text" id="vdReset">Reset filters</button></div>
+    </section>
+
+    <div class="vi-err vd-err-row" id="vdErr" role="alert" hidden><span id="vdErrText"></span><button type="button" class="vi-btn" id="vdRetry" hidden>Try again</button></div>
+
+    <section class="vd-results" id="vdResults" aria-live="polite">
+      <div class="vd-summary">
+        <p class="vd-count" id="vdCount">Loading…</p>
+        <div class="vd-bar" id="vdBar" aria-hidden="true"><span class="s-interest"></span><span class="s-volunteered"></span><span class="s-checked_in"></span></div>
+        <p class="vd-stages" id="vdStageCounts"></p>
+      </div>
+      <div class="vi-scroll vi-panel vi-panel--flat vd-table-wrap">
+        <table class="vi-table vd-table">
+          <thead><tr><th>Name</th><th>Phone</th><th>Area</th><th>IE completion</th><th>Program</th><th>Stage</th><th>Source</th><th>Group</th><th>Added</th></tr></thead>
+          <tbody id="vdRows"><tr class="vd-skel"><td><i style="width:70%"></i></td><td><i style="width:80%"></i></td><td><i style="width:50%"></i></td><td><i style="width:60%"></i></td><td><i style="width:75%"></i></td><td><i style="width:55%"></i></td><td><i style="width:65%"></i></td><td><i style="width:35%"></i></td><td><i style="width:60%"></i></td></tr><tr class="vd-skel"><td><i style="width:70%"></i></td><td><i style="width:80%"></i></td><td><i style="width:50%"></i></td><td><i style="width:60%"></i></td><td><i style="width:75%"></i></td><td><i style="width:55%"></i></td><td><i style="width:65%"></i></td><td><i style="width:35%"></i></td><td><i style="width:60%"></i></td></tr><tr class="vd-skel"><td><i style="width:70%"></i></td><td><i style="width:80%"></i></td><td><i style="width:50%"></i></td><td><i style="width:60%"></i></td><td><i style="width:75%"></i></td><td><i style="width:55%"></i></td><td><i style="width:65%"></i></td><td><i style="width:35%"></i></td><td><i style="width:60%"></i></td></tr><tr class="vd-skel"><td><i style="width:70%"></i></td><td><i style="width:80%"></i></td><td><i style="width:50%"></i></td><td><i style="width:60%"></i></td><td><i style="width:75%"></i></td><td><i style="width:55%"></i></td><td><i style="width:65%"></i></td><td><i style="width:35%"></i></td><td><i style="width:60%"></i></td></tr><tr class="vd-skel"><td><i style="width:70%"></i></td><td><i style="width:80%"></i></td><td><i style="width:50%"></i></td><td><i style="width:60%"></i></td><td><i style="width:75%"></i></td><td><i style="width:55%"></i></td><td><i style="width:65%"></i></td><td><i style="width:35%"></i></td><td><i style="width:60%"></i></td></tr></tbody>
+        </table>
+      </div>
+      <ul class="vd-cards" id="vdCards"><li class="vd-card vd-skel"><i style="width:55%"></i><i style="width:40%;margin-top:.625rem"></i><i style="width:70%;margin-top:.625rem"></i></li><li class="vd-card vd-skel"><i style="width:55%"></i><i style="width:40%;margin-top:.625rem"></i><i style="width:70%;margin-top:.625rem"></i></li><li class="vd-card vd-skel"><i style="width:55%"></i><i style="width:40%;margin-top:.625rem"></i><i style="width:70%;margin-top:.625rem"></i></li></ul>
+      <div class="vd-more-rows"><button type="button" class="vi-btn" id="vdShowMore" hidden>Show more</button></div>
+    </section>
+
+  </main>
+
+  <div class="vd-backdrop" id="vdBackdrop" hidden></div>
+  <aside class="vd-drawer" id="vdDrawer" role="dialog" aria-modal="true" aria-labelledby="vdDrawerTitle" aria-hidden="true" inert>
+    <form class="vd-drawer-wrap" id="vdCampaignForm" novalidate>
+      <header class="vd-drawer-head">
+        <h2 id="vdDrawerTitle">Your sheet</h2>
+        <button type="button" class="vi-icon-btn" id="vdDrawerClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="vd-drawer-body">
+        <div class="vi-field" id="vdCampaignFields">
+          <label for="cName">Campaign name <span class="vd-req" id="cNameReq">Required</span></label>
+          <input type="text" id="cName" autocomplete="off" maxlength="80" required aria-required="true" aria-describedby="cNameErr"/>
+          <p class="vi-field-err" id="cNameErr" hidden></p>
+        </div>
+        <div class="vd-callers" id="vdCallerBox">
+          <div id="vdCallers"></div>
+          <button type="button" class="vi-btn vi-btn--text vd-addcaller" id="vdAddCaller">+ Add callers</button>
+          <p class="vd-split" id="vdSplit" hidden></p>
+        </div>
+        <p class="vd-people" id="vdPeople"></p>
+        <p class="vi-err" id="vdCampaignErr" role="alert" hidden></p>
+        <div class="vd-making" id="vdMaking" hidden>
+          <span class="vd-sheet" aria-hidden="true"><i class="vd-sheet-head"></i><i style="--n:1"></i><i style="--n:2"></i><i style="--n:3"></i><i style="--n:4"></i><i style="--n:5"></i></span>
+          <p class="vd-making-title" id="vdMakingTitle" tabindex="-1">Making your sheet</p>
+          <p class="vd-making-line" id="vdMakingLine" role="status" aria-live="polite"></p>
+          <progress class="vd-making-bar" id="vdMakingBar" max="100" value="0" aria-label="Progress"></progress>
+        </div>
+        <div class="vd-done" id="vdCampaignDone" hidden>
+          <span class="vd-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <p class="vd-done-title">Your sheet is ready</p>
+          <a class="vd-link" id="vdCampaignLink" href="#" target="_blank" rel="noopener"></a>
+          <div class="vd-done-actions">
+            <button type="button" class="vi-btn vi-btn--primary" id="vdOpenSheet">Open sheet</button>
+            <button type="button" class="vi-btn" id="vdCopyLink">Copy link</button>
+          </div>
+          <a class="vd-link vd-all" id="vdAllCampaigns" href="campaigns.html">All campaigns</a>
+        </div>
+      </div>
+      <footer class="vd-drawer-foot" id="vdCampaignFoot">
+        <button type="submit" class="vi-btn vi-btn--primary" id="vdCampaignCreate" disabled>Create campaign</button>
+      </footer>
+    </form>
+  </aside>
+
+  <div class="vi-toast" id="vdToast" role="status" aria-live="polite"></div>
+  <script src="volunteers.js?v=12"></script>
+</body>
+</html>

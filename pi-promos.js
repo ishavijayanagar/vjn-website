@@ -22,9 +22,9 @@
     adminSaveItem: 1, adminDeleteItem: 1, adminClearClosed: 1, adminSaveSite: 1, adminUpdateInquiry: 1,
     adminInquiriesAddedToGroup: 1, adminAddProgramTitle: 1, adminSaveVolunteerNeed: 1, adminAddEventVolunteer: 1,
     adminUpdateEventVolunteer: 1, adminDeleteEventVolunteer: 1, adminMarkVolunteersInGroup: 1, adminSetVolunteerForm: 1, adminSession: 1,
-    adminUploadImage: 1,
+    adminUploadImage: 1, adminVolInterestPreview: 1, adminVolInterestExtract: 1, adminVolInterestsAdd: 1, adminVolInterestsAiSet: 1, adminVolunteerCampaign: 1, adminVolunteerSheetExport: 1,
   };
-  var API_READS = { programs: 1, volunteering: 1, inquiries: 1, volunteerNeeds: 1, programTitles: 1, volunteerRoster: 1 };
+  var API_READS = { programs: 1, volunteering: 1, inquiries: 1, volunteerNeeds: 1, programTitles: 1, volunteerRoster: 1, volInterests: 1, volInterestsConfig: 1, volunteerFilters: 1, volunteerData: 1, volunteerSheets: 1 };
   var PROMO_READS = { promotions: 1, inviteMessages: 1 };
 
   function base() {

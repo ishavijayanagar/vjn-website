@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * The Sheet as a backup of the database.
+ * The Sheet as a backup copy of the database. The database is the source of truth; this
+ * one-way copy is never read back to change it.
  *
  * Every change made here is queued (sheet_sync_queue) and copied to the Sheet in
  * the background through Apps Script's `vjnMirror`. A change that cannot be

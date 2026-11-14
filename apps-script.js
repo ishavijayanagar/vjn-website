@@ -1,9 +1,11 @@
 // =============================================
 // Isha Place, Vijayanagar — Google Apps Script
 //
-// WHAT THIS IS NOW: the Sandesha Pi (sandesha-server/) keeps the data and runs the admin
-// logins. This script only does what needs Google: Forms, Slides flyers, Drive images, the
-// volunteer roster sheet, and a Sheet copy of the data that the Pi keeps up to date.
+// WHAT THIS IS NOW: the Sandesha database on the Pi (sandesha-server/) is the SOURCE OF TRUTH
+// for all data and runs the admin logins. This script is NOT the system of record. It only does
+// what needs Google: Forms, Slides flyers, Drive images, the volunteer roster sheet, a Sheet
+// COPY (backup / reporting tabs) that the Pi keeps up to date, and a temporary buffer for form
+// submissions while the Pi is down. Never edit data in the Sheet: it is overwritten by the Pi.
 //
 // FIRST-TIME SETUP (Apps Script editor):
 // 1. Click Save (disk icon).
@@ -94,6 +96,7 @@ const EV_HEADERS = [
   "updated_at",
   // where a volunteer row came from (admin | google-form | walk-in) and when they checked in
   "source",
+  "checked_in",
   "checked_in_at",
 ];
 
@@ -101,6 +104,17 @@ const EV_HEADERS = [
 // They go to a separate Google Sheet linked once with setCheckinSheet("<sheet URL or ID>")
 // (run from the Apps Script editor). Until it is linked, the tabs are made in this spreadsheet.
 const CHECKIN_SHEET_ID_PROP = "CHECKIN_SHEET_ID";
+// Volunteer interests entered by the team (the vol_interests table): one tab per month, in their own Google Sheet (link it with setInterestSheet).
+const INTEREST_SHEET_ID_PROP = "INTEREST_SHEET_ID";
+// Only these go to the sheet: nothing else about a person is copied there.
+const INTEREST_HEADERS = [
+  "Name",
+  "WhatsApp Number",
+  "IE Completion Date",
+  "Source",
+  "Volunteer Remarks",
+  "Calling Remarks",
+];
 const CHECKIN_HEADERS = [
   "Timestamp",
   "Program Date",
@@ -416,6 +430,11 @@ function doPost(e) {
     if (formType === "vjnMirror") {
       return json_(vjnMirror_(data));
     }
+    if (formType === "vjnReadSheet") return json_(vjnReadSheet_(data));
+    if (formType === "vjnLockSheet") return json_(vjnLockSheet_(data));
+    if (formType === "vjnCreateSheet") {
+      return json_(vjnCreateSheet_(data));
+    }
     if (formType === "vjnExportRoster") {
       requireVjnSecret_(data);
       return json_(getVolunteerRoster_());
@@ -706,6 +725,39 @@ function pokePi_() {
   }
 }
 
+/**
+ * Sends Google Form responses straight to the Pi, which saves them in its database. Only a response the Pi could
+ * not take (it is down, or does not know the program) is written to the EventVolunteers tab, and the Pi collects
+ * it from there later. Returns one result per row: "added", "duplicate" or "parked".
+ */
+function deliverVolunteerRows_(loaded, rows) {
+  let results = [];
+  if (rows.length && dataOnPi_()) {
+    try {
+      const base = String(PropertiesService.getScriptProperties().getProperty("SANDESHA_API_URL") || "").replace(/\/$/, "");
+      if (base) {
+        const res = UrlFetchApp.fetch(base + "/vjn/internal/form-responses", {
+          method: "post",
+          contentType: "application/json",
+          muteHttpExceptions: true,
+          payload: JSON.stringify({ secret: vjnSecret_(), rows: rows }),
+        });
+        if (res.getResponseCode() === 200) results = JSON.parse(res.getContentText()).results || [];
+      }
+    } catch (err) {
+      results = [];
+    }
+  }
+  const outcome = rows.map(function (row, i) {
+    if (results[i] === "added" || results[i] === "duplicate") return results[i];
+    evAppendRow_(loaded, row);
+    return "parked";
+  });
+  if (outcome.indexOf("parked") >= 0 && dataOnPi_()) pokePi_();
+  return outcome;
+}
+
+/** True once the data has been moved into the Pi database (the source of truth). Until then this Sheet still answers. */
 function dataOnPi_() {
   return PropertiesService.getScriptProperties().getProperty(VJN_DATA_ON_PI_PROP) === "1";
 }
@@ -719,6 +771,9 @@ function vjnTable_(tbl) {
   if (tbl === "promos") return { sheet: PROMOTIONS_SHEET, headers: PROMO_HEADERS, key: "id" };
   if (tbl === "checkins") return { sheet: "", headers: CHECKIN_HEADERS.concat(["id"]), key: "id", monthly: true };
   if (tbl === "ev") return { sheet: EVENT_VOLUNTEERS_SHEET, headers: EV_HEADERS.concat(["pi_synced"]), key: "row_id" };
+  if (tbl === "volInterests") {
+    return { sheet: "", headers: INTEREST_HEADERS.concat(["id"]), key: "id", monthly: true, bookProp: INTEREST_SHEET_ID_PROP };
+  }
   const m = String(tbl).match(/^inquiries:(.+)$/);
   const def = m ? inquiryDefByKey_(m[1]) : null;
   if (def) return { sheet: def.sheet, headers: def.headers.concat(["id"]), key: "id", inquiry: def };
@@ -785,6 +840,20 @@ function checkinBook_() {
   return id ? SpreadsheetApp.openById(id) : null;
 }
 
+/** Links the Google Sheet that holds the monthly volunteering-interest tabs. */
+function setInterestSheet(urlOrId) {
+  const m = String(urlOrId || "").match(/\/d\/([a-zA-Z0-9_-]+)/);
+  const id = m ? m[1] : String(urlOrId || "").trim();
+  if (!id) throw new Error("Pass the sheet URL or ID.");
+  SpreadsheetApp.openById(id); // fail now if there is no access
+  PropertiesService.getScriptProperties().setProperty(INTEREST_SHEET_ID_PROP, id);
+}
+
+/** Editor-friendly: paste the sheet URL below, Save, then Run this once. */
+function linkInterestSheet() {
+  setInterestSheet("https://docs.google.com/spreadsheets/d/1dKgFyZKsflslOPp-VwvebgBZlEPZDmhI0ENVP8VPLGE/edit?gid=0#gid=0");
+}
+
 /** A tab with the given header row in another spreadsheet, made if missing. */
 function ensureTabIn_(book, name, headers) {
   let sheet = book.getSheetByName(name);
@@ -807,7 +876,8 @@ function mirrorTable_(tbl, ops) {
       if (!/^\d{4}-\d{2}$/.test(month)) return;
       (byMonth[month] = byMonth[month] || []).push(op);
     });
-    const book = checkinBook_() || ss_();
+    const bookId = t.bookProp ? PropertiesService.getScriptProperties().getProperty(t.bookProp) : "";
+    const book = (t.bookProp ? (bookId ? SpreadsheetApp.openById(bookId) : null) : checkinBook_()) || ss_();
     Object.keys(byMonth).forEach(function (month) {
       mirrorRows_(t, checkinTabName_(month), byMonth[month], book);
     });
@@ -816,9 +886,20 @@ function mirrorTable_(tbl, ops) {
   mirrorRows_(t, t.sheet, ops);
 }
 
+/** Columns that must stay exactly as written: Sheets would turn "+9198…" into a number and "May-2021" into a date. */
+const TEXT_COLUMNS_ = ["timestamp", "whatsapp", "phone", "whatsapp number", "ie completion", "ie completion date", "opportunity id", "id"];
+
+function setTextColumns_(sheet, headers) {
+  TEXT_COLUMNS_.forEach(function (name) {
+    const ix = headers.indexOf(name);
+    if (ix >= 0) sheet.getRange(2, ix + 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat("@");
+  });
+}
+
 function mirrorRows_(t, sheetName, ops, book) {
   const sheet = book ? ensureTabIn_(book, sheetName, t.headers) : (ensureSheet_(sheetName, t.headers), ss_().getSheetByName(sheetName));
   const headers = sheetHeadersLower_(sheet);
+  if (book) setTextColumns_(sheet, headers);
   const keyIx = headers.indexOf(t.key);
   if (keyIx < 0) throw new Error(sheetName + " has no " + t.key + " column.");
   const lastRow = sheet.getLastRow();
@@ -928,6 +1009,122 @@ function vjnExportAll_(data) {
   return out;
 }
 
+/* ── Google Sheets made for the Pi (volunteer campaigns and exports) ───────────── */
+const VOLUNTEER_SHEETS_FOLDER_PROP = "VOLUNTEER_SHEETS_FOLDER_ID";
+const VOLUNTEER_SHEET_MAX_ROWS = 5000;
+
+function volunteerSheetsFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty(VOLUNTEER_SHEETS_FOLDER_PROP);
+  if (saved) {
+    try {
+      return DriveApp.getFolderById(saved);
+    } catch (e) {
+      // the folder was deleted: make a new one below
+    }
+  }
+  const folder = DriveApp.createFolder("Volunteer campaigns");
+  props.setProperty(VOLUNTEER_SHEETS_FOLDER_PROP, folder.getId());
+  return folder;
+}
+
+/**
+ * A new Google Sheet for the Pi: a header row and the rows it sends, kept exactly as written (so "+9198…" stays a
+ * number with its plus and "May-2024" stays text), filed in the "Volunteer campaigns" folder, and editable by anyone
+ * who has the link (callers add their notes in it). data.dropdowns { "Column name": [choices] } turns those columns
+ * into dropdowns; a value that is not in the list is still allowed. Returns its id and link.
+ */
+function vjnCreateSheet_(data) {
+  requireVjnSecret_(data);
+  const headers = Array.isArray(data.headers) ? data.headers.map(String) : [];
+  const rows = Array.isArray(data.rows) ? data.rows : [];
+  if (!headers.length) throw new Error("No columns to write.");
+  if (rows.length > VOLUNTEER_SHEET_MAX_ROWS) throw new Error("Too many rows (max " + VOLUNTEER_SHEET_MAX_ROWS + ").");
+  const book = SpreadsheetApp.create(String(data.title || "Volunteers").slice(0, 100));
+  const sheet = book.getSheets()[0];
+  sheet.setName("Volunteers");
+  const width = headers.length;
+  sheet.getRange(1, 1, rows.length + 1, width).setNumberFormat("@");
+  sheet.getRange(1, 1, 1, width).setValues([headers]).setFontWeight("bold").setBackground("#c8a96e");
+  if (rows.length) {
+    sheet.getRange(2, 1, rows.length, width).setValues(
+      rows.map(function (r) {
+        return headers.map(function (h, i) {
+          return r[i] === undefined || r[i] === null ? "" : String(r[i]);
+        });
+      })
+    );
+  }
+  const dropdowns = data.dropdowns && typeof data.dropdowns === "object" ? data.dropdowns : {};
+  headers.forEach(function (h, i) {
+    const choices = Array.isArray(dropdowns[h]) ? dropdowns[h].map(String).filter(Boolean) : [];
+    if (!choices.length || !rows.length) return;
+    const rule = SpreadsheetApp.newDataValidation().requireValueInList(choices, true).setAllowInvalid(true).build();
+    sheet.getRange(2, i + 1, rows.length, 1).setDataValidation(rule);
+  });
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, width);
+  // Callers can only fill the columns named in data.editable: the header, the fixed columns and the rows are protected,
+  // and nothing can be inserted or deleted.
+  const editable = Array.isArray(data.editable) ? data.editable.map(String) : [];
+  if (editable.length && rows.length) {
+    const open = [];
+    headers.forEach(function (h, i) {
+      if (editable.indexOf(h) >= 0) open.push(sheet.getRange(2, i + 1, rows.length, 1));
+    });
+    vjnProtectSheet_(sheet, open);
+  }
+  const file = DriveApp.getFileById(book.getId());
+  volunteerSheetsFolder_().addFile(file);
+  DriveApp.getRootFolder().removeFile(file);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+  return { success: true, id: book.getId(), url: book.getUrl() };
+}
+
+/** Protect a whole tab so only the owner (this script) edits it, except the given ranges, which anyone with the link may. */
+function vjnProtectSheet_(sheet, openRanges) {
+  sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function (p) { p.remove(); });
+  const p = sheet.protect().setDescription("Campaign sheet");
+  p.setUnprotectedRanges(openRanges || []);
+  // Everyone but the owner (the owner cannot be removed) loses edit rights on the protected parts.
+  p.getEditors().forEach(function (u) {
+    try { p.removeEditor(u); } catch (e) { /* the owner stays */ }
+  });
+  if (p.canDomainEdit()) p.setDomainEdit(false);
+}
+
+/** The header row and every filled row of a campaign sheet, as the callers left it (what they see, as text). */
+function vjnReadSheet_(data) {
+  requireVjnSecret_(data);
+  const book = SpreadsheetApp.openById(String(data.id || ""));
+  const sheet = book.getSheets()[0];
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) return { headers: [], rows: [] };
+  const values = sheet.getRange(1, 1, lastRow, lastCol).getDisplayValues();
+  return { headers: values[0].map(function (h) { return String(h).trim(); }), rows: values.slice(1) };
+}
+
+/** Closing a campaign: the whole sheet becomes view-only for everyone with the link. */
+function vjnLockSheet_(data) {
+  requireVjnSecret_(data);
+  const id = String(data.id || "");
+  const book = SpreadsheetApp.openById(id);
+  book.getSheets().forEach(function (sheet) { vjnProtectSheet_(sheet, []); });
+  DriveApp.getFileById(id).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return { success: true };
+}
+
+/** A sheet cell as text. A date cell (Sheets turns "May-2021" into one) is written back as "May-2021". */
+function inboxCellText_(header, value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return header.indexOf("ie") === 0
+      ? Utilities.formatDate(value, PROGRAM_TZ_, "MMM-yyyy")
+      : Utilities.formatDate(value, PROGRAM_TZ_, "yyyy-MM-dd'T'HH:mm:ss");
+  }
+  return value === undefined || value === null ? "" : String(value).trim();
+}
+
 /** Submissions made while the Pi was unreachable: rows with no id yet. */
 function vjnInboxList_(data) {
   requireVjnSecret_(data);
@@ -944,7 +1141,7 @@ function vjnInboxList_(data) {
       if (!row.some(function (c) { return String(c || "").trim() !== ""; })) return;
       const rec = {};
       headers.forEach(function (h, ix) {
-        if (h !== "id") rec[h] = row[ix] === undefined || row[ix] === null ? "" : String(row[ix]).trim();
+        if (h !== "id") rec[h] = inboxCellText_(h, row[ix]);
       });
       out.push({ tbl: "inquiries:" + def.key, row: i + 2, data: rec });
     });
@@ -2528,7 +2725,9 @@ function appendByHeaders_(sheet, map) {
   });
   sheet.appendRow(
     headers.map(function (h) {
-      return map[h] === undefined || map[h] === null ? "" : map[h];
+      const v = map[h] === undefined || map[h] === null ? "" : map[h];
+      // A leading apostrophe makes Sheets keep it as typed ("+91…" stays a number with its +, "May-2021" stays text).
+      return v !== "" && (h === "whatsapp" || h === "ie completion") ? "'" + v : v;
     })
   );
 }
@@ -3472,12 +3671,10 @@ function adminConnectProgramVolunteerForm(data) {
       seen[row.phone] = true;
       fresh.push(row);
     });
-    if (fresh.length) {
-      const values = fresh.map(function (obj) {
-        return loaded.headers.map(function (h) { return obj[h] === undefined || obj[h] === null ? "" : String(obj[h]); });
-      });
-      loaded.sheet.getRange(loaded.sheet.getLastRow() + 1, 1, values.length, loaded.headers.length).setValues(values);
-    }
+    // Straight to the Pi; only what it could not take is parked in the tab.
+    const outcome = fresh.length ? deliverVolunteerRows_(loaded, fresh) : [];
+    const importedCount = outcome.filter(function (r) { return r !== "duplicate"; }).length;
+    duplicates += outcome.length - importedCount;
 
     let liveSync = true;
     try {
@@ -3487,7 +3684,6 @@ function adminConnectProgramVolunteerForm(data) {
       Logger.log("Could not install form trigger: " + e.message);
     }
 
-    if (fresh.length && dataOnPi_()) pokePi_();
     return {
       success: true,
       needs: relayNeed ? [relayNeed] : [],
@@ -3496,7 +3692,7 @@ function adminConnectProgramVolunteerForm(data) {
       formFields: ["connected"],
       templateId: "",
       title: form.getTitle() || "",
-      imported: fresh.length,
+      imported: importedCount,
       duplicates: duplicates,
       skipped: skipped,
       liveSync: liveSync,
@@ -3536,10 +3732,7 @@ function onVolunteerFormSubmit(e) {
       const dupC = loaded.rows.some(function (r) {
         return r.kind === "volunteer" && String(r.event_id) === row.event_id && evDigits_(r.phone) === row.phone;
       });
-      if (!dupC) {
-        evAppendRow_(loaded, row);
-        if (dataOnPi_()) pokePi_();
-      }
+      if (!dupC) deliverVolunteerRows_(loaded, [row]);
       return;
     }
 
@@ -3585,6 +3778,7 @@ function onVolunteerFormSubmit(e) {
         });
       }
 
+      var multiRows = [];
       selectedTitles.forEach(function (title) {
         // Find eventId from mapping, or by matching need row title
         var eventId = mapping[title] || "";
@@ -3602,7 +3796,7 @@ function onVolunteerFormSubmit(e) {
         });
         if (dup) return;
 
-        evAppendRow_(loaded, {
+        multiRows.push({
           row_id: Utilities.getUuid(),
           kind: "volunteer",
           event_id: eventId,
@@ -3619,6 +3813,7 @@ function onVolunteerFormSubmit(e) {
           updated_at: now,
         });
       });
+      deliverVolunteerRows_(loaded, multiRows);
 
     } else {
       // ── Single-program: one need row, one volunteer row ───────────────
@@ -3631,7 +3826,7 @@ function onVolunteerFormSubmit(e) {
       });
       if (dup) return;
 
-      evAppendRow_(loaded, {
+      deliverVolunteerRows_(loaded, [{
         row_id: Utilities.getUuid(),
         kind: "volunteer",
         event_id: eventId,
@@ -3659,9 +3854,8 @@ function onVolunteerFormSubmit(e) {
         in_wa_group: "no",
         invite_sent: "no",
         updated_at: now,
-      });
+      }]);
     }
-    if (dataOnPi_()) pokePi_();
   } catch (err) {
     Logger.log("onVolunteerFormSubmit error: " + err.message);
   }
@@ -3677,6 +3871,17 @@ function authorizeFormApp() {
   Logger.log("FormApp authorized. Test form URL: " + form.getPublishedUrl());
   try { DriveApp.getFileById(form.getId()).setTrashed(true); } catch (e) {}
   Logger.log("Test form trashed. Authorization complete — you can delete this function now.");
+}
+
+/**
+ * Run once from the editor (function dropdown -> authorizeVolunteerSheets -> Run) after adding the volunteers page,
+ * so Google asks for the permission to make new spreadsheets. Deploying alone does not ask. It makes a test sheet and
+ * trashes it straight away; safe to delete afterwards.
+ */
+function authorizeVolunteerSheets() {
+  const book = SpreadsheetApp.create("VJN sheets auth test - delete me");
+  DriveApp.getFileById(book.getId()).setTrashed(true);
+  Logger.log("Sheets and Drive access work. The test sheet was trashed.");
 }
 
 /**

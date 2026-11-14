@@ -16,12 +16,19 @@ const DEFS = [
 
 const TZ_OFFSET_MS = 5.5 * 3600e3;
 
+/** Sheets can turn "May-2021" into a date, which then reads back as "Sat May 01 2021 00:00:00 GMT+0530 (…)". Put it back. */
+function tidyIe(raw) {
+  const s = String(raw === undefined || raw === null ? '' : raw).trim();
+  const m = s.match(/^[A-Za-z]{3} ([A-Za-z]{3}) \d{1,2} (\d{4}) \d\d:\d\d:\d\d GMT/);
+  return m ? `${m[1]}-${m[2]}` : s;
+}
+
 function statusLabel(raw) {
   const s = String(raw || '').replace(/\u00a0/g, ' ').trim().toLowerCase();
   return s === 'resolved' || s === 'closed' || s === 'done' || s === 'inactive' ? 'Resolved' : 'Open';
 }
 
-function createInquiries({ db, onChange = () => {}, now = () => Date.now() }) {
+function createInquiries({ db, now = () => Date.now() }) {
   const q = {
     all: db.prepare('SELECT id, status, data FROM website_inquiries WHERE sheet = ? ORDER BY id'),
     one: db.prepare('SELECT id, status, data FROM website_inquiries WHERE sheet = ? AND id = ?'),
@@ -80,7 +87,6 @@ function createInquiries({ db, onChange = () => {}, now = () => Date.now() }) {
   function put(def, id, data) {
     const status = statusLabel(data.status);
     q.put.run(def.key, id, status, JSON.stringify({ ...data, status }));
-    onChange(`inquiries:${def.key}`, 'upsert', String(id), { ...data, status });
     return id;
   }
 
@@ -199,10 +205,19 @@ function createInquiries({ db, onChange = () => {}, now = () => Date.now() }) {
     if (!def) throw new Error('Unknown inquiry type.');
     const rec = {};
     for (const [k, v] of Object.entries(data || {})) rec[k.toLowerCase()] = v === undefined || v === null ? '' : String(v);
+    if ('ie completion' in rec) rec['ie completion'] = tidyIe(rec['ie completion']);
     const status = statusLabel(rec.status);
     const id = nextId(def.key);
     q.put.run(def.key, id, status, JSON.stringify({ ...rec, status }));
     return id;
+  }
+
+  // Rows saved earlier with a date turned into long text are put right once .
+  for (const r of db.prepare("SELECT sheet, id, data FROM website_inquiries WHERE data LIKE '%GMT%'").all()) {
+    const def = defOf(r.sheet);
+    const data = JSON.parse(r.data);
+    const fixed = tidyIe(data['ie completion']);
+    if (def && fixed !== data['ie completion']) put(def, r.id, { ...data, 'ie completion': fixed });
   }
 
   return { meta, group, submit, update, addedToGroup, importRows, adopt, DEFS };

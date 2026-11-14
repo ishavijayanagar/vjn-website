@@ -1,9 +1,15 @@
 # Sandesha database (sandesha.db)
 
 **The database is the record. The Google Sheet is a backup copy.**
-Everything that does not need a Google service lives in SQLite on the Pi; every
-change is copied to the Sheet in the background, so the Sheet is always a recent
-copy and the public pages can read it if the Pi is down.
+
+Rules that follow from that:
+- Every create, edit and delete is made in the database first. Only the tables marked in the last column are then copied to a Sheet (website enquiries and event volunteers never are). Nothing is ever read back from the Sheet to change the database, except rows a visitor left while the Pi was down (below).
+- Editing the Sheet by hand does nothing to the data and is overwritten by the next sync.
+- Apps Script and the Sheet are only for what needs Google: Forms, Slides flyers, Drive images, the volunteer roster sheet, and the monthly reporting tabs.
+- While the Pi is down, forms write to the Sheet and the public pages read it. This is a temporary buffer: the Pi takes those rows into the database when it is back (`inbox.js`), and the database stays the only record.
+Everything that does not need a Google service lives in SQLite on the Pi. Programs, volunteering, site text,
+promotions and the volunteer interests are copied to a Sheet in the background (the last column says where), so the
+public pages can read a recent copy if the Pi is down.
 
 | Table | What | Sheet copy |
 |---|---|---|
@@ -12,12 +18,14 @@ copy and the public pages can read it if the Pi is down.
 | `event_listings` | Programs and volunteering | *Programs*, *Volunteering* |
 | `site_content` | Site text and the banner | *Site* |
 | `program_names` | The fixed list of program names | *ProgramTitles* |
-| `website_inquiries` | Website enquiries and what Nurturing did with them | *HomeQueries*, *ProgramInterest*, *ProgramVolunteer*, *VolunteeringInterest*, *VolunteerAttendance* |
-| `event_vols` | Event-volunteer pipeline (needs and volunteers) | *EventVolunteers* |
+| `website_inquiries` | Website enquiries and what Nurturing did with them. **Not copied to any Sheet.** | — |
+| `vol_interests` | General volunteering interests entered by the team (paste, photo, manually). `calling_remarks` is a JSON list for the calls made | Monthly tabs in their own sheet: name, number, IE date, source, volunteer remarks, calling remarks only |
+| `vol_campaigns` | The volunteer campaigns and exports made from the Volunteers page: the filters used, how many people, and the Google Sheet link. The sheets themselves are made by Apps Script (view-only by link) | — |
+| `event_vols` | Event-volunteer pipeline: needs, volunteers and check-ins (`checked_in`). **Not copied to any Sheet.** | — |
 | `sheet_sync_queue` | Changes not yet copied to the Sheet | — |
 | `app_setting` | Small settings and flags (e.g. `data_on_pi`, the volunteer roster copy) | — |
 | `id_counters` | Next ID numbers, so deleted IDs are never reused | — |
-| `checkins` | Volunteer check-ins (to be folded into `event_vols`) | *monthly tabs* |
+| `checkins` | Old volunteer check-ins. No longer written: check-ins are in `event_vols` (`checked_in` yes/no, `checked_in_at`). Move the old rows with `scripts/migrate-checkins.js --drop` | *monthly tabs* (old) |
 
 Sandesha's own state also lives in the database now (nothing is kept in loose JSON files any more):
 

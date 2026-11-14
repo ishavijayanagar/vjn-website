@@ -25,6 +25,14 @@ const ROLES = {
   adminMarkVolunteersInGroup: () => ['admin', 'nurturing'],
   // The page hands over the sign-up form Apps Script just made or connected.
   adminSetVolunteerForm: () => ['admin', 'nurturing'],
+  // The team adds general volunteering interests (pasted, from a file, or read from a photo).
+  adminVolInterestsAdd: () => ['admin', 'nurturing'],
+  // Only an admin decides whether photos may be sent to the AI service.
+  adminVolInterestsAiSet: () => ['admin'],
+  // The volunteers data page: a Google Sheet made from the filtered people (a campaign, or a full export).
+  adminVolunteerCampaign: () => ['admin', 'nurturing'],
+  adminVolunteerCampaignClose: () => ['admin', 'nurturing'],
+  adminVolunteerSheetExport: () => ['admin', 'nurturing'],
 };
 
 const PUBLIC_FORMS = ['homeQuery', 'programInterest', 'programVolunteer', 'volunteeringInterest', 'volunteerAttendance'];
@@ -36,7 +44,7 @@ class HttpError extends Error {
   }
 }
 
-function createVjnApi({ listings, content, inquiries, ev, checkins = null, roster = null, notify = null, audit = null, ready = () => true }) {
+function createVjnApi({ listings, content, inquiries, ev, volInterests = null, volunteersData = null, roster = null, notify = null, audit = null, ready = () => true }) {
   function need(session, roles) {
     if (!roles.includes(session.role)) throw new HttpError(403, 'You do not have access to this.');
   }
@@ -53,6 +61,11 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
     } },
     volunteerNeeds: { roles: ['admin', 'nurturing', 'programs'], run: () => ev.needs() },
     programTitles: { roles: ['admin', 'programs'], run: () => ({ titles: content.titles() }) },
+    volInterests: { roles: ['admin', 'nurturing'], run: (d) => (volInterests ? volInterests.list(d.limit) : undefined) },
+    volunteerFilters: { roles: ['admin', 'nurturing'], run: () => (volunteersData ? volunteersData.options() : undefined) },
+    volunteerData: { roles: ['admin', 'nurturing'], run: (d) => (volunteersData ? volunteersData.query(d.filters) : undefined) },
+    volunteerSheets: { roles: ['admin', 'nurturing'], run: (d) => (volunteersData ? volunteersData.campaigns(d.limit) : undefined) },
+    volInterestsConfig: { roles: ['admin', 'nurturing'], run: () => (volInterests ? volInterests.config() : undefined) },
     volunteerRoster: { roles: ['admin', 'nurturing'], run: () => (roster ? roster.read() : undefined) },
   };
 
@@ -108,6 +121,16 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
       }
       return { success: true, url: `${base}/public/media/${saved.name}`, fileId: saved.name };
     }
+    // Previews change nothing; they only read what was pasted or photographed.
+    if (type === 'adminVolInterestPreview' && volInterests) {
+      need(session, ['admin', 'nurturing']);
+      return volInterests.preview(data);
+    }
+    // Reading a photo calls an AI service, so this answers later (a promise).
+    if (type === 'adminVolInterestExtract' && volInterests) {
+      need(session, ['admin', 'nurturing']);
+      return volInterests.previewImage(data);
+    }
     const roles = ROLES[type];
     if (!roles) return undefined;
     need(session, roles(data));
@@ -143,6 +166,18 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
         return ev.markInGroup(data);
       case 'adminSetVolunteerForm':
         return ev.setForm(session, data.needs);
+      case 'adminVolunteerCampaign':
+        return volunteersData ? volunteersData.createCampaign(session, data) : undefined;
+      case 'adminVolunteerCampaignClose':
+        return volunteersData ? volunteersData.closeCampaign(session, data) : undefined;
+      case 'adminVolunteerSheetExport':
+        return volunteersData ? volunteersData.exportSheet(session, data) : undefined;
+      case 'adminVolInterestsAiSet':
+        if (!volInterests) return undefined;
+        return volInterests.setAi(!!data.enabled);
+      case 'adminVolInterestsAdd':
+        if (!volInterests) return undefined;
+        return volInterests.add(session, data);
       default:
         return undefined;
     }
@@ -161,9 +196,16 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
     if (!ready()) return undefined;
     const type = String(data.formType || '');
     if (!PUBLIC_FORMS.includes(type)) return undefined;
+    if (type === 'volunteerAttendance') {
+      // A check-in lives in event_vols only (marked on the volunteer's row, or added as a walk-in).
+      const r = ev.checkIn(data);
+      if (r.error) throw new HttpError(400, r.error);
+      if (!r.matched && !r.added) throw new HttpError(400, 'A program and a phone number are required.');
+      return { success: true };
+    }
     inquiries.submit(type, data);
     // Tell Nurturing right away instead of waiting for the app to be opened.
-    if (notify && type !== 'volunteerAttendance') {
+    if (notify) {
       try {
         Promise.resolve(notify('nurturing', {
           title: 'New website enquiry',
@@ -174,12 +216,6 @@ function createVjnApi({ listings, content, inquiries, ev, checkins = null, roste
           urgency: 'high',
         })).catch(() => {});
       } catch { /* a push failure must never fail the visitor's form */ }
-    }
-    if (type === 'volunteerAttendance' && checkins) {
-      // The check-in sheet is extra; it must never fail the existing attendance entry.
-      try { checkins.record(data); } catch (err) { console.error('check-in not recorded:', err.message); }
-      // Also mark it on the volunteer's row (or add a walk-in), so Nurturing sees it on the event list.
-      try { ev.checkIn(data); } catch (err) { console.error('check-in not marked on the event list:', err.message); }
     }
     return { success: true };
   }

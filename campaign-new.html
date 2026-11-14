@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"/>
+  <meta name="referrer" content="no-referrer"/>
+  <meta name="robots" content="noindex"/>
+  <meta name="theme-color" content="#f5f0e8"/>
+  <title>New campaign – Isha Place, Vijayanagar</title>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="stylesheet" href="vol-interests.css?v=13"/>
+  <link rel="stylesheet" href="volunteers.css?v=9"/>
+  <link rel="stylesheet" href="campaign-new.css?v=2"/>
+  <script src="config.js"></script>
+</head>
+<body>
+  <main class="vi-wrap vd-wrap cn-wrap">
+    <header class="vi-head" id="cnHead">
+      <a class="vi-back" href="campaigns.html" aria-label="Back to campaigns">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </a>
+      <h1>New campaign</h1>
+    </header>
+
+
+    <p class="vi-note" id="cnAuth" hidden>Sign in on the <a href="admin.html">admin page</a> first.</p>
+
+    <ol class="cn-steps" id="cnSteps" aria-label="Progress">
+      <li class="cn-step is-now" data-step="1"><span class="cn-dot">1</span><span class="cn-label">Audience</span></li>
+      <li class="cn-link" aria-hidden="true"></li>
+      <li class="cn-step" data-step="2"><span class="cn-dot">2</span><span class="cn-label">Details</span></li>
+      <li class="cn-link" aria-hidden="true"></li>
+      <li class="cn-step" data-step="3"><span class="cn-dot">3</span><span class="cn-label">Review</span></li>
+    </ol>
+
+    <div class="cn-layout">
+      <section class="cn-main" aria-live="polite">
+
+        <div class="cn-panel" id="cnP1">
+          <h2 class="cn-h" tabindex="-1">Who should be on the sheet?</h2>
+          <p class="cn-big" id="cnBig"><span id="cnCount" class="cn-skel-num">&nbsp;</span><small id="cnCountLabel">people</small></p>
+          <p class="cn-fine" id="cnFine"></p>
+          <div class="cn-sec">
+            <h3>Filters</h3>
+            <div class="cn-pills" id="cnPills"></div>
+            <a class="cn-edit" href="volunteers.html">Change filters
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+          </div>
+          <div class="cn-sec" id="cnPreviewBox" hidden>
+            <h3>Who is in</h3>
+            <ul class="cn-people" id="cnPeople"></ul>
+          </div>
+          <div class="cn-empty" id="cnNoOne" hidden>
+            <p>No one with a phone number matches these filters.</p>
+            <a class="vi-btn" href="volunteers.html">Change filters</a>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="cnP2" hidden>
+          <h2 class="cn-h" tabindex="-1">Name it, and pick the callers</h2>
+          <div class="vi-field cn-name">
+            <label for="cnName">Campaign name <span class="vd-req" id="cnReq">Required</span></label>
+            <input type="text" id="cnName" maxlength="80" autocomplete="off" required aria-required="true" aria-describedby="cnNameErr"/>
+            <p class="vi-field-err" id="cnNameErr" hidden></p>
+            <div class="cn-suggest" id="cnSuggest" hidden></div>
+          </div>
+          <div class="cn-sec">
+            <h3>Callers <span class="cn-opt">Optional</span></h3>
+            <div id="cnCallers"></div>
+            <button type="button" class="vi-btn vi-btn--text cn-add" id="cnAdd">+ Add callers</button>
+            <div class="cn-split" id="cnSplit" hidden>
+              <div class="cn-splitbar" id="cnSplitBar"></div>
+              <ul class="cn-legend" id="cnLegend"></ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="cnP3" hidden>
+          <h2 class="cn-h" tabindex="-1">Ready to make it</h2>
+          <dl class="cn-review">
+            <div><dt>Name</dt><dd id="rvName"></dd></div>
+            <div><dt>People</dt><dd id="rvPeople"></dd></div>
+            <div id="rvCallersRow"><dt>Callers</dt><dd id="rvCallers"></dd></div>
+            <div><dt>Columns</dt><dd><div class="cn-pills" id="rvCols"></div></dd></div>
+          </dl>
+          <p class="vi-err" id="cnErr" role="alert" hidden></p>
+        </div>
+
+        <div class="cn-panel cn-center" id="cnMaking" hidden>
+          <span class="vd-sheet" aria-hidden="true"><i class="vd-sheet-head"></i><i style="--n:1"></i><i style="--n:2"></i><i style="--n:3"></i><i style="--n:4"></i><i style="--n:5"></i></span>
+          <h2 class="cn-h" id="cnMakingTitle" tabindex="-1">Making your campaign sheet</h2>
+          <p class="vd-making-line" id="cnMakingLine" role="status" aria-live="polite"></p>
+          <progress class="vd-making-bar" id="cnMakingBar" max="100" value="0" aria-label="Progress"></progress>
+        </div>
+
+        <div class="cn-panel cn-center" id="cnDone" hidden>
+          <span class="vd-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <h2 class="cn-h" id="cnDoneTitle" tabindex="-1">Your campaign is ready</h2>
+          <p class="cn-done-sub" id="cnDoneSub"></p>
+          <div class="cn-linkbox"><a id="cnLink" href="#" target="_blank" rel="noopener"></a></div>
+          <div class="cn-done-actions">
+            <a class="vi-btn vi-btn--primary" id="cnOpen" href="#" target="_blank" rel="noopener">Open sheet</a>
+            <button type="button" class="vi-btn" id="cnCopy">Copy link</button>
+          </div>
+          <div class="cn-done-more"><a href="campaigns.html">All campaigns</a><a href="volunteers.html">Make another</a></div>
+        </div>
+
+        <div class="cn-actions" id="cnActions">
+          <span class="cn-mini" id="cnMini"></span>
+          <button type="button" class="vi-btn vi-btn--text" id="cnBack" hidden>Back</button>
+          <button type="button" class="vi-btn vi-btn--primary" id="cnNext">Continue</button>
+        </div>
+      </section>
+
+      <aside class="cn-aside" id="cnAside" aria-label="Summary">
+        <h3>Summary</h3>
+        <div class="cn-aside-n"><span id="asCount">–</span><small>people</small></div>
+        <div class="cn-pills cn-pills--small" id="asPills"></div>
+        <dl>
+          <div><dt>Name</dt><dd id="asName">Not named yet</dd></div>
+          <div><dt>Callers</dt><dd id="asCallers">None</dd></div>
+        </dl>
+      </aside>
+    </div>
+  </main>
+
+  <div class="vi-toast" id="cnToast" role="status" aria-live="polite"></div>
+  <script src="vd-common.js?v=1"></script>
+  <script src="campaign-new.js?v=2"></script>
+</body>
+</html>

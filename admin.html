@@ -243,6 +243,14 @@
             </span>
           </button>
 
+          <button type="button" class="admin-card admin-card--light pg-card" id="volunteersDataCard" data-admin-page="volunteers" data-hide-for-role="nurturing">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Volunteers</span>
+              <svg class="admin-card-arrow" viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+            <span class="admin-card-sub">Interests, the directory and campaigns.</span>
+          </button>
+
           <div class="admin-card admin-card--light pg-card pg-card--attendance" id="volAttendanceCard" data-hub-role-only="programs">
             <a class="admin-card-stretched-link" href="volunteer-attendance.html" target="_blank" rel="noopener" aria-label="Open the volunteers attendance page"></a>
             <span class="admin-card-head">
@@ -302,7 +310,7 @@
             <span class="admin-card-head">
               <span class="admin-card-title">Volunteering</span>
             </span>
-            <span class="admin-card-sub">Manage volunteering for the center.</span>
+            <span class="admin-card-sub">Opportunities, requirements and attendance.</span>
             <span class="admin-card-stats">
               <span class="admin-card-stat nr-fig" data-stat-row="volunteer-needs">
                 <strong data-stat-value="volunteer-needs">—</strong>
@@ -319,13 +327,7 @@
             <span class="admin-card-head">
               <span class="admin-card-title">Volunteers</span>
             </span>
-            <span class="admin-card-sub">Everyone on the volunteer list.</span>
-            <span class="admin-card-stats">
-              <span class="admin-card-stat nr-fig">
-                <strong data-stat-value="roster">—</strong>
-                <span>volunteers</span>
-              </span>
-            </span>
+            <span class="admin-card-sub">Interests, the directory and campaigns.</span>
             <span class="nr-cta">
               Open volunteers
               <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
@@ -364,6 +366,14 @@
                 <span>WhatsApp</span>
               </span>
             </span>
+          </button>
+
+          <button type="button" class="admin-card admin-card--light" data-admin-page="sandeshaActivity" data-hide-for-role="nurturing">
+            <span class="admin-card-head">
+              <span class="admin-card-title">Sandesha activity</span>
+              <svg class="admin-card-arrow" viewBox="0 0 24 12" aria-hidden="true"><path d="M1 6h20M16 1l5 5-5 5"/></svg>
+            </span>
+            <span class="admin-card-sub">Every send, and what failed.</span>
           </button>
 
           <button type="button" class="admin-card admin-card--light" data-admin-page="banner">
@@ -702,18 +712,49 @@
           <div id="pvList" class="inquiry-list admin-list"></div>
         </div>
 
-        <!-- Nurturing: Volunteers roster (from a linked Google Sheet) -->
-        <div id="volRosterPanel" class="hidden">
-          <input type="search" id="rosterSearch" class="admin-search" placeholder="Search volunteers" autocomplete="off"/>
-          <p class="admin-field-hint admin-field-hint-block" id="rosterMeta"></p>
-          <div id="rosterList" class="inquiry-list admin-list"></div>
+        <!-- Nurturing / admin: the Volunteers group (the people): three places -->
+        <div id="volPeoplePanel" class="hidden">
+          <div class="vch-cards">
+            <button type="button" class="vch-card" id="volPeopleInterests">
+              <span class="vch-icon vch-icon--gold" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+              </span>
+              <span class="vch-copy">
+                <span class="vch-title">Interests</span>
+                <span class="vch-sub">Add interests: paste, upload a file or a photo.</span>
+              </span>
+              <svg class="vch-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+
+            <button type="button" class="vch-card" id="volPeopleDirectory">
+              <span class="vch-icon vch-icon--green" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span class="vch-copy">
+                <span class="vch-title">Directory</span>
+                <span class="vch-sub">Filter volunteers, export, or make a campaign.</span>
+              </span>
+              <svg class="vch-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+
+            <button type="button" class="vch-card" id="volPeopleCampaigns">
+              <span class="vch-icon vch-icon--gold" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </span>
+              <span class="vch-copy">
+                <span class="vch-title">Campaigns</span>
+                <span class="vch-sub">Campaign sheets you have made, with their callers.</span>
+              </span>
+              <svg class="vch-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+          </div>
         </div>
 
         <!-- Nurturing: Volunteering chooser (three actions; the roster one leads) -->
         <div id="volChooserPanel" class="hidden">
           <div class="vch-cards" id="volChooserCards">
             <button type="button" class="vch-card vch-card--lead" id="volChooserNeeds">
-              <span class="vch-eyebrow">Volunteer requirements</span>
+              <span class="vch-eyebrow">Requirements</span>
               <span class="vch-lead-main">
                 <span class="vch-big" data-stat-value="volunteer-needs">—</span>
                 <span class="vch-lead-copy">
@@ -729,7 +770,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </span>
               <span class="vch-copy">
-                <span class="vch-title">Attendance marking</span>
+                <span class="vch-title">Attendance</span>
                 <span class="vch-sub">Mark who showed up for each program.</span>
               </span>
               <span class="vch-stat is-none" data-stat-row="vol-awaiting"><b data-stat-value="vol-awaiting">—</b><span>to mark</span></span>
@@ -1764,7 +1805,7 @@
   <script src="ptr.js?v=2"></script>
   <script src="drafts.js?v=1"></script>
   <script src="banner-form.js?v=4"></script>
-  <script src="admin.js?v=pi-promos-4"></script>
+  <script src="admin.js?v=pi-promos-9"></script>
   <script type="module" src="sandesha/js/boot-admin-hub.js?v=2"></script>
   <script type="module" src="sandesha/js/boot-nurturing-bridge.js?v=8"></script>
 </body>

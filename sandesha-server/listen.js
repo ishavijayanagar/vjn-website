@@ -7,6 +7,9 @@ const { createPromos } = require('./promos');
 const { createListings } = require('./listings');
 const { createContent } = require('./content');
 const { createInquiries } = require('./inquiries');
+const { createVolInterests } = require('./vol-interests');
+const { createVolunteersData } = require('./volunteers-data');
+const { createVisionExtractor } = require('./vision-extract');
 const { createEventVolunteers } = require('./event-volunteers');
 const { createMirror } = require('./mirror');
 const { createVjnApi } = require('./vjn-api');
@@ -15,7 +18,6 @@ const { readLimited, guardBody, SMALL_MAX_BYTES } = require('./body-limit');
 const { createStateStore } = require('./state-store');
 const { createAuditTrail } = require('./audit-trail');
 
-const { createCheckins } = require('./checkins');
 const { createReminders } = require('./reminders');
 const { createInbox } = require('./inbox');
 const { pruneMedia } = require('./media-prune');
@@ -3818,20 +3820,23 @@ const vjnListings = createListings({
   evCounts: () => (vjnEv ? vjnEv.counts() : {}),
   onChange: (resource, op, key, row) => mirrorChange(resource, op, key, row),
 });
-vjnEv = createEventVolunteers({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
+// Event volunteers and website enquiries live only in the database: nothing about them is copied to a Sheet.
+vjnEv = createEventVolunteers({ db: vjnDb, listings: vjnListings });
 const vjnContent = createContent({ db: vjnDb, onChange: mirrorChange });
-const vjnInquiries = createInquiries({
+const vjnInquiries = createInquiries({ db: vjnDb });
+const vjnVolInterests = createVolInterests({
   db: vjnDb,
-  onChange: (tbl, op, key, row) => mirrorChange(tbl, op, key, row),
+  onChange: mirrorChange,
+  extractImage: createVisionExtractor({ apiKey: process.env.OPENROUTER_API_KEY, models: process.env.OPENROUTER_MODEL, zdr: process.env.OPENROUTER_ZDR === '1', log }),
 });
+const vjnVolunteersData = createVolunteersData({ db: vjnDb, listings: vjnListings, sheetCall, volInterests: vjnVolInterests });
 const vjnInbox = createInbox({
   inquiries: vjnInquiries, ev: vjnEv, sheetCall, log, enabled: () => !!dataFlag.get(),
 });
-const vjnCheckins = createCheckins({ db: vjnDb, listings: vjnListings, onChange: mirrorChange });
 const vjnRoster = createRoster({ db: vjnDb, fetchRoster: () => sheetCall('vjnExportRoster', {}), log });
 const adminAudit = createAuditTrail(vjnDb);
 const vjnApi = createVjnApi({
-  listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, checkins: vjnCheckins, roster: vjnRoster,
+  listings: vjnListings, content: vjnContent, inquiries: vjnInquiries, ev: vjnEv, volInterests: vjnVolInterests, volunteersData: vjnVolunteersData, roster: vjnRoster,
   notify: (audience, payload) => push.notify(audience, payload),
   audit: (session, action, data) => adminAudit.record(session, action, data),
   // Until scripts/import-data.js has run, the Sheet is still the record.
@@ -3865,7 +3870,7 @@ const vjnPromos = createPromos({
 });
 const vjnRoutes = createVjnRoutes({
   users: vjnUsers, promos: vjnPromos, api: vjnApi, readBody: readRequestBody, jsonResponse,
-  drainInbox: () => vjnInbox.drain(), mirrorStats: () => vjnMirror.stats(), secret: process.env.VJN_AUTH_SECRET || '',
+  drainInbox: () => vjnInbox.drain(), receiveRows: (rows) => vjnEv.receiveFormResponses(rows), mirrorStats: () => vjnMirror.stats(), secret: process.env.VJN_AUTH_SECRET || '',
 });
 auth.setLocalVjnVerifier((token) => vjnUsers.verify(token));
 

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="referrer" content="no-referrer"/>
+  <meta name="robots" content="noindex"/>
+  <meta name="theme-color" content="#f5f0e8"/>
+  <title>Campaigns – Isha Place, Vijayanagar</title>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="stylesheet" href="vol-interests.css?v=13"/>
+  <link rel="stylesheet" href="volunteers.css?v=9"/>
+  <link rel="stylesheet" href="campaigns.css?v=4"/>
+  <script src="config.js"></script>
+</head>
+<body>
+  <main class="vi-wrap vd-wrap cp-wrap">
+    <header class="vi-head" id="cpHead">
+      <a class="vi-back" href="admin.html#volunteers" aria-label="Back to volunteers">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </a>
+      <h1>Campaigns</h1>
+      <a class="vi-btn vi-btn--primary cp-new" href="volunteers.html">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="cp-new-long">New campaign</span><span class="cp-new-short">New</span>
+      </a>
+    </header>
+
+
+    <p class="vi-note" id="cpAuth" hidden>Sign in on the <a href="admin.html">admin page</a> first.</p>
+
+    <section class="cp-stats" id="cpStats" aria-label="Summary">
+      <div class="cp-stat"><span class="cp-stat-n" id="stCampaigns">–</span><span class="cp-stat-l">Campaigns</span></div>
+      <div class="cp-stat"><span class="cp-stat-n" id="stPeople">–</span><span class="cp-stat-l">People in campaigns</span></div>
+      <div class="cp-stat"><span class="cp-stat-n" id="stLast">–</span><span class="cp-stat-l">Last made</span></div>
+    </section>
+
+    <div class="cp-tools">
+      <div class="vd-chips cp-kinds" id="cpKinds" role="group" aria-label="Type">
+        <button type="button" class="vd-chip" data-kind="all" aria-pressed="true">All <span class="cp-n" id="nAll"></span></button>
+        <button type="button" class="vd-chip" data-kind="campaign" aria-pressed="false">Campaigns <span class="cp-n" id="nCampaign"></span></button>
+        <button type="button" class="vd-chip" data-kind="export" aria-pressed="false">Exports <span class="cp-n" id="nExport"></span></button>
+      </div>
+      <div class="cp-find">
+        <label class="vd-search cp-search"><span class="vd-sr">Search</span>
+          <input type="text" id="cpSearch" placeholder="Search name, person or caller" autocomplete="off"/>
+        </label>
+        <label class="cp-sort"><span class="vd-sr">Sort</span>
+          <select id="cpSort"><option value="new">Newest</option><option value="old">Oldest</option><option value="people">Most people</option></select>
+        </label>
+      </div>
+    </div>
+
+    <div class="vi-err vd-err-row" id="cpErr" role="alert" hidden><span id="cpErrText"></span><button type="button" class="vi-btn" id="cpRetry">Try again</button></div>
+
+    <div class="cp-head-row" aria-hidden="true"><span>Name</span><span>People</span><span>Callers</span><span>Made</span><span></span></div>
+    <ul class="cp-list" id="cpList">
+      <li class="cp-row vd-skel"><div class="cp-main"><span class="cp-title"><i style="width:48%"></i><i style="width:70%;margin-top:.625rem"></i></span><span><i style="width:2.5rem"></i></span><span><i style="width:5rem"></i></span><span><i style="width:6rem"></i></span><span></span></div></li>
+      <li class="cp-row vd-skel"><div class="cp-main"><span class="cp-title"><i style="width:38%"></i><i style="width:60%;margin-top:.625rem"></i></span><span><i style="width:2.5rem"></i></span><span><i style="width:4rem"></i></span><span><i style="width:6rem"></i></span><span></span></div></li>
+      <li class="cp-row vd-skel"><div class="cp-main"><span class="cp-title"><i style="width:55%"></i><i style="width:65%;margin-top:.625rem"></i></span><span><i style="width:2.5rem"></i></span><span><i style="width:5rem"></i></span><span><i style="width:6rem"></i></span><span></span></div></li>
+    </ul>
+    <div class="vd-more-rows"><button type="button" class="vi-btn" id="cpMore" hidden>Show more</button></div>
+  </main>
+
+  <div class="vi-toast" id="cpToast" role="status" aria-live="polite"></div>
+  <script src="vd-common.js?v=1"></script>
+  <script src="campaigns.js?v=5"></script>
+</body>
+</html>

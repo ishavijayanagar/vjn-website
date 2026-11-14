@@ -1,0 +1,320 @@
+/* The volunteers data page. Shares its look with vol-interests.css (cream paper, white cards, earth-brown controls).
+
+   Motion rules used here (see the tokens below):
+   - things people do many times (filtering, typing, scrolling) change at once, with no transition
+   - things they do a few times (menus, the filter panel, the campaign sheet, toasts) animate for 150-300ms
+   - what appears eases out, what leaves eases in and is about 25% shorter, what moves on screen eases in-out
+   - menus grow from the button that opened them; the sheet leaves the way it came
+   - only transform and opacity move; the filter panel opens with the grid-rows trick, never by animating height
+   - reduced motion turns every transition and animation off; every end state and every piece of information stays */
+
+:root {
+  --dur-press: 150ms;
+  --dur-pop-in: 200ms;
+  --dur-pop-out: 150ms;
+  --dur-sheet-in: 300ms;
+  --dur-sheet-out: 230ms;
+  --dur-move: 250ms;
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.vd-wrap { max-width: 1120px; }
+.vd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+[hidden] { display: none !important; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, .vd-chip, .vd-select { touch-action: manipulation; }
+
+/* press feedback: confirms the touch before anything else happens */
+.vi-btn, .vd-chip, .vd-select { transition: background var(--dur-press) ease, border-color var(--dur-press) ease, color var(--dur-press) ease, transform var(--dur-press) var(--ease-out); }
+.vi-btn:active, .vd-chip:active { transform: scale(.96); }
+
+/* ───────── header ───────── */
+.vd-req { float: right; font-size: .75rem; color: var(--muted); letter-spacing: .02em; transition: opacity var(--dur-press) ease; }
+.vd-req.is-met { opacity: 0; }
+.vd-all { display: inline-block; margin-top: .875rem; }
+.vd-head-actions { display: flex; gap: .625rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.vd-menu-wrap, .vd-pop-wrap { position: relative; }
+
+/* ───────── menus and popovers: grow from their button ───────── */
+.vd-menu, .vd-pop { position: absolute; z-index: 30; background: var(--panel); border: 1px solid var(--line); border-radius: 1rem; box-shadow: var(--shadow-md);
+  opacity: 0; visibility: hidden; pointer-events: none; transform: scale(.95) translateY(-4px);
+  transition: opacity var(--dur-pop-out) var(--ease-in), transform var(--dur-pop-out) var(--ease-in), visibility 0s linear var(--dur-pop-out); }
+.vd-menu.is-open, .vd-pop.is-open { opacity: 1; visibility: visible; pointer-events: auto; transform: none;
+  transition: opacity var(--dur-pop-in) var(--ease-out), transform var(--dur-pop-in) var(--ease-out), visibility 0s; }
+.vd-menu { right: 0; top: calc(100% + .375rem); min-width: 13rem; padding: .375rem; transform-origin: top right; }
+.vd-menu button { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: .625rem; padding: .625rem .75rem; cursor: pointer; color: var(--ink); min-height: 2.5rem; }
+.vd-pop { left: 0; right: 0; top: calc(100% + .375rem); min-width: 20rem; padding: .625rem; transform-origin: top left; }
+.vd-pop-list { max-height: 16rem; overflow-y: auto; margin: .5rem -.25rem; }
+.vd-pop-foot { display: flex; justify-content: flex-end; }
+
+/* ───────── filters ───────── */
+.vd-filters { margin-top: 0; }
+.vd-row { display: grid; grid-template-columns: 1fr minmax(12rem, 18rem); gap: .75rem; }
+.vd-search input { width: 100%; }
+.vd-select { width: 100%; min-height: 2.75rem; text-align: left; background: var(--bg); border: 1px solid transparent; border-radius: .75rem; padding: .6875rem 2rem .6875rem .875rem; cursor: pointer; position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vd-select::after { content: ""; position: absolute; right: .875rem; top: 50%; width: .5rem; height: .5rem; margin-top: -.375rem; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); transition: transform var(--dur-pop-in) var(--ease-out); }
+.vd-select[aria-expanded="true"] { border-color: var(--gold-dark); }
+.vd-select[aria-expanded="true"]::after { transform: rotate(225deg); margin-top: -.125rem; }
+.vd-opt { display: flex; align-items: center; gap: .625rem; padding: .5rem; border-radius: .625rem; cursor: pointer; min-height: 2.5rem; }
+.vd-opt input { accent-color: var(--earth); width: 1.0625rem; height: 1.0625rem; flex: none; }
+.vd-opt small { color: var(--muted); margin-left: auto; padding-left: .75rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.vd-opt .vd-opt-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.vd-chips { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .875rem; }
+.vd-chip { min-height: 2.5rem; border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 999px; padding: .4375rem 1.125rem; cursor: pointer; }
+.vd-chip[aria-pressed="true"] { background: var(--earth); border-color: var(--earth); color: var(--bg); }
+.vd-chips--small .vd-chip { min-height: 2.25rem; padding: .3125rem .875rem; font-size: .875rem; }
+
+.vd-more { display: inline-flex; align-items: center; gap: .5rem; min-height: 2.5rem; margin-top: .5rem; background: none; border: 0; padding: .25rem 0; color: var(--earth); cursor: pointer; }
+.vd-more svg { transition: transform var(--dur-move) var(--ease-in-out); }
+.vd-more[aria-expanded="true"] svg { transform: rotate(180deg); }
+.vd-badge { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 .375rem; border-radius: 999px; background: var(--gold); color: var(--ink); font-size: .75rem; font-variant-numeric: tabular-nums; }
+
+/* the extra filters open by growing from zero height to their own: no height is animated, only a grid track */
+.vd-expand { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-move) var(--ease-in-out); }
+.vd-expand.is-open { grid-template-rows: 1fr; }
+.vd-expand-inner { min-height: 0; overflow: hidden; padding: 0 4px; margin: 0 -4px; }
+.vd-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .875rem 1rem; margin-top: .75rem; padding: 1rem 0 .25rem; border-top: 1px solid var(--line); }
+.vd-field label, .vd-label { display: block; font-size: .8125rem; color: var(--muted); margin: 0 0 .375rem .125rem; }
+.vd-field input, .vd-field select { width: 100%; min-height: 2.5rem; background: var(--bg); border: 1px solid transparent; border-radius: .75rem; padding: .625rem .75rem; font: inherit; color: var(--ink); transition: border-color var(--dur-press) ease, box-shadow var(--dur-press) ease, background var(--dur-press) ease; }
+.vd-field input:focus, .vd-field select:focus { outline: none; background: var(--panel); border-color: var(--gold-dark); box-shadow: 0 0 0 4px rgba(200,169,110,.22); }
+.vd-field--wide { grid-column: 1 / -1; }
+.vd-switch { display: flex; align-items: center; gap: .625rem; cursor: pointer; min-height: 2.5rem; }
+.vd-switch input { accent-color: var(--earth); width: 1.125rem; height: 1.125rem; }
+.vd-foot { display: flex; justify-content: flex-end; margin-top: .25rem; }
+
+/* ───────── results ───────── */
+.vd-results { margin-top: 1.5rem; }
+.vd-results.is-loading .vd-table-wrap, .vd-results.is-loading .vd-cards, .vd-results.is-loading .vd-summary { opacity: .55; transition: opacity var(--dur-press) ease; }
+.vd-summary { margin-bottom: .875rem; }
+.vd-count { margin: 0; font-size: clamp(1.375rem, 1.1rem + 1vw, 1.75rem); line-height: 1.15; letter-spacing: -.02em; color: var(--earth); font-variant-numeric: tabular-nums; }
+.vd-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--soft); margin: .75rem 0 .5rem; gap: 2px; }
+.vd-bar span { display: block; min-width: 0; }
+.s-interest { background: #d98c40; }
+.s-volunteered { background: #8fa67f; }
+.s-checked_in { background: #3f5a33; }
+.vd-stages { margin: 0; font-size: .875rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: .375rem 1.25rem; flex-wrap: wrap; }
+.vd-stages i { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; margin-right: .375rem; }
+.vd-table { min-width: 860px; }
+.vd-table td { padding: .625rem .5rem; }
+.vd-table .vd-name { color: var(--ink); }
+.vd-table .vd-dim { color: var(--muted); }
+.vd-pill { display: inline-block; border-radius: 999px; padding: .125rem .625rem; font-size: .8125rem; background: var(--soft); color: var(--earth); white-space: nowrap; }
+.vd-pill--interest { background: rgba(217,140,64,.16); color: #8a4d16; }
+.vd-pill--volunteered { background: rgba(91,122,74,.16); color: #3f5a33; }
+.vd-pill--checked_in { background: #3f5a33; color: #f6f2e8; }
+.vd-more-rows { display: flex; justify-content: center; margin-top: 1rem; }
+.vd-link { word-break: break-all; color: var(--earth); }
+
+/* empty and loading states */
+.vd-empty { display: flex; flex-direction: column; align-items: center; gap: .75rem; padding: 2rem 1rem; color: var(--muted); }
+.vd-skel td, .vd-skel.vd-card { pointer-events: none; }
+.vd-skel i { display: block; height: .75rem; border-radius: .375rem; background: var(--soft); animation: vd-pulse 1.4s ease-in-out infinite; }
+.vd-skel td { padding: .875rem .5rem; }
+@keyframes vd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.vd-err-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.vd-err-row .vi-btn { min-height: 2rem; padding: .25rem .875rem; }
+
+/* ───────── campaign sheet (drawer) ───────── */
+.vd-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(74,53,39,.32); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); opacity: 0; transition: opacity var(--dur-sheet-out) var(--ease-in); }
+.vd-backdrop.is-open { opacity: 1; transition: opacity var(--dur-sheet-in) var(--ease-out); }
+.vd-drawer { position: fixed; z-index: 50; top: 0; right: 0; bottom: 0; width: min(27.5rem, 100%); background: rgba(255,255,255,.9); -webkit-backdrop-filter: blur(28px) saturate(170%); backdrop-filter: blur(28px) saturate(170%); border-left: 1px solid rgba(255,255,255,.7); box-shadow: -28px 0 56px -28px rgba(74,53,39,.35);
+  transform: translate3d(100%,0,0); visibility: hidden; will-change: transform;
+  transition: transform var(--dur-sheet-out) var(--ease-in), visibility 0s linear var(--dur-sheet-out); }
+.vd-drawer.is-open { transform: none; visibility: visible; transition: transform var(--dur-sheet-in) var(--ease-out), visibility 0s; }
+.vd-drawer-wrap { display: flex; flex-direction: column; height: 100%; }
+.vd-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.25rem .875rem; }
+.vd-drawer-head h2 { font-size: 1.25rem; letter-spacing: -.015em; color: var(--earth); }
+.vd-drawer-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: .25rem 1.25rem 1.25rem; }
+
+/* the end of the flow says what happened: a check draws itself, then a ring lifts off it */
+.vd-done { background: var(--soft); border-radius: 1rem; padding: 1.25rem 1rem 1rem; margin-top: 1rem; }
+.vd-check { position: relative; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; margin-bottom: .75rem; border-radius: 50%; background: var(--earth); color: var(--bg); }
+.vd-check svg { width: 1.375rem; height: 1.375rem; }
+.vd-check path { stroke-dasharray: 24; stroke-dashoffset: 24; }
+.vd-check::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--gold-dark); opacity: 0; }
+.vd-done.is-in .vd-check path { animation: vd-draw 320ms var(--ease-out) 140ms forwards; }
+.vd-done.is-in .vd-check::after { animation: vd-ring 420ms var(--ease-out) 300ms forwards; }
+@keyframes vd-draw { to { stroke-dashoffset: 0; } }
+@keyframes vd-ring { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
+.vd-done-title { margin: 0 0 .5rem; color: var(--earth); font-size: 1.0625rem; }
+.vd-done-actions { display: flex; gap: .625rem; margin-top: 1rem; flex-wrap: wrap; }
+
+/* making the sheet: a sheet that fills in row by row, a line that keeps changing so the wait never looks frozen, and a bar
+   that keeps creeping forward without ever claiming to be finished until it is. Only transform and opacity move. */
+.vd-making { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 3rem 1rem 2rem; }
+.vd-sheet { display: block; width: 4.25rem; height: 5.5rem; padding: .9375rem .8125rem; margin-bottom: 1.75rem; border-radius: 1rem; background: var(--panel); border: 1.5px solid var(--earth); box-shadow: var(--shadow-md); }
+.vd-sheet i { display: block; height: 6px; margin-bottom: .5rem; border-radius: 3px; background: var(--gold); transform-origin: left center; animation: vd-fill 1.9s var(--ease-in-out) infinite; animation-delay: calc(var(--n, 0) * 140ms); }
+.vd-sheet i.vd-sheet-head { width: 55%; height: 7px; background: var(--earth); margin-bottom: .75rem; animation: none; }
+.vd-sheet i:nth-child(3) { width: 82%; }
+.vd-sheet i:nth-child(4) { width: 94%; }
+.vd-sheet i:nth-child(5) { width: 68%; }
+.vd-sheet i:nth-child(6) { width: 86%; }
+@keyframes vd-fill { 0% { transform: scaleX(0); opacity: .35; } 32% { transform: scaleX(1); opacity: 1; } 78% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+.vd-making-title { margin: 0; font-size: 1.25rem; letter-spacing: -.015em; color: var(--earth); outline: none; }
+.vd-making-line { margin: .5rem 0 0; min-height: 1.5em; color: var(--muted); }
+.vd-making-line.is-swap { animation: vd-line-in var(--dur-pop-in) var(--ease-out) both; }
+@keyframes vd-line-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.vd-making-bar { width: 14rem; max-width: 100%; height: 4px; margin-top: 1.5rem; }
+.vd-making-bar::-webkit-progress-value { transition: width 400ms linear; }
+/* a view that replaces another comes in as the other goes */
+.vd-view-in { animation: vd-view-in var(--dur-pop-in) var(--ease-out) both; }
+@keyframes vd-view-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* a small hit area made bigger than it looks */
+.vd-wrap .vi-icon-btn, .vd-drawer .vi-icon-btn { position: relative; }
+.vd-wrap .vi-icon-btn::after, .vd-drawer .vi-icon-btn::after { content: ""; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+
+/* toast: arrives eased out, leaves eased in and shorter */
+#vdToast { transition: opacity var(--dur-pop-out) var(--ease-in), transform var(--dur-pop-out) var(--ease-in); }
+#vdToast.is-on { transition: opacity var(--dur-sheet-in) var(--ease-out), transform var(--dur-sheet-in) var(--ease-out); }
+
+/* hover only where a real pointer hovers; touch screens fire hover on tap */
+@media (hover: hover) and (pointer: fine) {
+    .vd-menu button:hover, .vd-opt:hover { background: var(--soft); }
+  .vd-chip:hover, .vd-select:hover { border-color: var(--gold-dark); }
+  .vd-table tbody tr:hover td { background: rgba(200,169,110,.08); }
+  .vd-more:hover { color: var(--ink); }
+}
+
+@media (max-width: 860px) { .vd-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ───────── phones ───────── */
+.vd-cards { display: none; list-style: none; margin: 0; padding: 0; }
+
+@media (max-width: 700px) {
+  .vd-wrap { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); overflow-x: clip; }
+  .vd-wrap .vi-head { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg); margin-bottom: 1rem; }
+  .vd-wrap .vi-head h1 { flex: 1; }
+
+  /* thumb-reach actions: a bar at the bottom of the screen */
+  .vd-head-actions { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; flex-wrap: nowrap; gap: .625rem; padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom)); background: rgba(245,240,232,.86); -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); border-top: 1px solid var(--line); }
+  .vd-head-actions > .vi-btn, .vd-menu-wrap { flex: 1; }
+  .vd-menu-wrap .vi-btn { width: 100%; }
+  .vd-head-actions .vi-btn { min-height: 2.875rem; }
+  .vd-menu { top: auto; bottom: calc(100% + .5rem); left: 0; right: 0; min-width: 0; transform-origin: bottom center; transform: scale(.95) translateY(4px); }
+  .vd-menu button { padding: .875rem .75rem; min-height: 2.75rem; }
+  #vdToast { bottom: calc(5.25rem + env(safe-area-inset-bottom)); max-width: calc(100% - 2rem); text-align: center; }
+
+  .vd-row { grid-template-columns: 1fr; }
+  .vd-search input { min-height: 2.875rem; }
+  .vd-pop { min-width: 0; }
+  .vd-pop-list { max-height: 45vh; }
+  .vd-opt { padding: .625rem .5rem; min-height: 2.75rem; }
+  .vd-opt input { width: 1.25rem; height: 1.25rem; }
+  .vd-chips { flex-wrap: nowrap; overflow-x: auto; margin-right: -1.125rem; padding-right: 1.125rem; scrollbar-width: none; }
+  .vd-chips::-webkit-scrollbar { display: none; }
+  .vd-chips--small { flex-wrap: wrap; overflow: visible; margin-right: 0; padding-right: 0; }
+  .vd-chip { min-height: 2.75rem; flex: none; }
+  .vd-chips--small .vd-chip { min-height: 2.5rem; }
+  .vd-more { min-height: 2.75rem; }
+  .vd-grid { grid-template-columns: 1fr 1fr; gap: .75rem; }
+  .vd-field input, .vd-field select { min-height: 2.75rem; font-size: 1rem; }
+
+  .vd-table-wrap { display: none; }
+  .vd-cards { display: block; }
+  .vd-card { background: var(--panel); border: 1px solid var(--line); border-radius: 1rem; padding: .875rem 1rem; margin-bottom: .625rem; box-shadow: var(--shadow-sm); }
+  .vd-card--empty { text-align: center; color: var(--muted); padding: 1.75rem; }
+  .vd-card-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+  .vd-card-top strong { font-weight: 400; font-size: 1.0625rem; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .vd-card-contact { display: flex; gap: 1rem; margin-top: .125rem; }
+  .vd-card-contact a { color: var(--earth); text-decoration: none; padding: .625rem 0; min-height: 2.75rem; display: inline-flex; align-items: center; }
+  .vd-card-contact a:last-child:not(:first-child) { color: var(--gold-dark); }
+  .vd-card-prog { color: var(--ink); font-size: .9375rem; }
+  .vd-card-meta { margin-top: .25rem; color: var(--muted); font-size: .8125rem; line-height: 1.4; }
+  .vd-more-rows .vi-btn { width: 100%; min-height: 2.875rem; }
+
+  .vd-hide-m { display: none; }
+  .vi-section .vi-table { min-width: 0; }
+
+  /* the campaign sheet is a bottom sheet, and leaves the way it came */
+  .vd-drawer { top: auto; width: 100%; max-height: 92dvh; border-left: 0; border-top: 1px solid rgba(255,255,255,.7); border-radius: 1.5rem 1.5rem 0 0; box-shadow: 0 -28px 56px -28px rgba(74,53,39,.4); transform: translate3d(0,100%,0); }
+  .vd-drawer.is-open { transform: none; }
+  .vd-drawer::before { content: ""; position: absolute; top: .5rem; left: 50%; width: 2.25rem; height: 5px; margin-left: -1.125rem; border-radius: 3px; background: #d6cebd; }
+  .vd-drawer-head { padding-top: 1.5rem; }
+  }
+
+@media (prefers-reduced-transparency: reduce) { .vd-drawer, .vd-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; } .vd-drawer { background: var(--panel); } .vd-head-actions { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg); } }
+
+/* reduced motion: nothing moves or fades; the end states and the information are the same */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; transition-delay: 0s !important; animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+  .vi-btn:active, .vd-chip:active { transform: none; }
+}
+
+.vd-field select { padding-right: 2.25rem; }
+
+/* ───────── the Directory on a phone: compact filters, a bottom sheet for the rest, slim cards ───────── */
+.vd-sheet-head { display: none; }
+.vd-backdrop--sheet { z-index: 45; }
+
+@media (max-width: 700px) {
+  .vd-wrap .vi-head h1 { font-size: 1.5rem; }
+
+  /* the filter card: search, then program and Filters side by side, then small stage chips */
+  .vd-filters { display: grid; grid-template-columns: 1fr auto; gap: .5rem; padding: .75rem; border-radius: 1rem; box-shadow: var(--shadow-sm); }
+  .vd-filters .vd-row { display: contents; }
+  .vd-filters .vd-search { grid-column: 1 / -1; grid-row: 1; }
+  .vd-filters .vd-pop-wrap { grid-column: 1; grid-row: 2; min-width: 0; }
+  .vd-filters .vd-more { grid-column: 2; grid-row: 2; margin: 0; }
+  .vd-filters #fStages { grid-column: 1 / -1; grid-row: 3; }
+  .vd-filters .vd-foot { grid-column: 1 / -1; grid-row: 4; margin: -.25rem 0 0; }
+  .vd-search input, .vd-select { min-height: 2.625rem; font-size: 1rem; }
+  .vd-select { padding-top: .5rem; padding-bottom: .5rem; }
+
+  .vd-more { min-height: 2.625rem; padding: 0 .875rem; gap: .375rem; background: var(--bg); border: 1px solid transparent; border-radius: .75rem; color: var(--earth); font-size: .9375rem; }
+  .vd-more svg { display: none; }
+  .vd-more-l { font-size: 0; }
+  .vd-more-l::before { content: "Filters"; font-size: .9375rem; }
+  .vd-more[aria-expanded="true"] { border-color: var(--gold-dark); }
+
+  /* small pills; the touch area stays 44px tall because it reaches past the pill */
+  .vd-chips { gap: .375rem; margin-top: 0; padding: .25rem 0; margin-right: -.75rem; padding-right: .75rem; }
+  .vd-chip { position: relative; min-height: 2.25rem; padding: .1875rem .875rem; font-size: .875rem; }
+  .vd-chip::after { content: ""; position: absolute; inset: -.25rem -.125rem; }
+  .vd-chips--small .vd-chip { min-height: 2.25rem; }
+
+  /* the rest of the filters: a bottom sheet, opened by the Filters button */
+  .vd-expand { position: fixed; z-index: 46; left: 0; right: 0; bottom: 0; display: block; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--panel); border-radius: 1.5rem 1.5rem 0 0; box-shadow: 0 -28px 56px -28px rgba(74,53,39,.4);
+    transform: translate3d(0, 100%, 0); visibility: hidden; transition: transform var(--dur-sheet-out) var(--ease-in), visibility 0s linear var(--dur-sheet-out); }
+  .vd-expand.is-open { transform: none; visibility: visible; transition: transform var(--dur-sheet-in) var(--ease-out), visibility 0s; }
+  .vd-expand-inner { overflow: visible; margin: 0; padding: 0 1rem calc(1.25rem + env(safe-area-inset-bottom)); }
+  .vd-expand::before { content: ""; position: sticky; top: .5rem; display: block; width: 2.25rem; height: 5px; margin: .5rem auto 0; border-radius: 3px; background: #d6cebd; z-index: 2; }
+  .vd-sheet-head { display: flex; position: sticky; top: 1.125rem; z-index: 1; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 0 .75rem; background: var(--panel); }
+  .vd-sheet-head h3 { margin: 0; font-size: 1.125rem; font-weight: 400; letter-spacing: -.01em; color: var(--earth); outline: none; }
+  .vd-sheet-head .vi-btn { min-height: 2.5rem; padding: .375rem 1.125rem; font-size: .9375rem; }
+  .vd-grid { margin-top: 0; padding-top: .25rem; border-top: 0; }
+
+  /* results */
+  .vd-results { margin-top: 1.125rem; }
+  .vd-count { font-size: 1.25rem; }
+  .vd-bar { height: 5px; margin: .5rem 0 .375rem; }
+  .vd-stages { font-size: .8125rem; gap: .125rem 1rem; }
+  .vd-card { padding: .75rem .875rem; border-radius: .875rem; margin-bottom: .5rem; }
+  .vd-card-top strong { font-size: 1rem; }
+  .vd-card-contact { align-items: center; gap: .5rem; margin-top: .375rem; }
+  .vd-card-contact a { position: relative; min-height: 0; padding: .25rem .625rem; border-radius: 999px; background: var(--soft); font-size: .875rem; }
+  .vd-card-contact a:first-child { padding-left: 0; background: none; font-variant-numeric: tabular-nums; }
+  .vd-card-contact a:last-child:not(:first-child) { background: rgba(91,122,74,.14); color: #3f5a33; }
+  .vd-card-contact a::after { content: ""; position: absolute; inset: -.5rem -.25rem; }
+  .vd-card-prog { margin-top: .25rem; font-size: .875rem; }
+  .vd-card-meta { font-size: .75rem; }
+  .vd-pill { font-size: .75rem; padding: .0625rem .5rem; }
+}
+
+/* campaign drawer: name, callers, people, one button */
+.vd-drawer-foot { display: flex; padding: 1rem 1.25rem calc(1rem + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.vd-drawer-foot .vi-btn { flex: 1; min-height: 2.875rem; }
+.vd-people { margin: .25rem 0 1rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vd-callers { margin: -.25rem 0 1rem; }
+.vd-caller-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--dur-sheet-in) var(--ease-out), opacity var(--dur-press) ease; }
+.vd-caller-wrap.is-in { grid-template-rows: 1fr; opacity: 1; }
+.vd-caller-inner { min-height: 0; overflow: hidden; padding: 2px 4px; margin: 0 -4px; }
+.vd-caller { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+.vd-caller input { width: 100%; min-height: 2.75rem; background: var(--bg); border: 1px solid transparent; border-radius: .75rem; padding: .6875rem .875rem; font: inherit; color: var(--ink); transition: border-color var(--dur-press) ease, box-shadow var(--dur-press) ease, background var(--dur-press) ease; }
+.vd-caller input:focus { outline: none; background: var(--panel); border-color: var(--gold-dark); box-shadow: 0 0 0 4px rgba(200,169,110,.22); }
+.vd-addcaller { margin-left: -.75rem; }
+.vd-split { margin: .25rem 0 0; color: var(--earth); font-size: .9rem; line-height: 1.5; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .vd-caller-wrap { transition: opacity var(--dur-press) ease; } }

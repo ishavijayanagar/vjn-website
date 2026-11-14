@@ -31,7 +31,7 @@ function isOpenStatus(raw) {
   return !s || s === 'open' || s === 'active';
 }
 
-function createEventVolunteers({ db, listings, onChange = () => {}, now = () => Date.now() }) {
+function createEventVolunteers({ db, listings, now = () => Date.now() }) {
   const q = {
     all: db.prepare('SELECT row_id, kind, event_id, data FROM event_vols'),
     byId: db.prepare('SELECT row_id, kind, event_id, data FROM event_vols WHERE row_id = ?'),
@@ -48,7 +48,6 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
   function write(obj) {
     const { row_id, kind, event_id, ...rest } = obj;
     q.put.run(row_id, kind, String(event_id || ''), JSON.stringify(rest));
-    onChange('ev', 'upsert', row_id, obj);
   }
 
   /** { eventId: number of volunteers added } for the Programs progress line. */
@@ -88,6 +87,7 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
       attendanceAt: r.attendance_at || '',
       addedBy: r.added_by || '',
       source: r.source || '',
+      checkedIn: r.checked_in_at ? 'yes' : 'no',
       checkedInAt: r.checked_in_at || '',
     };
   }
@@ -211,7 +211,7 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
       volunteer_name: name, phone, volunteer_remarks: String((data && data.remarks) || ''), area_of_stay: area,
       ie_completion: String((data && data.ieCompletion) || '').trim(),
       added_by: fromForm ? 'google-form' : walkIn ? 'walk-in' : (actor && actor.username) || '', attended: '', in_wa_group: 'no',
-      invite_sent: 'no', source, checked_in_at: walkIn ? t : '', updated_at: t,
+      invite_sent: 'no', source, checked_in: walkIn ? 'yes' : 'no', checked_in_at: walkIn ? ((data && data.at) || t) : '', updated_at: t,
     });
     return { success: true };
   }
@@ -226,12 +226,13 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
       const phone = digits(data && data.phone);
       if (!eventId || !phone) return { matched: false };
       const t = stamp();
+      const at = data.at ? String(data.at).slice(0, 19) : t; // `at`: when it really happened (old check-ins being moved in)
       const row = q.vols.all(eventId).map(parse).find((v) => digits(v.phone) === phone);
       if (row) {
-        if (!row.checked_in_at) { row.checked_in_at = t; row.updated_at = t; write(row); }
+        if (!row.checked_in_at) { row.checked_in = 'yes'; row.checked_in_at = at; row.updated_at = t; write(row); }
         return { matched: true };
       }
-      addVolunteer(null, { eventId, name: data.name, phone, area: data.area, ieCompletion: data.ieCompletion, addedBy: 'walk-in' });
+      addVolunteer(null, { eventId, name: data.name, phone, area: data.area, ieCompletion: data.ieCompletion, addedBy: 'walk-in', at });
       return { matched: false, added: true };
     } catch (err) {
       return { matched: false, error: err.message };
@@ -274,7 +275,6 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
     const row = volunteerRow(data && data.rowId);
     if (!row) throw new Error('Volunteer row not found.');
     q.del.run(row.row_id);
-    onChange('ev', 'delete', row.row_id, null);
     return { success: true };
   }
 
@@ -356,6 +356,25 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
     return rowId;
   }
 
+  /**
+   * Google Form responses sent straight from Apps Script. Each goes onto its event's list as a volunteer
+   * (the same rules as adding one by hand); a number already on the list is skipped. Returns one result per row:
+   * 'added', 'duplicate', or 'failed' (e.g. the program is not known here), which Apps Script then parks in its tab.
+   */
+  function receiveFormResponses(rows) {
+    return (Array.isArray(rows) ? rows.slice(0, 200) : []).map((r) => {
+      try {
+        addVolunteer(null, {
+          eventId: r && r.event_id, name: r && r.volunteer_name, phone: r && r.phone, area: r && r.area_of_stay,
+          ieCompletion: r && r.ie_completion, remarks: r && r.volunteer_remarks, addedBy: 'google-form',
+        });
+        return 'added';
+      } catch (err) {
+        return /already on this event/.test(err.message) ? 'duplicate' : 'failed';
+      }
+    });
+  }
+
   function importRows(rows) {
     let added = 0;
     db.transaction(() => {
@@ -373,7 +392,7 @@ function createEventVolunteers({ db, listings, onChange = () => {}, now = () => 
 
   return {
     counts, snapshot, needs, needFor, saveNeed, addVolunteer, checkIn, updateVolunteer, deleteVolunteer, markInGroup,
-    dueAttendanceReminders, markReminded, importRows, setForm, adopt, write, digits,
+    dueAttendanceReminders, markReminded, importRows, setForm, adopt, receiveFormResponses, write, digits,
   };
 }
 

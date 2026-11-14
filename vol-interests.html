@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="referrer" content="no-referrer"/>
+  <meta name="robots" content="noindex"/>
+  <title>Interests – Isha Place, Vijayanagar</title>
+  <link rel="icon" type="image/png" href="assets/logo.png"/>
+  <link rel="stylesheet" href="vol-interests.css?v=13"/>
+  <script src="config.js"></script>
+</head>
+<body>
+  <main class="vi-wrap">
+    <header class="vi-head" id="viHead">
+      <a class="vi-back" href="admin.html#volunteers" aria-label="Back to volunteers">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </a>
+      <h1>Interests</h1>
+      <button type="button" class="vi-btn vi-btn--primary vi-head-add" id="viOpenDrawer">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Add manually
+      </button>
+    </header>
+
+
+    <p class="vi-note" id="viAuth" hidden>Sign in on the <a href="admin.html">admin page</a> first.</p>
+
+    <section class="vi-panel" id="viInput">
+      <div class="vi-tabs" role="tablist">
+        <button type="button" class="vi-tab is-on" data-tab="paste" role="tab">Paste</button>
+        <button type="button" class="vi-tab" data-tab="image" role="tab">Photo</button>
+      </div>
+
+      <div class="vi-pane" data-pane="paste">
+        <textarea id="viText" rows="6" aria-label="Pasted rows" placeholder="Paste rows"></textarea>
+        <button type="button" class="vi-btn vi-btn--primary" id="viPreviewText">Preview</button>
+      </div>
+
+      <div class="vi-pane" data-pane="image" hidden>
+        <label class="vi-drop" for="viImage">
+          <input type="file" id="viImage" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Photo"/>
+          <span id="viImageName">Choose a photo</span>
+        </label>
+        <img id="viImagePreview" class="vi-thumb" alt="" hidden/>
+        <button type="button" class="vi-btn vi-btn--primary" id="viExtract">Extract data</button>
+        <div class="vi-progress" id="viProgress" hidden>
+          <div class="vi-status-row">
+            <p class="vi-status" id="viStatus" role="status" aria-live="polite"></p>
+            <button type="button" class="vi-btn vi-btn--text" id="viCancelExtract">Cancel</button>
+          </div>
+          <progress id="viOcrBar" max="100" aria-label="Progress"></progress>
+        </div>
+      </div>
+
+      <p class="vi-err" id="viErr" role="alert" hidden></p>
+    </section>
+
+    <section class="vi-panel" id="viReview" hidden>
+      <div class="vi-review-head">
+        <h2>Review</h2>
+        <p class="vi-summary" id="viSummary"></p>
+      </div>
+      <div class="vi-scroll">
+        <table class="vi-table">
+          <thead>
+            <tr><th></th><th>Name</th><th>WhatsApp number</th><th>Area of stay</th><th>IE completion date</th><th>Volunteering type</th><th>Availability</th><th>Profession</th><th>Skills</th><th>Remarks</th><th></th></tr>
+          </thead>
+          <tbody id="viRows"></tbody>
+        </table>
+      </div>
+      <div class="vi-actions vi-actions--bar">
+        <button type="button" class="vi-btn vi-btn--primary" id="viAdd">Add</button>
+        <button type="button" class="vi-btn vi-btn--text" id="viCancel">Cancel</button>
+      </div>
+    </section>
+
+    <section class="vi-panel vi-panel--done" id="viDone" hidden>
+      <h2 id="viDoneTitle"></h2>
+      <ul id="viSkipped" class="vi-skipped"></ul>
+      <button type="button" class="vi-btn" id="viAgain">Done</button>
+    </section>
+
+    <section class="vi-section" id="viRecent" hidden>
+      <h2>Recently added <span class="vi-count" id="viTotal"></span></h2>
+      <div class="vi-scroll vi-panel vi-panel--flat">
+        <table class="vi-table">
+          <thead><tr><th>Added</th><th>Name</th><th>WhatsApp number</th><th>Area</th><th>Status</th><th>By</th></tr></thead>
+          <tbody id="viList"><tr><td colspan="6" class="vi-empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="vi-backdrop" id="viBackdrop" hidden></div>
+  <aside class="vi-drawer" id="viDrawer" role="dialog" aria-modal="true" aria-labelledby="viDrawerTitle" aria-hidden="true">
+    <form id="viForm" novalidate>
+      <header class="vi-drawer-head" id="viDrawerHead">
+        <span class="vi-grabber" aria-hidden="true"></span>
+        <h2 id="viDrawerTitle">Add volunteer</h2>
+        <button type="button" class="vi-icon-btn" id="viCloseDrawer" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="vi-drawer-body">
+        <div class="vi-field"><label for="mName">Name</label><input type="text" id="mName" autocomplete="off" aria-describedby="eName" required/><p class="vi-field-err" id="eName" hidden></p></div>
+        <div class="vi-field"><label for="mWhatsapp">WhatsApp number</label><input type="text" id="mWhatsapp" inputmode="tel" autocomplete="off" aria-describedby="eWhatsapp" required/><p class="vi-field-err" id="eWhatsapp" hidden></p></div>
+        <div class="vi-field"><label for="mArea">Area of stay</label><input type="text" id="mArea" autocomplete="off" aria-describedby="eArea"/><p class="vi-field-err" id="eArea" hidden></p></div>
+        <div class="vi-field"><label for="mIe">IE completion date</label><input type="text" id="mIe" autocomplete="off" placeholder="May 2024" aria-describedby="eIe"/><p class="vi-field-err" id="eIe" hidden></p></div>
+        <div class="vi-field"><label for="mVolType">Volunteering type</label><select id="mVolType"><option value="">Select</option><option>In-Person Volunteering</option><option>Online Volunteering</option><option>Both</option></select></div>
+        <div class="vi-field"><label for="mAvailability">Availability</label><select id="mAvailability"><option value="">Select</option><option>Weekdays</option><option>Weekends</option><option>Both</option></select></div>
+        <div class="vi-field"><label for="mProfession">Profession</label><select id="mProfession"><option value="">Select</option><option>Student</option><option>IT / Tech / Design</option><option>Teacher / Educator</option><option>Business / Management</option><option>Homemaker</option><option>Retired</option><option>Other</option></select></div>
+        <div class="vi-field"><label for="mSkill">Skills</label><input type="text" id="mSkill" autocomplete="off" aria-describedby="eSkill"/><p class="vi-field-err" id="eSkill" hidden></p></div>
+        <div class="vi-field"><label for="mRemarks">Remarks</label><textarea id="mRemarks" rows="3" aria-describedby="eRemarks"></textarea><p class="vi-field-err" id="eRemarks" hidden></p></div>
+        <div id="viExtras"></div>
+        <button type="button" class="vi-btn vi-btn--text vi-addfield" id="viAddField">+ Add field</button>
+        <p class="vi-err" id="viFormErr" role="alert" hidden></p>
+      </div>
+      <footer class="vi-drawer-foot">
+        <button type="submit" class="vi-btn vi-btn--primary" id="viSave">Add</button>
+        <button type="button" class="vi-btn" id="viSaveNext">Add and next</button>
+      </footer>
+    </form>
+  </aside>
+
+  <div class="vi-toast" id="viToast" role="status" aria-live="polite"></div>
+  <script src="vol-interests.js?v=20"></script>
+</body>
+</html>

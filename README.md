@@ -1,5 +1,11 @@
 # Isha Place – Vijayanagar
 
+> **The Sandesha database (`sandesha-server/sandesha.db`) is the single source of truth.**
+> Google Sheets and Apps Script are not where data lives. The Sheet is a backup copy the Pi keeps
+> updated, and a temporary buffer for forms while the Pi is down. Apps Script is only used for what
+> needs Google: Forms, Slides flyers and Drive images. Change data in the admin, never in the Sheet:
+> a Sheet edit is not read back and is overwritten by the next sync. See `sandesha-server/SQLITE.md`.
+
 This repo holds two pieces:
 
 | Folder | What it is |

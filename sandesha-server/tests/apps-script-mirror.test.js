@@ -17,21 +17,28 @@ function fakeSpreadsheet() {
       appendRow: (vals) => { t.rows.push(vals.slice()); },
       getDataRange: () => api.getRange(1, 1, t.rows.length, api.getLastColumn()),
       deleteRow: (r) => { t.rows.splice(r - 1, 1); },
+      getMaxRows: () => Math.max(1000, t.rows.length),
+      setName: (n) => { t.renamed = n; },
+      setFrozenRows: (n) => { t.frozen = n; },
+      autoResizeColumns() {},
       getRange: (r, c, nr = 1, nc = 1) => ({
         getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => {
           const v = (t.rows[r - 1 + i] || [])[c - 1 + j];
           return v === undefined ? '' : v;
         })),
-        setValues: (vals) => {
+        setValues(vals) {
           vals.forEach((row, i) => {
             while (t.rows.length < r + i) t.rows.push([]);
             row.forEach((v, j) => { t.rows[r - 1 + i][c - 1 + j] = v; });
           });
+          return this; // like the real Range, so calls can be chained
         },
         setValue: (v) => {
           while (t.rows.length < r) t.rows.push([]);
           t.rows[r - 1][c - 1] = v;
         },
+        setNumberFormat(f) { (t.formats = t.formats || {})[c] = f; return this; },
+        setDataValidation(rule) { (t.validations = t.validations || {})[c] = { rule, rows: nr }; return this; },
         setFontWeight() { return this; },
         setBackground() { return this; },
       }),
@@ -50,7 +57,7 @@ function fakeSpreadsheet() {
 function load(props = {}, extraBooks = {}) {
   const book = fakeSpreadsheet();
   const ctx = {
-    SpreadsheetApp: { getActiveSpreadsheet: () => book, openById: (id) => { if (!extraBooks[id]) throw new Error('No access'); return extraBooks[id]; } },
+    SpreadsheetApp: { newDataValidation: () => { const rule = { list: null, invalid: null }; const b = { requireValueInList(l) { rule.list = l; return b; }, setAllowInvalid(v) { rule.invalid = v; return b; }, build: () => rule }; return b; }, create: (title) => { const b = fakeSpreadsheet(); b.title = title; b.id = 'NEW1'; b.getId = () => 'NEW1'; b.getUrl = () => 'https://docs.google.com/spreadsheets/d/NEW1'; b.getSheets = () => [b.insertSheet('Sheet1')]; ctx.created = b; return b; }, getActiveSpreadsheet: () => book, openById: (id) => { if (!extraBooks[id]) throw new Error('No access'); return extraBooks[id]; } },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; }, deleteProperty: (k) => { delete props[k]; } }) },
     CacheService: { getScriptCache: () => ({ put() {}, remove() {}, get: () => null }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
@@ -58,6 +65,15 @@ function load(props = {}, extraBooks = {}) {
       formatDate: (d, tz, fmt) => new Date(d.getTime() + 5.5 * 3600e3).toISOString().slice(0, fmt.includes('HH') ? 16 : 10).replace('T', fmt.includes("'T'") ? 'T' : ' '),
       getUuid: () => 'uuid-' + Math.random().toString(36).slice(2),
     },
+    Logger: { log() {} },
+    DriveApp: {
+      Access: { ANYONE_WITH_LINK: 'LINK' }, Permission: { VIEW: 'VIEW', EDIT: 'EDIT' },
+      getFileById: (id) => ({ id, setSharing(a, p) { ctx.shared = [id, a, p]; } }),
+      getRootFolder: () => ({ removeFile() {} }),
+      createFolder: (n) => ({ getId: () => 'FOLDER1', addFile(f) { ctx.filed = [n, f.id]; } }),
+      getFolderById: () => ({ addFile(f) { ctx.filed = ['existing', f.id]; } }),
+    },
+    UrlFetchApp: { fetch: (...a) => (ctx.fetchImpl ? ctx.fetchImpl(...a) : { getResponseCode: () => 500, getContentText: () => '' }) },
     Date,
   };
   vm.createContext(ctx);
@@ -157,6 +173,89 @@ async function run() {
     assert.strictEqual(other.tabs['Oct 2026'].rows.length, 2);
     assert.ok(!book.tabs['Oct 2026']);
     assert.throws(() => ctx.setCheckinSheet('nope'), /No access/);
+  });
+
+  await test('volunteer interests: monthly tabs in their own sheet with only the six columns, none in this spreadsheet', () => {
+    const other = fakeSpreadsheet();
+    const { ctx, book } = load({ VJN_AUTH_SECRET: SECRET }, { INT123: other });
+    ctx.setInterestSheet('https://docs.google.com/spreadsheets/d/INT123/edit');
+    ctx.vjnMirror_({ secret: SECRET, ops: [
+      { tbl: 'volInterests', op: 'upsert', key: 'i1', row: { month: '2026-10', name: 'Ravi', 'whatsapp number': '+919888888888', 'ie completion date': 'May 2024', source: 'Added manually', 'volunteer remarks': 'weekends', 'calling remarks': '2026-10-05 10:00 asha: called', area: 'JP' } },
+      { tbl: 'volInterests', op: 'upsert', key: 'i2', row: { month: '2026-10', name: 'Meena', source: 'Pasted list' } },
+    ] });
+    const oct = other.tabs['Oct 2026'].rows;
+    assert.deepEqual(oct[0], ['Name', 'WhatsApp Number', 'IE Completion Date', 'Source', 'Volunteer Remarks', 'Calling Remarks', 'id']);
+    assert.deepEqual(oct.slice(1).map((r) => r[6]), ['i1', 'i2']);
+    assert.deepEqual(oct[1].slice(0, 6), ['Ravi', '+919888888888', 'May 2024', 'Added manually', 'weekends', '2026-10-05 10:00 asha: called']); // the area was not copied
+    assert.ok(other.tabs['Oct 2026'].formats, 'number and date columns are kept as text');
+    assert.ok(!book.tabs['Oct 2026']);
+    // the website forms are no longer routed to this sheet: their tabs are acknowledged in this spreadsheet like before
+    assert.strictEqual(ctx.vjnTable_('inquiries:programVolunteer').sheet, 'ProgramVolunteer');
+    assert.strictEqual(ctx.vjnTable_('inquiries:volunteeringInterest').sheet, 'VolunteeringInterest');
+  });
+
+  await test('google form response: goes straight to the Pi; only what the Pi cannot take is parked in the tab', () => {
+    const answer = (title, v) => ({ getItem: () => ({ getTitle: () => title }), getResponse: () => v });
+    const submit = (ctx, name, phone) => ctx.onVolunteerFormSubmit({
+      source: { getId: () => 'F1' },
+      response: { getItemResponses: () => [answer('Name', name), answer('WhatsApp number', phone), answer('Area of stay', 'JP')] },
+    });
+    const setupForm = (props) => {
+      const { ctx, book } = load({ VJN_AUTH_SECRET: SECRET, SANDESHA_API_URL: 'http://pi', ...props });
+      ctx.vjnMirror_({ secret: SECRET, ops: [{ tbl: 'ev', op: 'upsert', key: 'n1', row: { row_id: 'n1', kind: 'need', event_id: '4', event_title: 'IE', volunteer_form_id: 'F1', volunteer_form_fields: 'area_of_stay' } }] });
+      return { ctx, tab: () => book.tabs.EventVolunteers.rows };
+    };
+    // the Pi takes it: nothing is written to the tab
+    let { ctx, tab } = setupForm({ VJN_DATA_ON_PI: '1' });
+    const calls = [];
+    ctx.fetchImpl = (url, opts) => { calls.push([url, JSON.parse(opts.payload)]); return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ results: ['added'] }) }; };
+    submit(ctx, 'Asha', '+91 99999 99999');
+    assert.strictEqual(calls[0][0], 'http://pi/vjn/internal/form-responses');
+    assert.strictEqual(calls[0][1].secret, SECRET);
+    assert.deepStrictEqual([calls[0][1].rows[0].volunteer_name, calls[0][1].rows[0].phone, calls[0][1].rows[0].event_id], ['Asha', '919999999999', '4']);
+    assert.strictEqual(tab().length, 2); // header + the need row only
+    // a repeat the Pi already has is dropped, not parked
+    ctx.fetchImpl = () => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify({ results: ['duplicate'] }) });
+    submit(ctx, 'Asha', '+91 99999 99999');
+    assert.strictEqual(tab().length, 2);
+    // the Pi is down: the response is kept in the tab for the Pi to collect later
+    ({ ctx, tab } = setupForm({ VJN_DATA_ON_PI: '1' }));
+    ctx.fetchImpl = () => { throw new Error('unreachable'); };
+    submit(ctx, 'Ravi', '+91 98888 88888');
+    assert.strictEqual(tab().length, 3);
+    const hdr = tab()[0];
+    assert.strictEqual(tab()[2][hdr.indexOf('volunteer_name')], 'Ravi');
+    // before the data has moved to the Pi the tab is still the record
+    ({ ctx, tab } = setupForm({}));
+    ctx.fetchImpl = () => { throw new Error('should not be called'); };
+    submit(ctx, 'Meena', '+91 97777 77777');
+    assert.strictEqual(tab().length, 3);
+  });
+
+  await test('campaign sheet: made for the Pi with only the columns and rows it sends, dropdowns, filed in a folder, editable by link', () => {
+    const { ctx } = load({ VJN_AUTH_SECRET: SECRET });
+    assert.throws(() => ctx.vjnCreateSheet_({ secret: 'nope', headers: ['Name'], rows: [] }), /Unauthorized/);
+    assert.throws(() => ctx.vjnCreateSheet_({ secret: SECRET, headers: [], rows: [] }), /No columns/);
+    const out = ctx.vjnCreateSheet_({ secret: SECRET, title: 'Campaign: Thank-you call', headers: ['Name', 'Phone Number', 'IE Completion Date', 'Profession', 'Caller Name'],
+      rows: [['Asha', '+919845012345', 'May-2024', 'Student', 'Ravi'], ['Meena', '+919777777777', '', '', 'Ravi']],
+      dropdowns: { Profession: ['Student', 'Retired'], 'Caller Name': ['Ravi', 'Asha'], Nope: ['x'], 'IE Completion Date': [] } });
+    assert.deepEqual([out.id, out.url], ['NEW1', 'https://docs.google.com/spreadsheets/d/NEW1']);
+    assert.strictEqual(ctx.created.title, 'Campaign: Thank-you call');
+    const rows = ctx.created.tabs.Sheet1.rows;
+    assert.deepEqual(rows[0], ['Name', 'Phone Number', 'IE Completion Date', 'Profession', 'Caller Name']);
+    assert.deepEqual(rows[1], ['Asha', '+919845012345', 'May-2024', 'Student', 'Ravi']); // text, so the + and the date are kept
+    // dropdowns on the columns that have choices (and only those), on every data row; other values are still allowed
+    const v = ctx.created.tabs.Sheet1.validations;
+    assert.deepEqual(Object.keys(v), ['4', '5']);
+    assert.deepEqual([v[4].rule.list, v[4].rule.invalid, v[4].rows], [['Student', 'Retired'], true, 2]);
+    assert.deepEqual(v[5].rule.list, ['Ravi', 'Asha']);
+    assert.strictEqual(rows.length, 3);
+    assert.ok(ctx.created.tabs.Sheet1.formats, 'cells are plain text');
+    assert.deepEqual(ctx.filed, ['Volunteer campaigns', 'NEW1']);
+    assert.deepEqual(ctx.shared, ['NEW1', 'LINK', 'EDIT']); // callers can write in it
+    // the folder is made once and reused
+    ctx.vjnCreateSheet_({ secret: SECRET, headers: ['Name'], rows: [] });
+    assert.strictEqual(ctx.filed[0], 'existing');
   });
 
   await test('inbox: only rows with no id are handed over, and an ack stops them coming back', () => {

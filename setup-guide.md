@@ -1,5 +1,9 @@
 # Setup Guide — Isha Place, Vijayanagar Website
 
+> **Note:** this guide is the original Sheet-first setup and is partly out of date. The Sandesha
+> database on the Pi is now the source of truth; the Sheet is a backup copy and Apps Script is only
+> used for Google Forms, Slides, Drive and the Pi-down fallback. See `sandesha-server/SQLITE.md`.
+
 ## What you have
 - `index.html` — Home page  
 - `programs.html` — Programs listing  
@@ -125,13 +129,13 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/XXXXXX/exec";
 
 Use the **admin** page at `admin.html` (also linked as “Admin login” in the footer).
 
-You can still edit the Google Sheet directly if you prefer.
+Do not edit the Google Sheet directly: it is a backup copy of the database, so edits there are not read back and are overwritten by the next sync.
 
 ---
 
 ## STEP 6 — Admin (edit the site without opening Sheets)
 
-The public site still **reads** from Google Sheets. The admin page **writes** back to those sheets, and uploads photos to Google Drive.
+The admin page writes to the Sandesha database (the source of truth). The Sheet is a backup copy the Pi keeps updated, and the public site reads it only while the Pi is down. Photos upload to Google Drive.
 
 Google does **not** ask for Drive access when you click Deploy. You have to **Run** a function once.
 

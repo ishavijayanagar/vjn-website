@@ -8,7 +8,7 @@
   const ROLE_PAGES = {
     // Admin keeps only the cross-team pages. Each team's own pages belong to that team;
     // later the admin password will sign in as any team instead of listing them here.
-    admin: ["messaging", "team", "flyerTemplates", "newFlyerTemplate", "programTitles", "settings", "sandeshaActivity"],
+    admin: ["messaging", "team", "flyerTemplates", "newFlyerTemplate", "programTitles", "settings", "sandeshaActivity", "volunteers"],
     programs: ["events", "programVolunteers", "settings", "generateFlyer"],
     promotions: ["promotions", "banner"],
     nurturing: ["queries", "volunteering", "volunteers", "settings", "sandeshaActivity", "exportMembers"],
@@ -1387,7 +1387,7 @@
     show($("gfToolbar"), page === "flyerTemplates");
     show($("bannerPanel"), page === "banner");
     show($("volChooserPanel"), isNurturingVolChooser);
-    show($("volRosterPanel"), page === "volunteers");
+    show($("volPeoplePanel"), page === "volunteers");
     show($("volProgramDetailPanel"), false);
     show($("volAttendancePanel"), false);
     show($("volNeedsPanel"), false);
@@ -1410,9 +1410,6 @@
       pendingPanel = $("inquiriesPanel");
     } else if (isEvents) {
       setTab("programs");
-    } else if (page === "volunteers") {
-      pending = loadRoster();
-      pendingPanel = $("volRosterPanel");
     } else if (isNurturingVolChooser) {
       // The chooser's counts come from the hub stats; a direct load / reload
       // of #volunteering never visited the hub, so fetch them here.
@@ -3118,7 +3115,7 @@
 
   function showOnlyPanel(panelId) {
     ["listingsPanel", "inquiriesPanel", "promotionsPanel", "teamPanel", "programVolunteersPanel",
-     "flyerTemplatesPanel", "settingsPanel", "programTitlesPanel", "sandeshaActivityPanel", "exportMembersPanel", "generateFlyerPanel", "bannerPanel", "volRosterPanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
+     "flyerTemplatesPanel", "settingsPanel", "programTitlesPanel", "sandeshaActivityPanel", "exportMembersPanel", "generateFlyerPanel", "bannerPanel", "volPeoplePanel", "volChooserPanel", "volProgramDetailPanel", "volAttendancePanel", "volNeedsPanel", "volOppsPanel"].forEach(function (id) {
       show($(id), id === panelId);
     });
     show($("backToHubBtn"), role() !== "promotions");
@@ -11851,6 +11848,10 @@ panels +
         openVolNeedsList();
       });
     }
+    // The Volunteers group: three places, each its own page
+    [["volPeopleInterests", "vol-interests.html"], ["volPeopleDirectory", "volunteers.html"], ["volPeopleCampaigns", "campaigns.html"]].forEach(function (c) {
+      if ($(c[0])) $(c[0]).addEventListener("click", function () { window.location.href = c[1]; });
+    });
     if ($("volChooserAttendance")) {
       $("volChooserAttendance").addEventListener("click", function () {
         openVolAttendance();

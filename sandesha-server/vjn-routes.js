@@ -20,6 +20,7 @@
  *                            API (see vjn-api.js); 404 for a formType not handled here
  *   GET  /vjn/sync-status    (admin)  { pending, oldest, lastError } — changes not yet copied to the Sheet
  *   POST /vjn/internal/drain { secret }  Apps Script: collect rows the Sheet just received
+ *   POST /vjn/internal/form-responses { secret, rows }  Apps Script: Google Form responses, saved straight to the database
  *   GET  /public/programs|volunteering|site[?id=]   no sign-in — what the website shows
  *   POST /public/submit      { formType, … }  the visitor forms
  *
@@ -32,7 +33,7 @@ const siteMedia = require('./site-media');
 const FAIL_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILS = 10;
 
-function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, mirrorStats = null, secret = '', readBody, jsonResponse, now = () => Date.now() }) {
+function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, receiveRows = null, mirrorStats = null, secret = '', readBody, jsonResponse, now = () => Date.now() }) {
   // Failed sign-ins per client address, so the public URL cannot be used to
   // guess passwords at speed.
   const fails = new Map();
@@ -116,7 +117,7 @@ function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, 
     try {
       const data = await body(req);
       if (data.formType === 'adminUploadImage') data.publicBase = requestOrigin(req);
-      const out = api.admin(auth.session, data);
+      const out = await api.admin(auth.session, data);
       if (out === undefined) jsonResponse(res, 404, { error: 'Not handled here' });
       else jsonResponse(res, 200, out);
     } catch (err) {
@@ -145,6 +146,17 @@ function createVjnRoutes({ users, promos = null, api = null, drainInbox = null, 
       } else {
         drainInbox();
         jsonResponse(res, 200, { ok: true });
+      }
+      return true;
+    }
+
+    // Apps Script handing over Google Form responses directly (no Sheet in between).
+    if (receiveRows && p === '/vjn/internal/form-responses' && req.method === 'POST') {
+      const data = await body(req);
+      if (!secret || String(data.secret || '') !== secret) {
+        jsonResponse(res, 403, { error: 'Forbidden' });
+      } else {
+        jsonResponse(res, 200, { results: receiveRows(data.rows) });
       }
       return true;
     }

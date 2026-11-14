@@ -255,6 +255,67 @@ const MIGRATIONS = [
      emoji TEXT NOT NULL,
      PRIMARY KEY (message_id, sender_hash)
    ) STRICT`,
+  // general volunteering interests, entered by the team (paste, file or a photo read by AI)
+  `CREATE TABLE vol_interests (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     timestamp TEXT NOT NULL DEFAULT '',
+     name TEXT NOT NULL DEFAULT '',
+     whatsapp TEXT NOT NULL DEFAULT '',
+     area TEXT NOT NULL DEFAULT '',
+     ie_completion TEXT NOT NULL DEFAULT '',
+     opportunity_name TEXT NOT NULL DEFAULT '',
+     opportunity_id TEXT NOT NULL DEFAULT '',
+     volunteer_remarks TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'Open',
+     remarks TEXT NOT NULL DEFAULT '',
+     in_group TEXT NOT NULL DEFAULT '',
+     contacted_on TEXT NOT NULL DEFAULT '',
+     assigned_to TEXT NOT NULL DEFAULT '',
+     source TEXT NOT NULL DEFAULT '',
+     added_by TEXT NOT NULL DEFAULT '',
+     created_at INTEGER NOT NULL DEFAULT 0
+   ) STRICT;
+   CREATE INDEX vol_interests_phone ON vol_interests (whatsapp)`,
+  // vol_interests: no opportunity columns; calling_remarks is a JSON list of the calls made to each person
+  `ALTER TABLE vol_interests DROP COLUMN opportunity_name;
+   ALTER TABLE vol_interests DROP COLUMN opportunity_id;
+   ALTER TABLE vol_interests ADD COLUMN calling_remarks TEXT NOT NULL DEFAULT '[]'`,
+  // the database is the record from the start: new databases begin with data_on_pi on (one already set is left as it is)
+  `INSERT INTO app_setting (key, value) VALUES ('data_on_pi', '1') ON CONFLICT (key) DO NOTHING`,
+  // website enquiries and event volunteers are no longer copied to a Sheet: drop whatever was still waiting to be sent
+  `DELETE FROM sheet_sync_queue WHERE tbl = 'ev' OR tbl LIKE 'inquiries:%'`,
+  // Volunteer campaigns and exports: the filters used, how many people, and the Google Sheet that was made
+  `CREATE TABLE volunteer_sheets (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     kind TEXT NOT NULL DEFAULT 'campaign',
+     name TEXT NOT NULL DEFAULT '',
+     filters TEXT NOT NULL DEFAULT '{}',
+     people INTEGER NOT NULL DEFAULT 0,
+     sheet_id TEXT NOT NULL DEFAULT '',
+     sheet_url TEXT NOT NULL DEFAULT '',
+     created_by TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL DEFAULT ''
+   ) STRICT`,
+  // a clearer name for the table above
+  `ALTER TABLE volunteer_sheets RENAME TO vol_campaigns`,
+  // what the volunteering quiz asks: type, availability, profession, skill (chosen from lists where there are lists)
+  `ALTER TABLE vol_interests ADD COLUMN vol_type TEXT NOT NULL DEFAULT '';
+   ALTER TABLE vol_interests ADD COLUMN availability TEXT NOT NULL DEFAULT '';
+   ALTER TABLE vol_interests ADD COLUMN profession TEXT NOT NULL DEFAULT '';
+   ALTER TABLE vol_interests ADD COLUMN skill TEXT NOT NULL DEFAULT ''`,
+  // closing a campaign: its status and result, and what was sent for each person (so callers' changes can be told apart)
+  `ALTER TABLE vol_campaigns ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+   ALTER TABLE vol_campaigns ADD COLUMN closed_at TEXT NOT NULL DEFAULT '';
+   ALTER TABLE vol_campaigns ADD COLUMN closed_by TEXT NOT NULL DEFAULT '';
+   ALTER TABLE vol_campaigns ADD COLUMN result TEXT NOT NULL DEFAULT '{}';
+   CREATE TABLE vol_campaign_people (
+     campaign_id INTEGER NOT NULL,
+     phone_key TEXT NOT NULL,
+     name TEXT NOT NULL DEFAULT '',
+     caller TEXT NOT NULL DEFAULT '',
+     sent TEXT NOT NULL DEFAULT '{}',
+     PRIMARY KEY (campaign_id, phone_key)
+   ) STRICT`,
 ];
 
 function openDb(file = process.env.SANDESHA_DB_FILE || path.join(__dirname, 'sandesha.db')) {

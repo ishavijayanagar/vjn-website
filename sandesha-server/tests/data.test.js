@@ -130,6 +130,7 @@ async function run() {
     let vols = t.ev.needs().items[0].volunteers;
     assert.strictEqual(vols[0].source, 'admin');
     assert.ok(vols[0].checkedInAt);
+    assert.strictEqual(vols[0].checkedIn, 'yes');
     const walk = t.ev.checkIn({ programId: '1', name: 'Ravi', phone: '88888 88888', area: 'BTM' });
     assert.strictEqual(walk.added, true);
     t.ev.checkIn({ programId: '1', name: 'Ravi', phone: '8888888888', area: 'BTM' });
@@ -138,6 +139,11 @@ async function run() {
     const ravi = vols.find((v) => v.name === 'Ravi');
     assert.strictEqual(ravi.source, 'walk-in');
     assert.ok(ravi.checkedInAt);
+    assert.strictEqual(ravi.checkedIn, 'yes');
+    // `at` keeps the time a moved-in check-in really happened
+    const old = t.ev.checkIn({ programId: '1', name: 'Old', phone: '7777777777', at: '2026-10-05T09:30:00.000Z' });
+    assert.strictEqual(old.added, true);
+    assert.strictEqual(t.ev.needs().items[0].volunteers.find((v) => v.name === 'Old').checkedInAt, '2026-10-05T09:30:00');
     assert.strictEqual(t.ev.checkIn({ programId: '', phone: '' }).matched, false);
   });
 
@@ -186,6 +192,18 @@ async function run() {
     assert.strictEqual(t.api.admin(admin, { formType: 'adminGet', type: 'programs' }), undefined);
     assert.strictEqual(t.api.publicGet('programs'), undefined);
     assert.strictEqual(t.api.publicSubmit({ formType: 'homeQuery', name: 'x' }), undefined);
+  });
+
+  await test('attendance form: lands in event_vols only (checked in), never in website_inquiries', () => {
+    const t = setup();
+    t.listings.save('programs', '', { title: 'IE', volunteering_available: 'yes', volunteers_needed: '2', status: 'Open', startdate: '2026-11-10' });
+    const out = t.api.publicSubmit({ formType: 'volunteerAttendance', name: 'Asha', phone: '+919999999999', area: 'JP', programId: '1', programName: 'IE', consent: true });
+    assert.deepStrictEqual(out, { success: true });
+    const v = t.ev.needs().items[0].volunteers;
+    assert.strictEqual(v.length, 1);
+    assert.strictEqual(v[0].checkedIn, 'yes');
+    assert.strictEqual(t.inquiries.meta().total, 0);
+    assert.throws(() => t.api.publicSubmit({ formType: 'volunteerAttendance', name: 'x' }), /./);
   });
 
   await test('routes: public reads and visitor forms need no sign-in; admin api needs a team token', async () => {
@@ -294,6 +312,27 @@ async function run() {
     assert.strictEqual((await post({})).status, 403);
     assert.strictEqual((await post({ secret: 'shh' })).status, 200);
     assert.strictEqual(drained, 1);
+  });
+
+  await test('google form responses: saved straight to the database; repeats and unknown programs are reported', async () => {
+    const t = setup();
+    t.listings.save('programs', '', { title: 'IE', volunteering_available: 'yes', volunteers_needed: '2', status: 'Open', startdate: '2026-11-10' });
+    const row = { event_id: '1', volunteer_name: 'Asha', phone: '919999999999', area_of_stay: 'JP', ie_completion: 'May-2024', volunteer_remarks: 'weekends' };
+    assert.deepStrictEqual(t.ev.receiveFormResponses([row, row, { ...row, event_id: '99', phone: '918888888888' }]), ['added', 'duplicate', 'failed']);
+    const v = t.ev.needs().items[0].volunteers;
+    assert.strictEqual(v.length, 1);
+    assert.deepStrictEqual([v[0].name, v[0].source, v[0].area, v[0].ieCompletion, v[0].remarks], ['Asha', 'google-form', 'JP', 'May-2024', 'weekends']);
+    // the route needs the secret
+    const routes = createVjnRoutes({
+      users: { verify: () => null }, api: t.api, receiveRows: (rows) => t.ev.receiveFormResponses(rows), secret: 'shh',
+      readBody: async (req) => req.body || '',
+      jsonResponse: (res, status, body) => { res.status = status; res.body = body; },
+    });
+    const post = async (body) => { const res = {}; await routes.handle({ method: 'POST', body: JSON.stringify(body), headers: {} }, res, { pathname: '/vjn/internal/form-responses' }); return res; };
+    assert.strictEqual((await post({ rows: [row] })).status, 403);
+    assert.strictEqual((await post({ secret: 'nope', rows: [row] })).status, 403);
+    const ok = await post({ secret: 'shh', rows: [{ ...row, phone: '917777777777', volunteer_name: 'Ravi' }] });
+    assert.deepStrictEqual([ok.status, ok.body.results], [200, ['added']]);
   });
 
   await test('reminders: attendance once per finished program, and the 2-day heads-up once', async () => {

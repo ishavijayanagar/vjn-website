@@ -1,0 +1,126 @@
+/* The campaigns page. Typography carries the hierarchy (size, weight, colour); surfaces stay quiet, with one hairline and a
+   very soft shadow. Uses the tokens and motion values in vol-interests.css and volunteers.css. */
+.cp-wrap { max-width: 1040px; }
+.cp-new { text-decoration: none; flex: none; }
+.cp-new-short { display: none; }
+
+/* summary: three figures in one quiet card */
+.cp-stats { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--panel); border: 1px solid var(--line); border-radius: 1.25rem; box-shadow: var(--shadow-sm); margin-bottom: 1.5rem; }
+.cp-stat { display: flex; flex-direction: column; gap: .25rem; padding: 1.125rem 1.5rem; }
+.cp-stat + .cp-stat { border-left: 1px solid var(--line); }
+.cp-stat-n { font-size: clamp(1.5rem, 1.15rem + 1.2vw, 2rem); line-height: 1.1; letter-spacing: -.025em; color: var(--earth); font-variant-numeric: tabular-nums; }
+.cp-stat-l { font-size: .75rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+
+/* tools */
+.cp-tools { display: flex; align-items: center; justify-content: space-between; gap: .75rem 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.cp-tools .vd-chips { margin-top: 0; }
+.cp-n { margin-left: .375rem; opacity: .7; font-variant-numeric: tabular-nums; }
+.cp-find { display: flex; gap: .625rem; flex: 1; justify-content: flex-end; min-width: 0; }
+.cp-search { flex: 1; max-width: 21rem; }
+.cp-search input { width: 100%; min-height: 2.5rem; }
+.cp-sort select { width: auto; min-height: 2.5rem; padding-top: .5rem; padding-bottom: .5rem; }
+
+/* the list: one card, rows divided by hairlines */
+.cp-head-row, .cp-main { display: grid; grid-template-columns: minmax(0, 1fr) 5rem 9.5rem 9rem 1.5rem; align-items: center; column-gap: 1rem; }
+.cp-head-row { padding: 0 1.25rem .5rem; font-size: .6875rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.cp-list { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 1.25rem; box-shadow: var(--shadow-md); overflow: hidden; }
+.cp-row + .cp-row { border-top: 1px solid var(--line); }
+.cp-row.is-enter { animation: cp-in var(--dur-pop-in) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes cp-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.cp-main { width: 100%; padding: 1rem 1.25rem; background: none; border: 0; text-align: left; cursor: pointer; color: inherit; transition: background var(--dur-press) ease; min-height: 4.25rem; }
+.cp-main:focus-visible { outline: 2px solid var(--gold-dark); outline-offset: -2px; }
+.cp-title { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.cp-name { display: flex; align-items: center; gap: .625rem; min-width: 0; font-size: 1.0625rem; letter-spacing: -.01em; color: var(--ink); }
+.cp-name b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cp-kind { flex: none; font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase; padding: .125rem .5rem; border-radius: 999px; background: var(--soft); color: var(--text-mid); }
+.cp-kind--campaign { background: var(--earth); color: var(--bg); }
+.cp-sub { color: var(--muted); font-size: .875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-num { font-variant-numeric: tabular-nums; color: var(--ink); }
+.cp-made { display: flex; flex-direction: column; font-size: .875rem; color: var(--ink); }
+.cp-made small { color: var(--muted); font-size: .8125rem; }
+.cp-chev { color: var(--muted); transition: transform var(--dur-move) var(--ease-in-out); }
+.cp-row.is-open .cp-chev { transform: rotate(180deg); }
+
+/* callers as overlapping initials */
+.cp-avatars { display: flex; align-items: center; }
+.cp-av { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; border: 2px solid var(--panel); margin-left: -.5rem; color: #fff; font-size: .75rem; }
+.cp-av:first-child { margin-left: 0; }
+.cp-av--more { background: var(--soft); color: var(--text-mid); }
+.cp-none { color: var(--muted); }
+
+/* the details open under the row (a grid track grows; no height is animated) */
+.cp-expand { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-move) var(--ease-in-out); background: #faf7f1; }
+.cp-row.is-open .cp-expand { grid-template-rows: 1fr; }
+.cp-expand-inner { min-height: 0; overflow: hidden; }
+.cp-detail { padding: .25rem 1.25rem 1.25rem; display: grid; gap: 1.25rem; }
+.cp-sec h3 { margin: 0 0 .5rem; font-size: .6875rem; font-weight: 400; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.cp-pills { display: flex; flex-wrap: wrap; gap: .375rem; }
+.cp-pill { border-radius: 999px; padding: .1875rem .625rem; font-size: .8125rem; background: var(--panel); border: 1px solid var(--line); color: var(--text-mid); }
+.cp-share { display: grid; gap: .625rem; }
+.cp-share-row { display: grid; grid-template-columns: 1.75rem 7rem 1fr auto; align-items: center; gap: .75rem; font-size: .9rem; }
+.cp-share-row .cp-av { margin: 0; }
+.cp-bar { height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.cp-bar i { display: block; height: 100%; border-radius: 3px; transform-origin: left; }
+.cp-share-row b { font-weight: 400; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cp-actions { display: flex; gap: .625rem; flex-wrap: wrap; }
+.cp-actions .vi-btn { text-decoration: none; }
+
+/* empty */
+.cp-empty { display: flex; flex-direction: column; align-items: center; gap: .875rem; padding: 3.5rem 1.5rem; text-align: center; color: var(--muted); }
+.cp-empty-ico { color: var(--gold-dark); }
+.cp-empty h2 { font-size: 1.25rem; color: var(--earth); letter-spacing: -.015em; }
+.cp-empty p { margin: 0; max-width: 24rem; }
+.cp-empty .vi-btn { text-decoration: none; }
+
+/* skeleton rows share the real layout, so nothing jumps when the list arrives */
+.cp-row.vd-skel .cp-main { cursor: default; }
+.cp-row.vd-skel i { display: block; height: .75rem; border-radius: .375rem; background: var(--soft); animation: vd-pulse 1.4s ease-in-out infinite; }
+
+@media (hover: hover) and (pointer: fine) { .cp-main:hover { background: #faf7f1; } }
+
+@media (max-width: 860px) {
+  .cp-head-row, .cp-main { grid-template-columns: minmax(0, 1fr) 4.5rem 8rem 1.5rem; }
+  .cp-head-row span:nth-child(4), .cp-main > .cp-made { display: none; }
+}
+
+@media (max-width: 700px) {
+  .cp-wrap { padding-bottom: calc(3rem + env(safe-area-inset-bottom)); overflow-x: clip; }
+  .cp-new { padding: .5rem 1rem; }
+  .cp-stat { padding: .875rem .875rem; min-width: 0; }
+  .cp-stat-l { font-size: .6875rem; letter-spacing: .05em; line-height: 1.3; }
+  .cp-tools, .cp-find { flex-direction: column; align-items: stretch; }
+  .cp-search { max-width: none; }
+  .cp-sort select { width: 100%; }
+  .cp-head-row { display: none; }
+  /* a row becomes a small card: the name over its summary, then people, callers and date on one line */
+  .cp-main { grid-template-columns: auto auto 1fr auto; grid-template-areas: "title title title chev" "people callers made made"; row-gap: .75rem; column-gap: 1rem; padding: 1rem; }
+  .cp-title { grid-area: title; }
+  .cp-chev { grid-area: chev; }
+  .cp-num { grid-area: people; }
+  .cp-callers { grid-area: callers; }
+  .cp-main > .cp-made { display: flex; grid-area: made; flex-direction: row; align-items: baseline; justify-content: flex-end; gap: .5rem; min-width: 0; text-align: right; }
+  .cp-num::after { content: " people"; color: var(--muted); }
+  .cp-sub { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .cp-share-row { grid-template-columns: 1.75rem 5rem 1fr auto; }
+  .cp-actions .vi-btn { flex: 1; min-height: 2.875rem; }
+  #cpToast { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 480px) {
+  .cp-new-long { display: none; }
+  .cp-new-short { display: inline; }
+  .cp-stats { border-radius: 1rem; }
+  .cp-share-row { grid-template-columns: 1.75rem 4.5rem 1fr 1.5rem; gap: .5rem; font-size: .875rem; }
+}
+
+/* Open / Closed tag and the close-campaign confirmation */
+.cp-state { font-size: .6875rem; font-weight: 600; letter-spacing: .02em; padding: .125rem .5rem; border-radius: 999px; margin-left: .375rem; }
+.cp-state--open { background: #e6eedf; color: #3f5a33; }
+.cp-state--closed { background: #ece6d8; color: #5f4634; }
+.cp-close-btn { color: #8a4d16; }
+.cp-confirm { margin-top: .75rem; padding: .875rem 1rem; border: 1px solid #e4dccb; border-radius: .75rem; background: #faf7f2; }
+.cp-confirm-text { margin: 0 0 .75rem; color: #4a3527; font-size: .9375rem; }
+.cp-confirm-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.cp-working { margin: .75rem 0 0; color: #5f4634; font-size: .9375rem; }
+.cp-closed { margin-top: .75rem; color: #5f4634; font-size: .875rem; }
