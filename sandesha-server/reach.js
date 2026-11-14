@@ -138,6 +138,11 @@ function load() {
       if (raw && typeof raw.messages === 'object') store = raw;
     } catch { /* start empty */ }
   }
+  // Posts still being measured that never got numbers (the old lookup missed them): look again soon.
+  const soon = Date.now() + 60 * 1000;
+  for (const r of Object.values(store.messages)) {
+    if (r.status !== 'final' && r.infoMissing && !r.delivered) r.earlyCheckAt = Math.min(r.earlyCheckAt || Infinity, soon);
+  }
   reindex();
   return store;
 }
@@ -203,8 +208,9 @@ function save(now = false) {
 function keyOf(id) {
   if (!id) return '';
   if (typeof id === 'object') return String(id.id || keyOf(id._serialized) || '');
+  // fromMe_chat_id, or fromMe_chat_id_participant (WhatsApp now adds who sent it): the third part is the id.
   const parts = String(id).split('_');
-  return parts.length >= 3 ? parts.slice(2).join('_') : String(id);
+  return parts.length >= 3 ? parts[2] : String(id);
 }
 
 function serializedOf(id) {
@@ -359,7 +365,7 @@ function delay(ms) {
 
 function onAck(msg, ack) {
   try {
-    const rec = store?.messages[serializedOf(msg?.id)];
+    const rec = store?.messages[serializedOf(msg?.id)] || store?.messages[byKey.get(keyOf(msg?.id))];
     if (!rec) return;
     const level = Number(ack) || 0;
     if (level <= rec.ack) return;
@@ -459,13 +465,65 @@ async function tick() {
   }
 }
 
+/**
+ * WhatsApp's "Message info" for one of our messages. WhatsApp Web now files our own group messages
+ * under a four-part id that ends with our account (…_<id>_<me>@lid), so the library's lookups by the
+ * three-part id find nothing. Try the id as stored, then with our LID / phone id added, then a search by
+ * the short id, then WhatsApp's local storage. Entries come back as plain { id, t } so they survive
+ * the trip out of the browser.
+ */
+async function fetchInfo(client, rec) {
+  if (!client || !client.pupPage) {
+    const msg = await withTimeout(client.getMessageById(rec.id), INFO_TIMEOUT_MS);
+    return msg ? withTimeout(msg.getInfo(), INFO_TIMEOUT_MS) : null;
+  }
+  return withTimeout(client.pupPage.evaluate(async (id, shortId) => {
+    const C = window.require('WAWebCollections');
+    let mine = [];
+    try {
+      const me = window.require('WAWebUserPrefsMeUser');
+      mine = [me.getMaybeMeLidUser && me.getMaybeMeLidUser(), me.getMaybeMeUser && me.getMaybeMeUser()]
+        .filter(Boolean).map(String);
+    } catch (e) { /* older WhatsApp Web: the plain id is enough */ }
+    const candidates = [id, ...mine.map((u) => `${id}_${u}`)];
+    let m = null;
+    for (const c of candidates) {
+      m = C.Msg.get(c);
+      if (m) break;
+    }
+    if (!m) {
+      const all = C.Msg.getModelsArray ? C.Msg.getModelsArray() : (C.Msg.models || []);
+      m = all.find((x) => x && x.id && x.id.fromMe && x.id.id === shortId) || null;
+    }
+    if (!m) {
+      for (const c of candidates) {
+        try {
+          const o = await C.Msg.getMessagesById([c]);
+          m = (o && o.messages && o.messages[0]) || null;
+        } catch (e) { m = null; }
+        if (m) break;
+      }
+    }
+    if (!m || !m.id || !m.id.fromMe) return null;
+    const info = await window.require('WAWebApiMessageInfoStore').queryMsgInfo(m.id);
+    if (!info) return null;
+    const list = (l) => (Array.isArray(l) ? l : []).map((e) => ({ id: String(e.id), t: e.t }));
+    return {
+      delivery: list(info.delivery), read: list(info.read), played: list(info.played),
+      deliveryRemaining: info.deliveryRemaining, readRemaining: info.readRemaining, playedRemaining: info.playedRemaining,
+    };
+  }, rec.id, keyOf(rec.id)), INFO_TIMEOUT_MS);
+}
+
 async function checkOne(client, rec) {
   const now = Date.now();
   try {
     if (!rec.chatName || (rec.isGroup && !rec.audience)) await fillChatDetails(rec).catch(() => {});
-    const msg = await withTimeout(client.getMessageById(rec.id), INFO_TIMEOUT_MS);
-    const info = msg ? await withTimeout(msg.getInfo(), INFO_TIMEOUT_MS) : null;
-    if (info) applyInfo(rec, info);
+    const info = await fetchInfo(client, rec);
+    if (info) {
+      applyInfo(rec, info);
+      rec.infoMissing = 0;
+    }
     else if (rec.isGroup) rec.infoMissing = (rec.infoMissing || 0) + 1;
     rec.lastCheckedAt = now;
   } catch (err) {
@@ -488,9 +546,11 @@ async function checkEarly(client, rec) {
   rec.earlyCheckAt = now < nextFixed && !rec.earlySecondDone ? nextFixed : null;
   if (rec.earlyCheckAt) rec.earlySecondDone = true;
   try {
-    const msg = await withTimeout(client.getMessageById(rec.id), INFO_TIMEOUT_MS);
-    const info = msg ? await withTimeout(msg.getInfo(), INFO_TIMEOUT_MS) : null;
-    if (info) applyInfo(rec, info);
+    const info = await fetchInfo(client, rec);
+    if (info) {
+      applyInfo(rec, info);
+      rec.infoMissing = 0;
+    }
     rec.lastCheckedAt = now;
   } catch (err) {
     // Not worth counting: the regular checks will try again.
