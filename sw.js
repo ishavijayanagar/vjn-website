@@ -1,4 +1,4 @@
-const CACHE_NAME = "isha-vjn-v196";
+const CACHE_NAME = "isha-vjn-v198";
 // Only unversioned files here: pages ask for "style.css?v=…" and each of
 // those is cached the first time it is fetched (see the fetch handler).
 const PRECACHE = [
@@ -220,6 +220,8 @@ self.addEventListener("fetch", function (event) {
   if (/^(localhost|127\.0\.0\.1|192\.168\.|10\.|100\.)/.test(url.hostname)) return;
 
   var isNavigation = event.request.mode === "navigate" || event.request.destination === "document";
-  event.respondWith(isNavigation ? networkFirst(event) : staleWhileRevalidate(event));
+  // Scripts and styles are network first too, so every open runs the latest code.
+  var isCode = event.request.destination === "script" || event.request.destination === "style";
+  event.respondWith(isNavigation || isCode ? networkFirst(event) : staleWhileRevalidate(event));
 });
 
