@@ -2331,6 +2331,16 @@
     });
   }
 
+  /** Most recent first, by end date then start date. */
+  function newestFirst(list) {
+    const key = function (it) {
+      return parseToInputDate(it.enddate || it.startdate || it.date) + " " + parseToInputDate(it.startdate || it.date);
+    };
+    return list.slice().sort(function (a, b) {
+      return key(b).localeCompare(key(a));
+    });
+  }
+
   function renderList() {
     if (oppActive()) {
       oppRender();
@@ -2340,9 +2350,9 @@
     const kind = currentResource === "programs" ? "programs" : "volunteering events";
     updateEventsOpenBadge();
     const openItems = items.filter(isListingOpen);
-    const closedItems = items.filter(function (item) {
+    const closedItems = newestFirst(items.filter(function (item) {
       return !isListingOpen(item);
-    });
+    }));
     updateListingFilterLabels(openItems.length, closedItems.length);
     if (!items.length) {
       host.innerHTML =
@@ -3168,7 +3178,7 @@
       });
     });
     const open = searched.filter(isListingOpen);
-    const closed = searched.filter(function (it) { return !isListingOpen(it); });
+    const closed = newestFirst(searched.filter(function (it) { return !isListingOpen(it); }));
     if ($("oppCountOpen")) $("oppCountOpen").textContent = open.length;
     if ($("oppCountClosed")) $("oppCountClosed").textContent = closed.length;
     if ($("oppCountAll")) $("oppCountAll").textContent = searched.length;
