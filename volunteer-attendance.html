@@ -633,7 +633,7 @@
       const state = document.getElementById('attendanceState');
       const form = document.getElementById('attendanceForm');
       try {
-        const res = { json: () => vjnPublic.get('programs') };
+        const res = { json: () => vjnPublic.get('runningPrograms', '', { fresh: true }) };
         const data = await res.json();
         openPrograms = data.items || [];
         const today = istToday();

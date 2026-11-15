@@ -255,6 +255,17 @@ function createListings({ db, evCounts = () => ({}), onChange = () => {}, now = 
     return { items };
   }
 
+  /** Programs whose dates cover today (IST), open or already auto-closed at their start. */
+  function running() {
+    const today = kolkataParts(now()).ymd;
+    const items = list('programs', { includeHidden: true }).items.filter((it) => {
+      const start = clean(it.startdate);
+      const end = clean(it.enddate) || start;
+      return !!start && start <= today && today <= end;
+    });
+    return { items };
+  }
+
   function get(resource, id, { includeHidden = false } = {}) {
     resourceOf(resource);
     autoClose(resource);
@@ -325,7 +336,7 @@ function createListings({ db, evCounts = () => ({}), onChange = () => {}, now = 
     return added;
   }
 
-  return { list, get, save, remove, clearClosed, importRows, enrich, readRows, count: (r) => q.maxId.get(r).n };
+  return { list, running, get, save, remove, clearClosed, importRows, enrich, readRows, count: (r) => q.maxId.get(r).n };
 }
 
 module.exports = { createListings, toYmd, toHm, parseFirstSlot, HEADERS };

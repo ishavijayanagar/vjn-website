@@ -186,6 +186,7 @@ function createVjnApi({ listings, content, inquiries, ev, volInterests = null, v
   function publicGet(type, id) {
     if (!ready()) return undefined;
     if (type === 'site') return content.site();
+    if (type === 'runningPrograms') return listings.running();
     if (type === 'programs' || type === 'volunteering') {
       return id ? listings.get(type, id, { includeHidden: false }) : listings.list(type, { includeHidden: false });
     }
