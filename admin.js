@@ -2341,6 +2341,8 @@
     });
   }
 
+  let eventsQuery = "";
+
   function renderList() {
     if (oppActive()) {
       oppRender();
@@ -2349,8 +2351,14 @@
     const host = $("itemList");
     const kind = currentResource === "programs" ? "programs" : "volunteering events";
     updateEventsOpenBadge();
-    const openItems = items.filter(isListingOpen);
-    const closedItems = newestFirst(items.filter(function (item) {
+    const sq = eventsQuery.trim().toLowerCase();
+    const searched = !sq ? items : items.filter(function (it) {
+      return [it.title, it.location, listingDateLabel(it)].some(function (h) {
+        return String(h || "").toLowerCase().indexOf(sq) >= 0;
+      });
+    });
+    const openItems = searched.filter(isListingOpen);
+    const closedItems = newestFirst(searched.filter(function (item) {
       return !isListingOpen(item);
     }));
     updateListingFilterLabels(openItems.length, closedItems.length);
@@ -2360,7 +2368,7 @@
       setStatus("");
       return;
     }
-    let filtered = items;
+    let filtered = searched;
     if (listingFilter === "open") filtered = openItems;
     else if (listingFilter === "closed") filtered = closedItems;
 
@@ -2489,6 +2497,7 @@
     }
     show($("itemList"), true);
     show($("eventsStatusFilters"), true);
+    show($("eventsSearchWrap"), true);
     show($("volunteerNeedsList"), false);
     loadList();
     loadProgramTitles();
@@ -2881,6 +2890,7 @@
     const showNeeds = volunteerView === "needs";
     show($("itemList"), !showNeeds);
     show($("eventsStatusFilters"), !showNeeds);
+    show($("eventsSearchWrap"), !showNeeds);
     show($("volunteerNeedsList"), showNeeds);
     if ($("addItemBtn")) $("addItemBtn").classList.toggle("hidden", showNeeds);
     if (showNeeds) loadVolunteerNeeds();
@@ -11939,6 +11949,12 @@ panels +
         openEditor(null);
       });
       $("oppPushBtn").addEventListener("click", toggleVolunteerPush);
+      if ($("eventsSearchInput")) {
+        $("eventsSearchInput").addEventListener("input", function () {
+          eventsQuery = this.value;
+          renderList();
+        });
+      }
       $("oppSearchInput").addEventListener("input", function () {
         oppQuery = this.value;
         oppRender();
