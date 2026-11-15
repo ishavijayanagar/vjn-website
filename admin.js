@@ -3368,9 +3368,19 @@
     return String(s || "").replace(/\D/g, "").slice(-10);
   }
 
+  /** Marking opens on the program's start date (even while it is still open) and stays open after it closes. */
+  function vatCanMark(item) {
+    if (!item.open) return true;
+    const start = parseToInputDate(item.startdate || item["start date"] || item.date);
+    if (!start) return false;
+    const d = new Date();
+    const today = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    return start <= today;
+  }
+
   function vatPrograms() {
     return volunteerNeeds.filter(function (it) {
-      return !it.open && (it.volunteers || []).length > 0;
+      return vatCanMark(it);
     });
   }
 
@@ -3830,7 +3840,7 @@
       show(notesEl, !!requirements);
     }
     // Closed programs with people on the roster can go straight to marking.
-    show($("vpdAttendBtn"), role() === "nurturing" && !item.open && (item.volunteers || []).length > 0);
+    show($("vpdAttendBtn"), role() === "nurturing" && vatCanMark(item));
 
     // Generate form: pre-check fields that are already on this program's form
     const existing = item.formFields || [];
