@@ -331,8 +331,8 @@
       // A long, deliberate hold: nothing shows for the first part, so a stray
       // touch or a short press looks like nothing happened; then a line fills
       // along the bottom until it opens.
-      var holdMs = 2200;
-      var showAfterMs = 700;
+      var holdMs = 1200;
+      var showAfterMs = 400;
       var openedAdmin = false;
       adminHold.style.setProperty("--hold-fill", holdMs - showAfterMs + "ms");
 

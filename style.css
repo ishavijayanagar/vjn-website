@@ -439,7 +439,8 @@ html.nav-open .mobile-menu {
 .mobile-menu-footer {
   position: relative;
   margin-top: auto;
-  padding-top: var(--space-7);
+  padding: var(--space-7) 0 var(--space-6);
+  min-height: 72px;
   font-size: 0.78rem;
   color: rgba(245, 240, 232, 0.45);
   letter-spacing: 0.04em;
@@ -459,7 +460,7 @@ html.nav-open .mobile-menu {
   content: "";
   position: absolute;
   left: 0;
-  bottom: -8px;
+  bottom: 12px;
   height: 2px;
   width: 0;
   border-radius: 1px;
