@@ -365,7 +365,12 @@
           openedAdmin = true;
           clearSelection();
           if (navigator.vibrate) navigator.vibrate(30);
-          window.location.href = "admin.html";
+          var flash = document.createElement("div");
+          flash.className = "admin-flash";
+          document.body.appendChild(flash);
+          setTimeout(function () {
+            window.location.href = "admin.html";
+          }, 240);
         }, holdMs);
       }
 

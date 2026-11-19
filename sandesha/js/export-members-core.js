@@ -34,6 +34,10 @@ export function mountExportMembers(container, { getGroups, exportMembers }) {
   let running = false;
   let result = null;            // { groups, members } from the last run
 
+  const norm = (v) => String(v || '')
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+
   const $ = (sel) => container.querySelector(sel);
 
   async function render() {
@@ -60,7 +64,6 @@ export function mountExportMembers(container, { getGroups, exportMembers }) {
     container.innerHTML = `
       <div class="ex-root">
         <div class="ex-card">
-          <p class="ex-hint">Pick one or more groups. Every member goes into a single CSV (name, phone, group, admin).</p>
           <input type="search" id="ex-search" class="ex-search" placeholder="Search groups…" autocomplete="off" value="${esc(searchQ)}">
           <div class="ex-toolbar">
             <span class="ex-count" id="ex-count"></span>
@@ -74,7 +77,7 @@ export function mountExportMembers(container, { getGroups, exportMembers }) {
         <div class="ex-card">
           <label class="ex-option">
             <input type="checkbox" id="ex-dedupe" ${dedupe ? 'checked' : ''}>
-            <span>One row per person <span class="ex-hint">(people in several groups are merged; the Groups column lists them all)</span></span>
+            <span>One row per person</span>
           </label>
           <button type="button" class="ex-btn" id="ex-run"></button>
           <div id="ex-status" class="ex-status" role="status" aria-live="polite"></div>
@@ -106,8 +109,14 @@ export function mountExportMembers(container, { getGroups, exportMembers }) {
   }
 
   function shownGroups() {
-    const q = searchQ.trim().toLowerCase();
-    return q ? groups.filter((g) => (g.name || '').toLowerCase().includes(q)) : groups;
+    // Every typed word must appear somewhere in the name, ignoring case, accents,
+    // emoji and punctuation, so "vjn  yoga" finds "VJN – Yoga 🧘 Batch".
+    const tokens = norm(searchQ).split(' ').filter(Boolean);
+    if (!tokens.length) return groups;
+    return groups.filter((g) => {
+      const name = norm(g.name);
+      return tokens.every((t) => name.includes(t));
+    });
   }
 
   function paintList() {
@@ -261,7 +270,7 @@ function csvFilename(res) {
   const date = new Date().toISOString().slice(0, 10);
   const ok = res.groups.filter((g) => !g.error);
   const base = ok.length === 1
-    ? ok[0].name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'group'
+    ? ok[0].name.replace(/[^\p{L}\p{M}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'group'
     : `${ok.length}-groups`;
   return `whatsapp-members-${base}-${date}.csv`;
 }

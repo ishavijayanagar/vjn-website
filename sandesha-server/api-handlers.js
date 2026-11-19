@@ -351,7 +351,8 @@ function createApiHandlers(deps) {
    * list take minutes on a Pi. Audience pickers and the activity log use this.
    */
   async function getGroupsBrief() {
-    if (groupsCache.data) {
+    // Only a fresh enriched list is reused; an older one may miss new groups.
+    if (groupsCache.data && Date.now() - groupsCache.at < 60 * 1000) {
       return groupsCache.data.map((g) => ({
         name: g.name,
         jid: g.jid,
